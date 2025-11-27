@@ -23,7 +23,11 @@ export {
 } from "./tools";
 
 // State/workflow tool factories
-export { createTodoWriteTool, createExitPlanModeTool, createTaskTool } from "./tools";
+export {
+  createTodoWriteTool,
+  createExitPlanModeTool,
+  createTaskTool,
+} from "./tools";
 
 // Sandbox tool output types
 export type {
@@ -46,6 +50,9 @@ export type {
   GrepMatch,
   GrepError,
 } from "./tools";
+
+// Middleware
+export { anthropicPromptCacheMiddleware } from "./middleware";
 
 // State/workflow tool types
 export type {

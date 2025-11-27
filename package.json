@@ -11,6 +11,7 @@
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
+    "@ai-sdk/anthropic": "^2.0.50",
     "@types/bun": "latest",
     "@types/node": "^24.10.0",
     "typescript": "^5.9.3"
