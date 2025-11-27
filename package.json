@@ -16,6 +16,7 @@
     "typescript": "^5.9.3"
   },
   "dependencies": {
+    "@vercel/sandbox": "^1.0.4",
     "ai": "^5.0.89",
     "zod": "^4.1.12"
   }
