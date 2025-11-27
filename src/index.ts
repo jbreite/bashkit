@@ -12,7 +12,7 @@ export type { Sandbox, ExecOptions, ExecResult } from "./sandbox/interface";
 export type { AgentConfig, ToolConfig } from "./types";
 export { DEFAULT_CONFIG } from "./types";
 
-// Individual tool factories
+// Sandbox-based tool factories
 export {
   createBashTool,
   createReadTool,
@@ -22,7 +22,10 @@ export {
   createGrepTool,
 } from "./tools";
 
-// Tool output types
+// State/workflow tool factories
+export { createTodoWriteTool, createExitPlanModeTool, createTaskTool } from "./tools";
+
+// Sandbox tool output types
 export type {
   BashOutput,
   BashError,
@@ -42,4 +45,18 @@ export type {
   GrepCountOutput,
   GrepMatch,
   GrepError,
+} from "./tools";
+
+// State/workflow tool types
+export type {
+  TodoItem,
+  TodoState,
+  TodoWriteOutput,
+  TodoWriteError,
+  ExitPlanModeOutput,
+  ExitPlanModeError,
+  TaskOutput,
+  TaskError,
+  TaskToolConfig,
+  SubagentTypeConfig,
 } from "./tools";

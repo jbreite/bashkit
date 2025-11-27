@@ -12,6 +12,9 @@ import { createGrepTool } from "./grep";
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnyTool = Tool<any, any>;
 
+/**
+ * Creates sandbox-based agent tools (Bash, Read, Write, Edit, Glob, Grep)
+ */
 export function createAgentTools(
   sandbox: Sandbox,
   config?: AgentConfig
@@ -48,6 +51,7 @@ export function createAgentTools(
   return tools;
 }
 
+// Sandbox-based tool factories
 export { createBashTool } from "./bash";
 export { createReadTool } from "./read";
 export { createWriteTool } from "./write";
@@ -55,6 +59,12 @@ export { createEditTool } from "./edit";
 export { createGlobTool } from "./glob";
 export { createGrepTool } from "./grep";
 
+// State/workflow tool factories (not sandbox-based)
+export { createTodoWriteTool } from "./todo-write";
+export { createExitPlanModeTool } from "./exit-plan-mode";
+export { createTaskTool } from "./task";
+
+// Sandbox tool output types
 export type { BashOutput, BashError } from "./bash";
 export type {
   ReadOutput,
@@ -73,3 +83,18 @@ export type {
   GrepMatch,
   GrepError,
 } from "./grep";
+
+// State/workflow tool types
+export type {
+  TodoItem,
+  TodoState,
+  TodoWriteOutput,
+  TodoWriteError,
+} from "./todo-write";
+export type { ExitPlanModeOutput, ExitPlanModeError } from "./exit-plan-mode";
+export type {
+  TaskOutput,
+  TaskError,
+  TaskToolConfig,
+  SubagentTypeConfig,
+} from "./task";
