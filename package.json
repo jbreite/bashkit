@@ -12,6 +12,7 @@
   },
   "devDependencies": {
     "@ai-sdk/anthropic": "^2.0.50",
+    "@e2b/code-interpreter": "^1.0.0",
     "@types/bun": "latest",
     "@types/node": "^24.10.0",
     "typescript": "^5.9.3"
@@ -20,5 +21,13 @@
     "@vercel/sandbox": "^1.0.4",
     "ai": "^5.0.89",
     "zod": "^4.1.12"
+  },
+  "peerDependencies": {
+    "@e2b/code-interpreter": ""
+  },
+  "peerDependenciesMeta": {
+    "@e2b/code-interpreter": {
+      "optional": true
+    }
   }
 }
