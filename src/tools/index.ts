@@ -1,4 +1,4 @@
-import type { Tool } from "ai";
+import type { ToolSet } from "ai";
 import type { Sandbox } from "../sandbox/interface";
 import type { AgentConfig } from "../types";
 import { DEFAULT_CONFIG } from "../types";
@@ -9,49 +9,30 @@ import { createEditTool } from "./edit";
 import { createGlobTool } from "./glob";
 import { createGrepTool } from "./grep";
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type AnyTool = Tool<any, any>;
-
 /**
- * Creates sandbox-based agent tools (Bash, Read, Write, Edit, Glob, Grep)
+ * Creates all sandbox-based agent tools for AI SDK's generateText/streamText.
+ * Returns an object with Bash, Read, Write, Edit, Glob, Grep tools.
+ *
+ * @param sandbox - The sandbox to execute commands in
+ * @param config - Optional configuration for individual tools
  */
-export function createAgentTools(
-  sandbox: Sandbox,
-  config?: AgentConfig
-): Record<string, AnyTool> {
-  const mergedConfig: AgentConfig = {
-    ...DEFAULT_CONFIG,
-    ...config,
-    tools: {
-      ...DEFAULT_CONFIG.tools,
-      ...config?.tools,
-    },
+export function createAgentTools(sandbox: Sandbox, config?: AgentConfig): ToolSet {
+  const toolsConfig = {
+    ...DEFAULT_CONFIG.tools,
+    ...config?.tools,
   };
 
-  const tools: Record<string, AnyTool> = {};
-
-  const bashTool = createBashTool(sandbox, mergedConfig.tools?.Bash);
-  if (bashTool) tools.Bash = bashTool;
-
-  const readTool = createReadTool(sandbox, mergedConfig.tools?.Read);
-  if (readTool) tools.Read = readTool;
-
-  const writeTool = createWriteTool(sandbox, mergedConfig.tools?.Write);
-  if (writeTool) tools.Write = writeTool;
-
-  const editTool = createEditTool(sandbox, mergedConfig.tools?.Edit);
-  if (editTool) tools.Edit = editTool;
-
-  const globTool = createGlobTool(sandbox, mergedConfig.tools?.Glob);
-  if (globTool) tools.Glob = globTool;
-
-  const grepTool = createGrepTool(sandbox, mergedConfig.tools?.Grep);
-  if (grepTool) tools.Grep = grepTool;
-
-  return tools;
+  return {
+    Bash: createBashTool(sandbox, toolsConfig.Bash),
+    Read: createReadTool(sandbox, toolsConfig.Read),
+    Write: createWriteTool(sandbox, toolsConfig.Write),
+    Edit: createEditTool(sandbox, toolsConfig.Edit),
+    Glob: createGlobTool(sandbox, toolsConfig.Glob),
+    Grep: createGrepTool(sandbox, toolsConfig.Grep),
+  };
 }
 
-// Sandbox-based tool factories
+// Sandbox-based tool factories (for custom configurations)
 export { createBashTool } from "./bash";
 export { createReadTool } from "./read";
 export { createWriteTool } from "./write";

@@ -30,8 +30,6 @@ const editInputSchema = z.object({
 type EditInput = z.infer<typeof editInputSchema>;
 
 export function createEditTool(sandbox: Sandbox, config?: ToolConfig) {
-  if (config?.enabled === false) return null;
-
   return tool({
     description: "Performs exact string replacements in files.",
     inputSchema: zodSchema(editInputSchema),

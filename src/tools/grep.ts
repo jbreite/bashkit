@@ -72,8 +72,6 @@ const grepInputSchema = z.object({
 type GrepInput = z.infer<typeof grepInputSchema>;
 
 export function createGrepTool(sandbox: Sandbox, config?: ToolConfig) {
-  if (config?.enabled === false) return null;
-
   return tool({
     description:
       "Powerful search tool built on ripgrep with regex support. Use this instead of the grep command.",

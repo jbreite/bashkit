@@ -50,37 +50,37 @@ export function createLocalSandbox(config: LocalSandboxConfig = {}): Sandbox {
   return {
     exec,
 
-    async readFile(path: string): Promise<string> {
-      const file = Bun.file(path);
-      return await file.text();
+  async readFile(path: string): Promise<string> {
+    const file = Bun.file(path);
+    return await file.text();
     },
 
-    async writeFile(path: string, content: string): Promise<void> {
-      await Bun.write(path, content);
+  async writeFile(path: string, content: string): Promise<void> {
+    await Bun.write(path, content);
     },
 
-    async readDir(path: string): Promise<string[]> {
-      const fs = await import("fs/promises");
-      return await fs.readdir(path);
+  async readDir(path: string): Promise<string[]> {
+    const fs = await import("fs/promises");
+    return await fs.readdir(path);
     },
 
-    async fileExists(path: string): Promise<boolean> {
-      const file = Bun.file(path);
-      return await file.exists();
+  async fileExists(path: string): Promise<boolean> {
+    const file = Bun.file(path);
+    return await file.exists();
     },
 
-    async isDirectory(path: string): Promise<boolean> {
-      const fs = await import("fs/promises");
-      try {
-        const stat = await fs.stat(path);
-        return stat.isDirectory();
-      } catch {
-        return false;
-      }
+  async isDirectory(path: string): Promise<boolean> {
+    const fs = await import("fs/promises");
+    try {
+      const stat = await fs.stat(path);
+      return stat.isDirectory();
+    } catch {
+      return false;
+    }
     },
 
-    async destroy(): Promise<void> {
-      // No cleanup needed for local sandbox
+  async destroy(): Promise<void> {
+    // No cleanup needed for local sandbox
     },
   };
 }

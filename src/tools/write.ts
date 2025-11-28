@@ -21,8 +21,6 @@ const writeInputSchema = z.object({
 type WriteInput = z.infer<typeof writeInputSchema>;
 
 export function createWriteTool(sandbox: Sandbox, config?: ToolConfig) {
-  if (config?.enabled === false) return null;
-
   return tool({
     description:
       "Write content to a file. Creates the file if it does not exist, overwrites if it does.",

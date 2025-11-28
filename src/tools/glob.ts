@@ -28,8 +28,6 @@ const globInputSchema = z.object({
 type GlobInput = z.infer<typeof globInputSchema>;
 
 export function createGlobTool(sandbox: Sandbox, config?: ToolConfig) {
-  if (config?.enabled === false) return null;
-
   return tool({
     description:
       "Search for files matching a glob pattern. Returns file paths sorted by modification time. Use this instead of `find` command.",

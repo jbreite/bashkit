@@ -34,8 +34,6 @@ const readInputSchema = z.object({
 type ReadInput = z.infer<typeof readInputSchema>;
 
 export function createReadTool(sandbox: Sandbox, config?: ToolConfig) {
-  if (config?.enabled === false) return null;
-
   return tool({
     description:
       "Read the contents of a file or list directory entries. For text files, returns numbered lines with total line count. For directories, returns file/folder names. Use this instead of `cat`, `head`, or `tail` commands.",

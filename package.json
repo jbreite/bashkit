@@ -19,7 +19,7 @@
   "scripts": {
     "dev": "bun run src/index.ts",
     "build": "bun run build:js && bun run build:types",
-    "build:js": "bun build src/index.ts --outdir dist --target node --format esm",
+    "build:js": "bun build src/index.ts --outdir dist --target node --format esm --external ai --external zod --external @ai-sdk/* --external @vercel/sandbox --external @e2b/code-interpreter",
     "build:types": "tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit",
     "prepublishOnly": "bun run build"
@@ -50,7 +50,7 @@
   },
   "peerDependencies": {
     "ai": "^5.0.0",
-    "zod": "^4.0.0",
+    "zod": "^4.1.8",
     "@vercel/sandbox": "^1.0.0",
     "@e2b/code-interpreter": "^1.0.0"
   },

@@ -105,54 +105,54 @@ export function createVercelSandbox(config: VercelSandboxConfig = {}): Sandbox {
   return {
     exec,
 
-    async readFile(path: string): Promise<string> {
+  async readFile(path: string): Promise<string> {
       const sbx = await ensureSandbox();
       const stream = await sbx.readFile({ path });
 
-      if (!stream) {
-        throw new Error(`File not found: ${path}`);
-      }
+    if (!stream) {
+      throw new Error(`File not found: ${path}`);
+    }
 
-      const chunks: Buffer[] = [];
-      for await (const chunk of stream) {
-        chunks.push(Buffer.from(chunk));
-      }
-      return Buffer.concat(chunks).toString("utf-8");
+    const chunks: Buffer[] = [];
+    for await (const chunk of stream) {
+      chunks.push(Buffer.from(chunk));
+    }
+    return Buffer.concat(chunks).toString("utf-8");
     },
 
-    async writeFile(path: string, content: string): Promise<void> {
+  async writeFile(path: string, content: string): Promise<void> {
       const sbx = await ensureSandbox();
       await sbx.writeFiles([
-        {
-          path,
-          content: Buffer.from(content, "utf-8"),
-        },
-      ]);
+      {
+        path,
+        content: Buffer.from(content, "utf-8"),
+      },
+    ]);
     },
 
-    async readDir(path: string): Promise<string[]> {
+  async readDir(path: string): Promise<string[]> {
       const result = await exec(`ls -1 ${path}`);
-      if (result.exitCode !== 0) {
-        throw new Error(`Failed to read directory: ${result.stderr}`);
-      }
-      return result.stdout.split("\n").filter(Boolean);
+    if (result.exitCode !== 0) {
+      throw new Error(`Failed to read directory: ${result.stderr}`);
+    }
+    return result.stdout.split("\n").filter(Boolean);
     },
 
-    async fileExists(path: string): Promise<boolean> {
+  async fileExists(path: string): Promise<boolean> {
       const result = await exec(`test -e ${path}`);
-      return result.exitCode === 0;
+    return result.exitCode === 0;
     },
 
-    async isDirectory(path: string): Promise<boolean> {
+  async isDirectory(path: string): Promise<boolean> {
       const result = await exec(`test -d ${path}`);
-      return result.exitCode === 0;
+    return result.exitCode === 0;
     },
 
-    async destroy(): Promise<void> {
+  async destroy(): Promise<void> {
       if (sandbox) {
         await sandbox.stop();
         sandbox = null;
-      }
+    }
     },
   };
 }

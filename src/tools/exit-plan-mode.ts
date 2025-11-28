@@ -21,8 +21,6 @@ export function createExitPlanModeTool(
   config?: ToolConfig,
   onPlanSubmit?: (plan: string) => Promise<boolean> | boolean
 ) {
-  if (config?.enabled === false) return null;
-
   return tool({
     description:
       "Exits planning mode and prompts the user to approve the plan. Use this when you have finished planning and want user confirmation before proceeding.",

@@ -1,5 +1,4 @@
 export type ToolConfig = {
-  enabled?: boolean;
   timeout?: number;
   maxFileSize?: number;
   maxOutputLength?: number;
@@ -24,11 +23,6 @@ export const DEFAULT_CONFIG: AgentConfig = {
   defaultTimeout: 120000,
   workingDirectory: "/tmp",
   tools: {
-    Bash: { enabled: true, maxOutputLength: 30000 },
-    Read: { enabled: true },
-    Write: { enabled: true },
-    Edit: { enabled: true },
-    Glob: { enabled: true },
-    Grep: { enabled: true },
+    Bash: { maxOutputLength: 30000 },
   },
 };

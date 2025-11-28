@@ -46,8 +46,6 @@ const BASH_DESCRIPTION = `Executes bash commands in a persistent shell session w
 - Default timeout is 2 minutes; maximum is 10 minutes`;
 
 export function createBashTool(sandbox: Sandbox, config?: ToolConfig) {
-  if (config?.enabled === false) return null;
-
   const maxOutputLength = config?.maxOutputLength ?? 30000;
   const defaultTimeout = config?.timeout ?? 120000;
 

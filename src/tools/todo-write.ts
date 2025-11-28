@@ -47,8 +47,6 @@ export function createTodoWriteTool(
   config?: ToolConfig,
   onUpdate?: (todos: TodoItem[]) => void
 ) {
-  if (config?.enabled === false) return null;
-
   return tool({
     description:
       "Creates and manages a structured task list for tracking progress. Use this to plan complex tasks and track completion.",
