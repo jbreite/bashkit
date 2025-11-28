@@ -62,6 +62,15 @@ export type {
 // Middleware
 export { anthropicPromptCacheMiddleware } from "./middleware";
 
+// Utils
+export {
+  pruneMessagesByTokens,
+  estimateTokens,
+  estimateMessageTokens,
+  estimateMessagesTokens,
+} from "./utils";
+export type { PruneMessagesConfig } from "./utils";
+
 // State/workflow tool types
 export type {
   TodoItem,
