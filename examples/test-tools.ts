@@ -4,12 +4,12 @@
  * Run with: bun run examples/test-tools.ts
  */
 
-import { createAgentTools, LocalSandbox } from "../src";
+import { createAgentTools, createLocalSandbox } from "../src";
 
 async function main() {
   console.log("🧪 Testing bashkit tools directly...\n");
 
-  const sandbox = new LocalSandbox("/tmp/bashkit-test");
+  const sandbox = createLocalSandbox({ cwd: "/tmp/bashkit-test" });
   const tools = createAgentTools(sandbox);
 
   const toolOptions = { toolCallId: "test", messages: [] };

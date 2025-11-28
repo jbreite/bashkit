@@ -10,14 +10,14 @@ import {
   createAgentTools,
   createTaskTool,
   createTodoWriteTool,
-  LocalSandbox,
+  createLocalSandbox,
   anthropicPromptCacheMiddleware,
   type TodoState,
 } from "../src";
 
 async function main() {
   // Create sandbox in a temp directory
-  const sandbox = new LocalSandbox("/tmp/bashkit-test");
+  const sandbox = createLocalSandbox({ cwd: "/tmp/bashkit-test" });
 
   // Create sandbox-based tools
   const sandboxTools = createAgentTools(sandbox);

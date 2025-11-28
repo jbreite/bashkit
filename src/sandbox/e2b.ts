@@ -9,42 +9,34 @@ export interface E2BSandboxConfig {
   metadata?: Record<string, string>;
 }
 
-export class E2BSandbox implements Sandbox {
-  private sandbox: E2BSandboxSDK | null = null;
-  private config: E2BSandboxConfig;
-  private workingDirectory: string;
+export function createE2BSandbox(config: E2BSandboxConfig = {}): Sandbox {
+  let sandbox: E2BSandboxSDK | null = null;
+  const workingDirectory = config.cwd || "/home/user";
+  const timeout = config.timeout ?? 300000; // 5 minutes default
 
-  constructor(
-    config: E2BSandboxConfig = {},
-    workingDirectory: string = "/home/user"
-  ) {
-    this.config = {
-      timeout: 300000, // 5 minutes default
-      ...config,
-    };
-    this.workingDirectory = config.cwd || workingDirectory;
-  }
+  const ensureSandbox = async (): Promise<E2BSandboxSDK> => {
+    if (sandbox) return sandbox;
 
-  private async ensureSandbox(): Promise<E2BSandboxSDK> {
-    if (this.sandbox) return this.sandbox;
-
-    this.sandbox = await E2BSandboxSDK.create({
-      apiKey: this.config.apiKey,
-      timeoutMs: this.config.timeout,
-      metadata: this.config.metadata,
+    sandbox = await E2BSandboxSDK.create({
+      apiKey: config.apiKey,
+      timeoutMs: timeout,
+      metadata: config.metadata,
     });
 
-    return this.sandbox;
-  }
+    return sandbox;
+  };
 
-  async exec(command: string, options?: ExecOptions): Promise<ExecResult> {
-    const sandbox = await this.ensureSandbox();
+  const exec = async (
+    command: string,
+    options?: ExecOptions
+  ): Promise<ExecResult> => {
+    const sbx = await ensureSandbox();
     const startTime = performance.now();
     let interrupted = false;
 
     try {
-      const result = await sandbox.commands.run(command, {
-        cwd: options?.cwd || this.workingDirectory,
+      const result = await sbx.commands.run(command, {
+        cwd: options?.cwd || workingDirectory,
         timeoutMs: options?.timeout,
       });
 
@@ -60,7 +52,6 @@ export class E2BSandbox implements Sandbox {
     } catch (error) {
       const durationMs = Math.round(performance.now() - startTime);
 
-      // Check if this was a timeout error
       if (
         error instanceof Error &&
         error.message.toLowerCase().includes("timeout")
@@ -76,42 +67,44 @@ export class E2BSandbox implements Sandbox {
 
       throw error;
     }
-  }
+  };
 
-  async readFile(path: string): Promise<string> {
-    const sandbox = await this.ensureSandbox();
-    const content = await sandbox.files.read(path);
-    return content;
-  }
+  return {
+    exec,
 
-  async writeFile(path: string, content: string): Promise<void> {
-    const sandbox = await this.ensureSandbox();
-    await sandbox.files.write(path, content);
-  }
+    async readFile(path: string): Promise<string> {
+      const sbx = await ensureSandbox();
+      return await sbx.files.read(path);
+    },
 
-  async readDir(path: string): Promise<string[]> {
-    const result = await this.exec(`ls -1 ${path}`);
-    if (result.exitCode !== 0) {
-      throw new Error(`Failed to read directory: ${result.stderr}`);
-    }
-    return result.stdout.split("\n").filter(Boolean);
-  }
+    async writeFile(path: string, content: string): Promise<void> {
+      const sbx = await ensureSandbox();
+      await sbx.files.write(path, content);
+    },
 
-  async fileExists(path: string): Promise<boolean> {
-    const result = await this.exec(`test -e ${path}`);
-    return result.exitCode === 0;
-  }
+    async readDir(path: string): Promise<string[]> {
+      const result = await exec(`ls -1 ${path}`);
+      if (result.exitCode !== 0) {
+        throw new Error(`Failed to read directory: ${result.stderr}`);
+      }
+      return result.stdout.split("\n").filter(Boolean);
+    },
 
-  async isDirectory(path: string): Promise<boolean> {
-    const result = await this.exec(`test -d ${path}`);
-    return result.exitCode === 0;
-  }
+    async fileExists(path: string): Promise<boolean> {
+      const result = await exec(`test -e ${path}`);
+      return result.exitCode === 0;
+    },
 
-  async destroy(): Promise<void> {
-    if (this.sandbox) {
-      await this.sandbox.kill();
-      this.sandbox = null;
-    }
-  }
+    async isDirectory(path: string): Promise<boolean> {
+      const result = await exec(`test -d ${path}`);
+      return result.exitCode === 0;
+    },
+
+    async destroy(): Promise<void> {
+      if (sandbox) {
+        await sandbox.kill();
+        sandbox = null;
+      }
+    },
+  };
 }
-

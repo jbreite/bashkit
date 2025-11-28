@@ -1,18 +1,21 @@
 import type { Sandbox, ExecOptions, ExecResult } from "./interface";
 
-export class LocalSandbox implements Sandbox {
-  private workingDirectory: string;
+export interface LocalSandboxConfig {
+  cwd?: string;
+}
 
-  constructor(workingDirectory: string = "/tmp") {
-    this.workingDirectory = workingDirectory;
-  }
+export function createLocalSandbox(config: LocalSandboxConfig = {}): Sandbox {
+  const workingDirectory = config.cwd || "/tmp";
 
-  async exec(command: string, options?: ExecOptions): Promise<ExecResult> {
+  const exec = async (
+    command: string,
+    options?: ExecOptions
+  ): Promise<ExecResult> => {
     const startTime = performance.now();
     let interrupted = false;
 
     const proc = Bun.spawn(["bash", "-c", command], {
-      cwd: options?.cwd || this.workingDirectory,
+      cwd: options?.cwd || workingDirectory,
       stdout: "pipe",
       stderr: "pipe",
     });
@@ -42,38 +45,42 @@ export class LocalSandbox implements Sandbox {
       durationMs,
       interrupted,
     };
-  }
+  };
 
-  async readFile(path: string): Promise<string> {
-    const file = Bun.file(path);
-    return await file.text();
-  }
+  return {
+    exec,
 
-  async writeFile(path: string, content: string): Promise<void> {
-    await Bun.write(path, content);
-  }
+    async readFile(path: string): Promise<string> {
+      const file = Bun.file(path);
+      return await file.text();
+    },
 
-  async readDir(path: string): Promise<string[]> {
-    const fs = await import("fs/promises");
-    return await fs.readdir(path);
-  }
+    async writeFile(path: string, content: string): Promise<void> {
+      await Bun.write(path, content);
+    },
 
-  async fileExists(path: string): Promise<boolean> {
-    const file = Bun.file(path);
-    return await file.exists();
-  }
+    async readDir(path: string): Promise<string[]> {
+      const fs = await import("fs/promises");
+      return await fs.readdir(path);
+    },
 
-  async isDirectory(path: string): Promise<boolean> {
-    const fs = await import("fs/promises");
-    try {
-      const stat = await fs.stat(path);
-      return stat.isDirectory();
-    } catch {
-      return false;
-    }
-  }
+    async fileExists(path: string): Promise<boolean> {
+      const file = Bun.file(path);
+      return await file.exists();
+    },
 
-  async destroy(): Promise<void> {
-    // No cleanup needed for local sandbox
-  }
+    async isDirectory(path: string): Promise<boolean> {
+      const fs = await import("fs/promises");
+      try {
+        const stat = await fs.stat(path);
+        return stat.isDirectory();
+      } catch {
+        return false;
+      }
+    },
+
+    async destroy(): Promise<void> {
+      // No cleanup needed for local sandbox
+    },
+  };
 }

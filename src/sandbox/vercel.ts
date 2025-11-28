@@ -5,52 +5,46 @@ export interface VercelSandboxConfig {
   runtime?: "node22" | "python3.13";
   resources?: { vcpus: number };
   timeout?: number;
+  cwd?: string;
   teamId?: string;
   projectId?: string;
   token?: string;
 }
 
-export class VercelSandbox implements Sandbox {
-  private sandbox: VercelSandboxSDK | null = null;
-  private config: VercelSandboxConfig;
-  private workingDirectory: string;
+export function createVercelSandbox(config: VercelSandboxConfig = {}): Sandbox {
+  let sandbox: VercelSandboxSDK | null = null;
+  const workingDirectory = config.cwd || "/vercel/sandbox";
+  const resolvedConfig = {
+    runtime: config.runtime ?? "node22",
+    resources: config.resources ?? { vcpus: 2 },
+    timeout: config.timeout ?? 300000, // 5 minutes default
+  } as const;
 
-  constructor(
-    config: VercelSandboxConfig = {},
-    workingDirectory: string = "/vercel/sandbox"
-  ) {
-    this.config = {
-      runtime: "node22",
-      resources: { vcpus: 2 },
-      timeout: 300000, // 5 minutes default
-      ...config,
-    };
-    this.workingDirectory = workingDirectory;
-  }
-
-  private async ensureSandbox(): Promise<VercelSandboxSDK> {
-    if (this.sandbox) return this.sandbox;
+  const ensureSandbox = async (): Promise<VercelSandboxSDK> => {
+    if (sandbox) return sandbox;
 
     const createOptions: Parameters<typeof VercelSandboxSDK.create>[0] = {
-      runtime: this.config.runtime,
-      resources: this.config.resources,
-      timeout: this.config.timeout,
+      runtime: resolvedConfig.runtime,
+      resources: resolvedConfig.resources,
+      timeout: resolvedConfig.timeout,
     };
 
-    // Add auth if provided
-    if (this.config.teamId && this.config.token) {
+    if (config.teamId && config.token) {
       Object.assign(createOptions, {
-        teamId: this.config.teamId,
-        token: this.config.token,
+        teamId: config.teamId,
+        token: config.token,
       });
     }
 
-    this.sandbox = await VercelSandboxSDK.create(createOptions);
-    return this.sandbox;
-  }
+    sandbox = await VercelSandboxSDK.create(createOptions);
+    return sandbox;
+  };
 
-  async exec(command: string, options?: ExecOptions): Promise<ExecResult> {
-    const sandbox = await this.ensureSandbox();
+  const exec = async (
+    command: string,
+    options?: ExecOptions
+  ): Promise<ExecResult> => {
+    const sbx = await ensureSandbox();
     const startTime = performance.now();
     let interrupted = false;
 
@@ -65,10 +59,10 @@ export class VercelSandbox implements Sandbox {
     }
 
     try {
-      const result = await sandbox.runCommand({
+      const result = await sbx.runCommand({
         cmd: "bash",
         args: ["-c", command],
-        cwd: options?.cwd || this.workingDirectory,
+        cwd: options?.cwd || workingDirectory,
         signal: abortController.signal,
       });
 
@@ -106,55 +100,59 @@ export class VercelSandbox implements Sandbox {
 
       throw error;
     }
-  }
+  };
 
-  async readFile(path: string): Promise<string> {
-    const sandbox = await this.ensureSandbox();
-    const stream = await sandbox.readFile({ path });
+  return {
+    exec,
 
-    if (!stream) {
-      throw new Error(`File not found: ${path}`);
-    }
+    async readFile(path: string): Promise<string> {
+      const sbx = await ensureSandbox();
+      const stream = await sbx.readFile({ path });
 
-    const chunks: Buffer[] = [];
-    for await (const chunk of stream) {
-      chunks.push(Buffer.from(chunk));
-    }
-    return Buffer.concat(chunks).toString("utf-8");
-  }
+      if (!stream) {
+        throw new Error(`File not found: ${path}`);
+      }
 
-  async writeFile(path: string, content: string): Promise<void> {
-    const sandbox = await this.ensureSandbox();
-    await sandbox.writeFiles([
-      {
-        path,
-        content: Buffer.from(content, "utf-8"),
-      },
-    ]);
-  }
+      const chunks: Buffer[] = [];
+      for await (const chunk of stream) {
+        chunks.push(Buffer.from(chunk));
+      }
+      return Buffer.concat(chunks).toString("utf-8");
+    },
 
-  async readDir(path: string): Promise<string[]> {
-    const result = await this.exec(`ls -1 ${path}`);
-    if (result.exitCode !== 0) {
-      throw new Error(`Failed to read directory: ${result.stderr}`);
-    }
-    return result.stdout.split("\n").filter(Boolean);
-  }
+    async writeFile(path: string, content: string): Promise<void> {
+      const sbx = await ensureSandbox();
+      await sbx.writeFiles([
+        {
+          path,
+          content: Buffer.from(content, "utf-8"),
+        },
+      ]);
+    },
 
-  async fileExists(path: string): Promise<boolean> {
-    const result = await this.exec(`test -e ${path}`);
-    return result.exitCode === 0;
-  }
+    async readDir(path: string): Promise<string[]> {
+      const result = await exec(`ls -1 ${path}`);
+      if (result.exitCode !== 0) {
+        throw new Error(`Failed to read directory: ${result.stderr}`);
+      }
+      return result.stdout.split("\n").filter(Boolean);
+    },
 
-  async isDirectory(path: string): Promise<boolean> {
-    const result = await this.exec(`test -d ${path}`);
-    return result.exitCode === 0;
-  }
+    async fileExists(path: string): Promise<boolean> {
+      const result = await exec(`test -e ${path}`);
+      return result.exitCode === 0;
+    },
 
-  async destroy(): Promise<void> {
-    if (this.sandbox) {
-      await this.sandbox.stop();
-      this.sandbox = null;
-    }
-  }
+    async isDirectory(path: string): Promise<boolean> {
+      const result = await exec(`test -d ${path}`);
+      return result.exitCode === 0;
+    },
+
+    async destroy(): Promise<void> {
+      if (sandbox) {
+        await sandbox.stop();
+        sandbox = null;
+      }
+    },
+  };
 }

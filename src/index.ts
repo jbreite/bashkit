@@ -1,9 +1,17 @@
 // Main exports
 export { createAgentTools } from "./tools";
 
-// Sandbox implementations
-export { LocalSandbox, VercelSandbox } from "./sandbox";
-export type { VercelSandboxConfig } from "./sandbox";
+// Sandbox factories
+export {
+  createLocalSandbox,
+  createVercelSandbox,
+  createE2BSandbox,
+} from "./sandbox";
+export type {
+  LocalSandboxConfig,
+  VercelSandboxConfig,
+  E2BSandboxConfig,
+} from "./sandbox";
 
 // Sandbox interface
 export type { Sandbox, ExecOptions, ExecResult } from "./sandbox/interface";
