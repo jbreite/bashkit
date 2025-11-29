@@ -17,7 +17,12 @@ export type {
 export type { Sandbox, ExecOptions, ExecResult } from "./sandbox/interface";
 
 // Configuration types
-export type { AgentConfig, ToolConfig } from "./types";
+export type {
+  AgentConfig,
+  ToolConfig,
+  WebSearchConfig,
+  WebFetchConfig,
+} from "./types";
 export { DEFAULT_CONFIG } from "./types";
 
 // Sandbox-based tool factories

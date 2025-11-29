@@ -1,9 +1,20 @@
+import type { LanguageModel } from "ai";
+
 export type ToolConfig = {
   timeout?: number;
   maxFileSize?: number;
   maxOutputLength?: number;
   allowedPaths?: string[];
   blockedCommands?: string[];
+};
+
+export type WebSearchConfig = {
+  apiKey: string;
+};
+
+export type WebFetchConfig = {
+  apiKey: string;
+  model: LanguageModel;
 };
 
 export type AgentConfig = {
@@ -15,6 +26,10 @@ export type AgentConfig = {
     Glob?: ToolConfig;
     Grep?: ToolConfig;
   };
+  /** Include WebSearch tool with this config */
+  webSearch?: WebSearchConfig;
+  /** Include WebFetch tool with this config */
+  webFetch?: WebFetchConfig;
   defaultTimeout?: number;
   workingDirectory?: string;
 };

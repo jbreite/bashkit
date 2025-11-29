@@ -74,7 +74,16 @@ export function createE2BSandbox(config: E2BSandboxConfig = {}): Sandbox {
 
     async readFile(path: string): Promise<string> {
       const sbx = await ensureSandbox();
-      return await sbx.files.read(path);
+      try {
+        return await sbx.files.read(path);
+      } catch (error) {
+        // Log detailed error info for debugging
+        console.error("[E2B readFile] Error reading:", path);
+        console.error("[E2B readFile] Error type:", error?.constructor?.name);
+        console.error("[E2B readFile] Error message:", error instanceof Error ? error.message : error);
+        console.error("[E2B readFile] Full error:", error);
+        throw error;
+      }
     },
 
     async writeFile(path: string, content: string): Promise<void> {

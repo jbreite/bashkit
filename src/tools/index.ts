@@ -8,13 +8,27 @@ import { createWriteTool } from "./write";
 import { createEditTool } from "./edit";
 import { createGlobTool } from "./glob";
 import { createGrepTool } from "./grep";
+import { createWebSearchTool } from "./web-search";
+import { createWebFetchTool } from "./web-fetch";
 
 /**
  * Creates all sandbox-based agent tools for AI SDK's generateText/streamText.
  * Returns an object with Bash, Read, Write, Edit, Glob, Grep tools.
+ * Optionally includes WebSearch and WebFetch if configured.
  *
  * @param sandbox - The sandbox to execute commands in
- * @param config - Optional configuration for individual tools
+ * @param config - Optional configuration for individual tools and web tools
+ *
+ * @example
+ * // Basic sandbox tools only
+ * const tools = createAgentTools(sandbox);
+ *
+ * @example
+ * // With web tools included
+ * const tools = createAgentTools(sandbox, {
+ *   webSearch: { apiKey: process.env.PARALLEL_API_KEY },
+ *   webFetch: { apiKey: process.env.PARALLEL_API_KEY, model: haiku },
+ * });
  */
 export function createAgentTools(
   sandbox: Sandbox,
@@ -25,7 +39,7 @@ export function createAgentTools(
     ...config?.tools,
   };
 
-  return {
+  const tools: ToolSet = {
     Bash: createBashTool(sandbox, toolsConfig.Bash),
     Read: createReadTool(sandbox, toolsConfig.Read),
     Write: createWriteTool(sandbox, toolsConfig.Write),
@@ -33,6 +47,16 @@ export function createAgentTools(
     Glob: createGlobTool(sandbox, toolsConfig.Glob),
     Grep: createGrepTool(sandbox, toolsConfig.Grep),
   };
+
+  // Add web tools if configured
+  if (config?.webSearch) {
+    tools.WebSearch = createWebSearchTool(config.webSearch);
+  }
+  if (config?.webFetch) {
+    tools.WebFetch = createWebFetchTool(config.webFetch);
+  }
+
+  return tools;
 }
 
 // Sandbox-based tool factories (for custom configurations)
