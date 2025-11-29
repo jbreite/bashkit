@@ -16,7 +16,10 @@ import { createGrepTool } from "./grep";
  * @param sandbox - The sandbox to execute commands in
  * @param config - Optional configuration for individual tools
  */
-export function createAgentTools(sandbox: Sandbox, config?: AgentConfig): ToolSet {
+export function createAgentTools(
+  sandbox: Sandbox,
+  config?: AgentConfig
+): ToolSet {
   const toolsConfig = {
     ...DEFAULT_CONFIG.tools,
     ...config?.tools,
@@ -44,6 +47,10 @@ export { createGrepTool } from "./grep";
 export { createTodoWriteTool } from "./todo-write";
 export { createExitPlanModeTool } from "./exit-plan-mode";
 export { createTaskTool } from "./task";
+
+// Web tool factories (require parallel-web peer dependency)
+export { createWebSearchTool } from "./web-search";
+export { createWebFetchTool } from "./web-fetch";
 
 // Sandbox tool output types
 export type { BashOutput, BashError } from "./bash";
@@ -79,3 +86,16 @@ export type {
   TaskToolConfig,
   SubagentTypeConfig,
 } from "./task";
+
+// Web tool types
+export type {
+  WebSearchOutput,
+  WebSearchResult,
+  WebSearchError,
+  WebSearchToolConfig,
+} from "./web-search";
+export type {
+  WebFetchOutput,
+  WebFetchError,
+  WebFetchToolConfig,
+} from "./web-fetch";

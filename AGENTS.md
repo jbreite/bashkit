@@ -65,6 +65,13 @@ await sandbox.destroy();
 | `TodoWrite` | Track task progress | `createTodoWriteTool(state, config?, onUpdate?)` |
 | `ExitPlanMode` | Exit planning mode | `createExitPlanModeTool(config?, onPlanSubmit?)` |
 
+### Web Tools (require `parallel-web` peer dependency)
+
+| Tool | Purpose | Factory |
+|------|---------|---------|
+| `WebSearch` | Search the web | `createWebSearchTool({ apiKey })` |
+| `WebFetch` | Fetch URL and process with AI | `createWebFetchTool({ apiKey, model })` |
+
 ## Using with AI SDK generateText
 
 ```typescript
@@ -158,6 +165,86 @@ console.log({
   cacheCreation: result.providerMetadata?.anthropic?.cacheCreationInputTokens,
   cacheRead: result.providerMetadata?.anthropic?.cacheReadInputTokens,
 });
+```
+
+## Web Tools
+
+WebSearch and WebFetch tools provide web access capabilities using the [Parallel API](https://docs.parallel.ai).
+
+### Setup
+
+```bash
+# Install the parallel-web peer dependency
+bun add parallel-web
+
+# Set your API key
+export PARALLEL_API_KEY="your_api_key"
+```
+
+### WebSearch
+
+Search the web and get formatted results:
+
+```typescript
+import { createWebSearchTool } from "@jbreite/bashkit";
+
+const webSearch = createWebSearchTool({
+  apiKey: process.env.PARALLEL_API_KEY!,
+});
+
+// Add to your tools
+const tools = {
+  ...sandboxTools,
+  WebSearch: webSearch,
+};
+```
+
+**Input:**
+- `query` - The search query
+- `allowed_domains?` - Only include results from these domains
+- `blocked_domains?` - Exclude results from these domains
+
+**Output:**
+```typescript
+{
+  results: Array<{ title: string; url: string; snippet: string; metadata?: Record<string, any> }>;
+  total_results: number;
+  query: string;
+}
+```
+
+### WebFetch
+
+Fetch a URL and process the content with an AI model:
+
+```typescript
+import { createWebFetchTool } from "@jbreite/bashkit";
+import { anthropic } from "@ai-sdk/anthropic";
+
+const webFetch = createWebFetchTool({
+  apiKey: process.env.PARALLEL_API_KEY!,
+  model: anthropic("claude-haiku-3"), // Use a fast/cheap model for processing
+});
+
+// Add to your tools
+const tools = {
+  ...sandboxTools,
+  WebFetch: webFetch,
+};
+```
+
+**Input:**
+- `url` - The URL to fetch
+- `prompt` - The prompt to run on the fetched content
+
+**Output:**
+```typescript
+{
+  response: string;      // AI model's response to the prompt
+  url: string;
+  final_url?: string;    // Final URL after redirects
+  status_code?: number;
+}
 ```
 
 ## Common Patterns

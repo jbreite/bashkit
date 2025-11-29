@@ -37,6 +37,9 @@ export {
   createTaskTool,
 } from "./tools";
 
+// Web tool factories (require parallel-web peer dependency)
+export { createWebSearchTool, createWebFetchTool } from "./tools";
+
 // Sandbox tool output types
 export type {
   BashOutput,
@@ -83,4 +86,15 @@ export type {
   TaskError,
   TaskToolConfig,
   SubagentTypeConfig,
+} from "./tools";
+
+// Web tool types
+export type {
+  WebSearchOutput,
+  WebSearchResult,
+  WebSearchError,
+  WebSearchToolConfig,
+  WebFetchOutput,
+  WebFetchError,
+  WebFetchToolConfig,
 } from "./tools";
