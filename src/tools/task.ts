@@ -1,5 +1,15 @@
-import { tool, zodSchema, generateText, type Tool } from "ai";
-import type { LanguageModel } from "ai";
+import {
+  tool,
+  zodSchema,
+  generateText,
+  stepCountIs,
+  type Tool,
+  type LanguageModel,
+  type StopCondition,
+  type PrepareStepFunction,
+  type StepResult,
+  type ToolSet,
+} from "ai";
 import { z } from "zod";
 
 export interface TaskOutput {
@@ -28,30 +38,49 @@ const taskInputSchema = z.object({
 
 type TaskInput = z.infer<typeof taskInputSchema>;
 
+/** Event emitted for each step a subagent takes */
+export interface SubagentStepEvent {
+  subagentType: string;
+  description: string;
+  step: StepResult<ToolSet>;
+}
+
 export interface SubagentTypeConfig {
+  /** Model to use for this subagent type */
   model?: LanguageModel;
+  /** System prompt for this subagent type */
   systemPrompt?: string;
+  /** Tool names this subagent can use (filters from parent tools) */
   tools?: string[];
+  /** Stop condition for this subagent (default: stepCountIs(15)) */
+  stopWhen?: StopCondition<ToolSet>;
+  /** Prepare step callback for dynamic control per step */
+  prepareStep?: PrepareStepFunction<ToolSet>;
+  /** Callback for each step this subagent takes */
+  onStepFinish?: (step: StepResult<ToolSet>) => void | Promise<void>;
 }
 
 export interface TaskToolConfig {
+  /** Default model for subagents */
   model: LanguageModel;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  tools: Record<string, Tool<any, any>>;
+  /** All available tools that subagents can use */
+  tools: ToolSet;
+  /** Configuration for each subagent type */
   subagentTypes?: Record<string, SubagentTypeConfig>;
+  /** Cost per input token for usage tracking */
   costPerInputToken?: number;
+  /** Cost per output token for usage tracking */
   costPerOutputToken?: number;
+  /** Default stop condition for subagents (default: stepCountIs(15)) */
+  defaultStopWhen?: StopCondition<ToolSet>;
+  /** Default callback for each step any subagent takes */
+  defaultOnStepFinish?: (event: SubagentStepEvent) => void | Promise<void>;
 }
 
-function filterTools(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  allTools: Record<string, Tool<any, any>>,
-  allowedTools?: string[]
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-): Record<string, Tool<any, any>> {
+function filterTools(allTools: ToolSet, allowedTools?: string[]): ToolSet {
   if (!allowedTools) return allTools;
 
-  const filtered: typeof allTools = {};
+  const filtered: ToolSet = {};
   for (const name of allowedTools) {
     if (allTools[name]) {
       filtered[name] = allTools[name];
@@ -60,13 +89,15 @@ function filterTools(
   return filtered;
 }
 
-export function createTaskTool(config: TaskToolConfig) {
+export function createTaskTool(config: TaskToolConfig): Tool {
   const {
     model: defaultModel,
     tools: allTools,
     subagentTypes = {},
     costPerInputToken = 0.000003, // Default Claude Sonnet pricing
     costPerOutputToken = 0.000015,
+    defaultStopWhen,
+    defaultOnStepFinish,
   } = config;
 
   return tool({
@@ -74,7 +105,7 @@ export function createTaskTool(config: TaskToolConfig) {
       "Launches a new agent to handle complex, multi-step tasks autonomously. Use this for tasks that require multiple steps, research, or specialized expertise.",
     inputSchema: zodSchema(taskInputSchema),
     execute: async ({
-      description: _description,
+      description,
       prompt,
       subagent_type,
     }: TaskInput): Promise<TaskOutput | TaskError> => {
@@ -88,12 +119,26 @@ export function createTaskTool(config: TaskToolConfig) {
         const tools = filterTools(allTools, typeConfig.tools);
         const systemPrompt = typeConfig.systemPrompt;
 
-        // Spawn the sub-agent
+        // Spawn the sub-agent with loop control
         const result = await generateText({
           model,
           tools,
           system: systemPrompt,
           prompt,
+          // Loop control
+          stopWhen:
+            typeConfig.stopWhen ?? defaultStopWhen ?? stepCountIs(15),
+          prepareStep: typeConfig.prepareStep,
+          onStepFinish: async (step) => {
+            // Call subagent-specific callback
+            await typeConfig.onStepFinish?.(step);
+            // Call default callback with subagent context
+            await defaultOnStepFinish?.({
+              subagentType: subagent_type,
+              description,
+              step,
+            });
+          },
         });
 
         const durationMs = Math.round(performance.now() - startTime);

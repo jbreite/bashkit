@@ -86,6 +86,7 @@ export type {
   TaskError,
   TaskToolConfig,
   SubagentTypeConfig,
+  SubagentStepEvent,
 } from "./tools";
 
 // Web tool types
