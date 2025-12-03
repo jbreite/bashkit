@@ -11,6 +11,9 @@
       "import": "./dist/index.js"
     }
   },
+  "bin": {
+    "bashkit": "./dist/cli/init.js"
+  },
   "files": [
     "dist",
     "README.md",
@@ -18,8 +21,9 @@
   ],
   "scripts": {
     "dev": "bun run src/index.ts",
-    "build": "bun run build:js && bun run build:types",
+    "build": "bun run build:js && bun run build:cli && bun run build:types",
     "build:js": "bun build src/index.ts --outdir dist --target node --format esm --external ai --external zod --external @ai-sdk/* --external @vercel/sandbox --external @e2b/code-interpreter --external parallel-web",
+    "build:cli": "bun build src/cli/init.ts --outdir dist/cli --target node --format esm --external @clack/prompts && chmod +x dist/cli/init.js",
     "build:types": "tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit",
     "prepublishOnly": "bun run build"
@@ -39,6 +43,9 @@
   "repository": {
     "type": "git",
     "url": "https://github.com/jbreite/bashkit"
+  },
+  "dependencies": {
+    "@clack/prompts": "^0.7.0"
   },
   "devDependencies": {
     "@ai-sdk/anthropic": "^2.0.50",
