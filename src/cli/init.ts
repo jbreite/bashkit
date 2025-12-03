@@ -159,6 +159,7 @@ async function init() {
       console.error('\n❌ Failed to install dependencies');
       console.error('Please try installing manually:', `${installCmd} ${toInstall.join(' ')}`);
       process.exit(1);
+    }
   }
 
   // Create config file
