@@ -76,8 +76,17 @@ export {
   estimateTokens,
   estimateMessageTokens,
   estimateMessagesTokens,
+  compactConversation,
+  createCompactConfig,
+  MODEL_CONTEXT_LIMITS,
 } from "./utils";
-export type { PruneMessagesConfig } from "./utils";
+export type {
+  PruneMessagesConfig,
+  CompactConversationConfig,
+  CompactConversationState,
+  CompactConversationResult,
+  ModelContextLimit,
+} from "./utils";
 
 // State/workflow tool types
 export type {
