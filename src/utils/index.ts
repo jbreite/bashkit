@@ -16,3 +16,13 @@ export {
   type ModelContextLimit,
 } from "./compact-conversation";
 
+export {
+  getContextStatus,
+  contextNeedsAttention,
+  contextNeedsCompaction,
+  type ContextStatus,
+  type ContextStatusLevel,
+  type ContextStatusConfig,
+  type ContextMetrics,
+} from "./context-status";
+

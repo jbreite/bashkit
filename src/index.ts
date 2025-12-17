@@ -79,6 +79,9 @@ export {
   compactConversation,
   createCompactConfig,
   MODEL_CONTEXT_LIMITS,
+  getContextStatus,
+  contextNeedsAttention,
+  contextNeedsCompaction,
 } from "./utils";
 export type {
   PruneMessagesConfig,
@@ -86,6 +89,10 @@ export type {
   CompactConversationState,
   CompactConversationResult,
   ModelContextLimit,
+  ContextStatus,
+  ContextStatusLevel,
+  ContextStatusConfig,
+  ContextMetrics,
 } from "./utils";
 
 // State/workflow tool types
