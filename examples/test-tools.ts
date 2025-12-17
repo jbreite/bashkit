@@ -21,7 +21,7 @@ async function main() {
       file_path: "/tmp/bashkit-test/test.ts",
       content: 'console.log("Hello from bashkit!");',
     },
-    toolOptions
+    toolOptions,
   );
   console.log("Write result:", writeResult);
 
@@ -29,7 +29,7 @@ async function main() {
   console.log("\n📖 Testing Read tool...");
   const readResult = await tools.Read.execute!(
     { file_path: "/tmp/bashkit-test/test.ts" },
-    toolOptions
+    toolOptions,
   );
   console.log("Read result:", readResult);
 
@@ -40,7 +40,7 @@ async function main() {
       command: "bun run /tmp/bashkit-test/test.ts",
       description: "Run test file",
     },
-    toolOptions
+    toolOptions,
   );
   console.log("Bash result:", bashResult);
 
@@ -52,14 +52,14 @@ async function main() {
       old_string: "Hello from bashkit!",
       new_string: "Hello from bashkit! (edited)",
     },
-    toolOptions
+    toolOptions,
   );
   console.log("Edit result:", editResult);
 
   // Verify edit
   const verifyResult = await tools.Read.execute!(
     { file_path: "/tmp/bashkit-test/test.ts" },
-    toolOptions
+    toolOptions,
   );
   console.log("Verified content:", verifyResult);
 
@@ -67,7 +67,7 @@ async function main() {
   console.log("\n🔍 Testing Glob tool...");
   const globResult = await tools.Glob.execute!(
     { pattern: "*.ts", path: "/tmp/bashkit-test" },
-    toolOptions
+    toolOptions,
   );
   console.log("Glob result:", globResult);
 
@@ -75,7 +75,7 @@ async function main() {
   console.log("\n🔎 Testing Grep tool...");
   const grepResult = await tools.Grep.execute!(
     { pattern: "bashkit", path: "/tmp/bashkit-test" },
-    toolOptions
+    toolOptions,
   );
   console.log("Grep result:", grepResult);
 

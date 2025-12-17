@@ -40,7 +40,7 @@ export function createWriteTool(sandbox: Sandbox, config?: ToolConfig) {
       // Check allowed paths
       if (config?.allowedPaths) {
         const isAllowed = config.allowedPaths.some((allowed) =>
-          file_path.startsWith(allowed)
+          file_path.startsWith(allowed),
         );
         if (!isAllowed) {
           return { error: `Path not allowed: ${file_path}` };

@@ -19,7 +19,7 @@ type ExitPlanModeInput = z.infer<typeof exitPlanModeInputSchema>;
 
 export function createExitPlanModeTool(
   config?: ToolConfig,
-  onPlanSubmit?: (plan: string) => Promise<boolean> | boolean
+  onPlanSubmit?: (plan: string) => Promise<boolean> | boolean,
 ) {
   return tool({
     description:

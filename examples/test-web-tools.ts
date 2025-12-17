@@ -9,7 +9,7 @@
  */
 
 import { anthropic } from "@ai-sdk/anthropic";
-import { createWebSearchTool, createWebFetchTool } from "../src";
+import { createWebFetchTool, createWebSearchTool } from "../src";
 
 // Helper to unwrap tool result (handles AI SDK's union type with AsyncIterable)
 function isAsyncIterable<T>(value: unknown): value is AsyncIterable<T> {
@@ -60,8 +60,8 @@ async function main() {
       {
         query: "What is the Vercel AI SDK?",
       },
-      toolOptions
-    )
+      toolOptions,
+    ),
   );
   console.log("WebSearch result:");
   if ("error" in searchResult) {
@@ -76,7 +76,7 @@ async function main() {
       console.log(
         `      Snippet: ${result.snippet.slice(0, 100)}${
           result.snippet.length > 100 ? "..." : ""
-        }`
+        }`,
       );
     }
   }
@@ -89,8 +89,8 @@ async function main() {
         query: "AI SDK documentation",
         allowed_domains: ["vercel.com", "sdk.vercel.ai"],
       },
-      toolOptions
-    )
+      toolOptions,
+    ),
   );
   console.log("Filtered WebSearch result:");
   if ("error" in filteredSearchResult) {
@@ -116,8 +116,8 @@ async function main() {
         url: "https://sdk.vercel.ai/docs/introduction",
         prompt: "Summarize this page in 2-3 sentences. What is the AI SDK?",
       },
-      toolOptions
-    )
+      toolOptions,
+    ),
   );
   console.log("WebFetch result:");
   if ("error" in fetchResult) {

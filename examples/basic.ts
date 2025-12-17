@@ -4,14 +4,14 @@
  * Run with: bun run examples/basic.ts (with .env containing ANTHROPIC_API_KEY)
  */
 
-import { generateText, wrapLanguageModel, stepCountIs } from "ai";
 import { anthropic } from "@ai-sdk/anthropic";
+import { generateText, stepCountIs, wrapLanguageModel } from "ai";
 import {
+  anthropicPromptCacheMiddleware,
   createAgentTools,
+  createLocalSandbox,
   createTaskTool,
   createTodoWriteTool,
-  createLocalSandbox,
-  anthropicPromptCacheMiddleware,
   type TodoState,
 } from "../src";
 
@@ -96,20 +96,20 @@ When given a task:
               ? outputStr.slice(0, 300) + "..."
               : outputStr;
           console.log(
-            `   ✅ Result: ${truncated.split("\n").join("\n      ")}`
+            `   ✅ Result: ${truncated.split("\n").join("\n      ")}`,
           );
         }
       }
 
       if (text) {
         console.log(
-          `   💬 Text: ${text.slice(0, 100)}${text.length > 100 ? "..." : ""}`
+          `   💬 Text: ${text.slice(0, 100)}${text.length > 100 ? "..." : ""}`,
         );
       }
 
       if (usage) {
         console.log(
-          `   📊 Tokens: in=${usage.inputTokens} out=${usage.outputTokens}`
+          `   📊 Tokens: in=${usage.inputTokens} out=${usage.outputTokens}`,
         );
       }
     },

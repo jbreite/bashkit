@@ -19,7 +19,7 @@ const editInputSchema = z.object({
   new_string: z
     .string()
     .describe(
-      "The text to replace it with (must be different from old_string)"
+      "The text to replace it with (must be different from old_string)",
     ),
   replace_all: z
     .boolean()
@@ -47,7 +47,7 @@ export function createEditTool(sandbox: Sandbox, config?: ToolConfig) {
       // Check allowed paths
       if (config?.allowedPaths) {
         const isAllowed = config.allowedPaths.some((allowed) =>
-          file_path.startsWith(allowed)
+          file_path.startsWith(allowed),
         );
         if (!isAllowed) {
           return { error: `Path not allowed: ${file_path}` };

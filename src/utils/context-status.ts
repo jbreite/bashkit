@@ -90,13 +90,9 @@ function defaultCriticalGuidance(metrics: ContextMetrics): string {
 export function getContextStatus(
   messages: ModelMessage[],
   maxTokens: number,
-  config?: ContextStatusConfig
+  config?: ContextStatusConfig,
 ): ContextStatus {
-  const {
-    elevatedThreshold,
-    highThreshold,
-    criticalThreshold,
-  } = {
+  const { elevatedThreshold, highThreshold, criticalThreshold } = {
     ...DEFAULT_CONFIG,
     ...config,
   };
@@ -121,7 +117,7 @@ export function getContextStatus(
     const guidance =
       typeof config?.highGuidance === "function"
         ? config.highGuidance(baseStatus)
-        : config?.highGuidance ?? defaultHighGuidance(baseStatus);
+        : (config?.highGuidance ?? defaultHighGuidance(baseStatus));
 
     return { ...baseStatus, status: "high", guidance };
   }
@@ -130,7 +126,7 @@ export function getContextStatus(
   const guidance =
     typeof config?.criticalGuidance === "function"
       ? config.criticalGuidance(baseStatus)
-      : config?.criticalGuidance ?? defaultCriticalGuidance(baseStatus);
+      : (config?.criticalGuidance ?? defaultCriticalGuidance(baseStatus));
 
   return { ...baseStatus, status: "critical", guidance };
 }

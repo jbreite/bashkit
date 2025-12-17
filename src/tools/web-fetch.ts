@@ -1,7 +1,7 @@
-import { tool, zodSchema, generateText } from "ai";
 import type { LanguageModel } from "ai";
-import { z } from "zod";
+import { generateText, tool, zodSchema } from "ai";
 import Parallel from "parallel-web";
+import { z } from "zod";
 
 export interface WebFetchOutput {
   response: string;
@@ -38,7 +38,7 @@ export function createWebFetchTool(config: WebFetchToolConfig) {
       "Fetches content from a URL and processes it with an AI model. Use this to analyze web pages, extract information, or summarize content.",
     inputSchema: zodSchema(webFetchInputSchema),
     execute: async (
-      input: WebFetchInput
+      input: WebFetchInput,
     ): Promise<WebFetchOutput | WebFetchError> => {
       const { url, prompt } = input;
 
@@ -112,4 +112,3 @@ export function createWebFetchTool(config: WebFetchToolConfig) {
     },
   });
 }
-

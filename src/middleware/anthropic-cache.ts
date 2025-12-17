@@ -1,7 +1,7 @@
 import type {
-  LanguageModelV2Middleware,
   LanguageModelV2CallOptions,
   LanguageModelV2Message,
+  LanguageModelV2Middleware,
 } from "@ai-sdk/provider";
 
 function ensureCacheMarker(message: LanguageModelV2Message | undefined): void {

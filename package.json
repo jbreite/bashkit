@@ -26,6 +26,12 @@
     "build:cli": "bun build src/cli/init.ts --outdir dist/cli --target node --format esm --external @clack/prompts && chmod +x dist/cli/init.js",
     "build:types": "tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit",
+    "format": "biome format --write .",
+    "format:check": "biome format .",
+    "lint": "biome lint --write .",
+    "lint:check": "biome lint .",
+    "check": "biome check --write .",
+    "check:ci": "biome check .",
     "prepublishOnly": "bun run build"
   },
   "keywords": [
@@ -49,6 +55,7 @@
   },
   "devDependencies": {
     "@ai-sdk/anthropic": "^2.0.50",
+    "@biomejs/biome": "^2.3.9",
     "@e2b/code-interpreter": "^1.0.0",
     "@types/bun": "latest",
     "@types/node": "^24.10.0",

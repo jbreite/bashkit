@@ -31,7 +31,7 @@ const todoWriteInputSchema = z.object({
           .enum(["pending", "in_progress", "completed"])
           .describe("The task status"),
         activeForm: z.string().describe("Active form of the task description"),
-      })
+      }),
     )
     .describe("The updated todo list"),
 });
@@ -45,7 +45,7 @@ export interface TodoState {
 export function createTodoWriteTool(
   state: TodoState,
   config?: ToolConfig,
-  onUpdate?: (todos: TodoItem[]) => void
+  onUpdate?: (todos: TodoItem[]) => void,
 ) {
   return tool({
     description:

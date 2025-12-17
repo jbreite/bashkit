@@ -17,7 +17,7 @@ const globInputSchema = z.object({
   pattern: z
     .string()
     .describe(
-      'Glob pattern to match files (e.g., "**/*.ts", "src/**/*.js", "*.md")'
+      'Glob pattern to match files (e.g., "**/*.ts", "src/**/*.js", "*.md")',
     ),
   path: z
     .string()
@@ -41,7 +41,7 @@ export function createGlobTool(sandbox: Sandbox, config?: ToolConfig) {
       // Check allowed paths
       if (config?.allowedPaths) {
         const isAllowed = config.allowedPaths.some((allowed) =>
-          searchPath.startsWith(allowed)
+          searchPath.startsWith(allowed),
         );
         if (!isAllowed) {
           return { error: `Path not allowed: ${searchPath}` };
@@ -53,7 +53,7 @@ export function createGlobTool(sandbox: Sandbox, config?: ToolConfig) {
         // -type f for files only, sorted by modification time
         const result = await sandbox.exec(
           `find ${searchPath} -type f -name "${pattern}" 2>/dev/null | head -1000`,
-          { timeout: config?.timeout }
+          { timeout: config?.timeout },
         );
 
         if (result.exitCode !== 0 && result.stderr) {

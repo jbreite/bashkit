@@ -25,7 +25,7 @@ const bashInputSchema = z.object({
     .string()
     .optional()
     .describe(
-      "Clear, concise description of what this command does in 5-10 words"
+      "Clear, concise description of what this command does in 5-10 words",
     ),
   run_in_background: z
     .boolean()

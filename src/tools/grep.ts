@@ -97,7 +97,7 @@ export function createGrepTool(sandbox: Sandbox, config?: ToolConfig) {
       // Check allowed paths
       if (config?.allowedPaths) {
         const isAllowed = config.allowedPaths.some((allowed) =>
-          searchPath.startsWith(allowed)
+          searchPath.startsWith(allowed),
         );
         if (!isAllowed) {
           return { error: `Path not allowed: ${searchPath}` };

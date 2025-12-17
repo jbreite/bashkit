@@ -70,7 +70,7 @@ export interface CompactConversationResult {
 export async function compactConversation(
   messages: ModelMessage[],
   config: CompactConversationConfig,
-  state: CompactConversationState = { conversationSummary: "" }
+  state: CompactConversationState = { conversationSummary: "" },
 ): Promise<CompactConversationResult> {
   const currentTokens = estimateMessagesTokens(messages);
   const threshold = config.compactionThreshold ?? 0.85;
@@ -96,7 +96,7 @@ export async function compactConversation(
     oldMessages,
     config.summarizerModel,
     config.taskContext,
-    state.conversationSummary
+    state.conversationSummary,
   );
 
   // Build compacted messages
@@ -189,15 +189,15 @@ async function summarizeMessages(
   messages: ModelMessage[],
   model: LanguageModel,
   taskContext?: string,
-  previousSummary?: string
+  previousSummary?: string,
 ): Promise<string> {
   const prompt = SUMMARIZATION_PROMPT.replace(
     "{{TASK_CONTEXT}}",
-    taskContext || "Not specified"
+    taskContext || "Not specified",
   )
     .replace(
       "{{PREVIOUS_SUMMARY}}",
-      previousSummary || "None - this is the first compaction"
+      previousSummary || "None - this is the first compaction",
     )
     .replace("{{CONVERSATION}}", formatMessagesForSummary(messages));
 
@@ -237,7 +237,7 @@ function formatMessagesForSummary(messages: ModelMessage[]): string {
               return `[Tool Call: ${part.toolName}]\nArgs: ${JSON.stringify(
                 part.args,
                 null,
-                2
+                2,
               )}`;
             }
             if ("result" in part) {
@@ -257,7 +257,7 @@ function formatMessagesForSummary(messages: ModelMessage[]): string {
       return `<message index="${index}" role="${role}">\n${JSON.stringify(
         msg.content,
         null,
-        2
+        2,
       )}\n</message>`;
     })
     .join("\n\n");
@@ -290,7 +290,7 @@ export type ModelContextLimit = keyof typeof MODEL_CONTEXT_LIMITS;
 export function createCompactConfig(
   modelId: ModelContextLimit,
   summarizerModel: LanguageModel,
-  overrides?: Partial<Omit<CompactConversationConfig, "summarizerModel">>
+  overrides?: Partial<Omit<CompactConversationConfig, "summarizerModel">>,
 ): CompactConversationConfig {
   const maxTokens = MODEL_CONTEXT_LIMITS[modelId];
 

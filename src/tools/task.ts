@@ -1,14 +1,14 @@
 import {
-  tool,
-  zodSchema,
   generateText,
-  stepCountIs,
-  type Tool,
   type LanguageModel,
-  type StopCondition,
   type PrepareStepFunction,
   type StepResult,
+  type StopCondition,
+  stepCountIs,
+  type Tool,
   type ToolSet,
+  tool,
+  zodSchema,
 } from "ai";
 import { z } from "zod";
 
@@ -126,8 +126,7 @@ export function createTaskTool(config: TaskToolConfig): Tool {
           system: systemPrompt,
           prompt,
           // Loop control
-          stopWhen:
-            typeConfig.stopWhen ?? defaultStopWhen ?? stepCountIs(15),
+          stopWhen: typeConfig.stopWhen ?? defaultStopWhen ?? stepCountIs(15),
           prepareStep: typeConfig.prepareStep,
           onStepFinish: async (step) => {
             // Call subagent-specific callback

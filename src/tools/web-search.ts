@@ -1,6 +1,6 @@
 import { tool, zodSchema } from "ai";
-import { z } from "zod";
 import Parallel from "parallel-web";
+import { z } from "zod";
 
 export interface WebSearchResult {
   title: string;
@@ -49,7 +49,7 @@ export function createWebSearchTool(config: WebSearchToolConfig) {
       "Searches the web and returns formatted results. Use this to find current information, documentation, articles, and more.",
     inputSchema: zodSchema(webSearchInputSchema),
     execute: async (
-      input: WebSearchInput
+      input: WebSearchInput,
     ): Promise<WebSearchOutput | WebSearchError> => {
       const { query, allowed_domains, blocked_domains } = input;
 
@@ -83,7 +83,7 @@ export function createWebSearchTool(config: WebSearchToolConfig) {
             metadata: result.publish_date
               ? { publish_date: result.publish_date }
               : undefined,
-          })
+          }),
         );
 
         return {

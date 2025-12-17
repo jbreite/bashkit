@@ -1,5 +1,5 @@
 import { Sandbox as E2BSandboxSDK } from "@e2b/code-interpreter";
-import type { Sandbox, ExecOptions, ExecResult } from "./interface";
+import type { ExecOptions, ExecResult, Sandbox } from "./interface";
 
 export interface E2BSandboxConfig {
   apiKey?: string;
@@ -28,11 +28,11 @@ export function createE2BSandbox(config: E2BSandboxConfig = {}): Sandbox {
 
   const exec = async (
     command: string,
-    options?: ExecOptions
+    options?: ExecOptions,
   ): Promise<ExecResult> => {
     const sbx = await ensureSandbox();
     const startTime = performance.now();
-    let interrupted = false;
+    const interrupted = false;
 
     try {
       const result = await sbx.commands.run(command, {
@@ -80,7 +80,10 @@ export function createE2BSandbox(config: E2BSandboxConfig = {}): Sandbox {
         // Log detailed error info for debugging
         console.error("[E2B readFile] Error reading:", path);
         console.error("[E2B readFile] Error type:", error?.constructor?.name);
-        console.error("[E2B readFile] Error message:", error instanceof Error ? error.message : error);
+        console.error(
+          "[E2B readFile] Error message:",
+          error instanceof Error ? error.message : error,
+        );
         console.error("[E2B readFile] Full error:", error);
         throw error;
       }
