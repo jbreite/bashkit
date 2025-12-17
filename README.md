@@ -1,31 +1,45 @@
 # bashkit
 
-Agentic coding tools for Vercel AI SDK. Give Claude the ability to execute code, read/write files, and perform coding tasks in a sandboxed environment.
+Agentic coding tools for Vercel AI SDK. Give AI agents the ability to execute code, read/write files, and perform coding tasks in a sandboxed environment.
 
 ## Overview
 
-`bashkit` provides a set of tools that work with the Vercel AI SDK to enable agentic coding capabilities. Inspired by Claude Code, it gives AI models like Claude the ability to:
+`bashkit` provides a set of tools that work with the Vercel AI SDK to enable agentic coding capabilities. It gives AI models like Claude the ability to:
 
-- Execute bash commands
-- Read and view files
-- Create new files
+- Execute bash commands in a persistent shell
+- Read files and list directories
+- Create and write files
 - Edit existing files with string replacement
+- Search for files by pattern
+- Search file contents with regex
+- Spawn sub-agents for complex tasks
+- Track task progress with todos
+- Search the web and fetch URLs
 
 ## Installation
 
 ```bash
-bun add @yourusername/bashkit ai zod
+bun add @bashkit ai zod
+```
+
+For web tools, also install:
+```bash
+bun add parallel-web
 ```
 
 ## Quick Start
 
-```typescript
-import { createAgentTools, VercelSandbox } from '@yourusername/bashkit';
-import { anthropic } from '@ai-sdk/anthropic';
-import { generateText } from 'ai';
+### With Filesystem Access (Desktop Apps, Local Scripts, Servers)
 
-// Create a sandbox
-const sandbox = new VercelSandbox();
+When you have direct filesystem access, use `LocalSandbox`:
+
+```typescript
+import { createAgentTools, createLocalSandbox } from '@bashkit';
+import { anthropic } from '@ai-sdk/anthropic';
+import { generateText, stepCountIs } from 'ai';
+
+// Create a local sandbox (runs directly on your filesystem)
+const sandbox = createLocalSandbox({ cwd: '/tmp/workspace' });
 
 // Create tools bound to the sandbox
 const tools = createAgentTools(sandbox);
@@ -34,8 +48,8 @@ const tools = createAgentTools(sandbox);
 const result = await generateText({
   model: anthropic('claude-sonnet-4-5'),
   tools,
-  maxSteps: 10,
-  prompt: 'Create a simple Express server in server.js'
+  prompt: 'Create a simple Express server in server.js',
+  stopWhen: stepCountIs(10),
 });
 
 console.log(result.text);
@@ -44,77 +58,98 @@ console.log(result.text);
 await sandbox.destroy();
 ```
 
-## Usage in Next.js API Route
+### Without Filesystem Access (Web/Serverless Environments)
+
+When you're in a web or serverless environment without filesystem access, use `VercelSandbox` or `E2BSandbox`:
 
 ```typescript
-// app/api/agent/route.ts
-import { createAgentTools, VercelSandbox } from '@yourusername/bashkit';
+import { createAgentTools, createVercelSandbox } from '@bashkit';
 import { anthropic } from '@ai-sdk/anthropic';
-import { streamText } from 'ai';
+import { streamText, stepCountIs } from 'ai';
 
-export async function POST(req: Request) {
-  const { messages } = await req.json();
-  
-  const sandbox = new VercelSandbox();
-  const tools = createAgentTools(sandbox);
-  
-  const result = streamText({
-    model: anthropic('claude-sonnet-4-5'),
-    messages,
-    tools,
-    maxSteps: 10,
-  });
-  
-  return result.toDataStreamResponse();
-}
+// Create a Vercel sandbox (isolated Firecracker microVM)
+const sandbox = createVercelSandbox({
+  runtime: 'node22',
+  resources: { vcpus: 2 },
+});
+
+const tools = createAgentTools(sandbox);
+
+const result = streamText({
+  model: anthropic('claude-sonnet-4-5'),
+  messages,
+  tools,
+  stopWhen: stepCountIs(10),
+});
+
+// Cleanup
+await sandbox.destroy();
 ```
 
 ## Available Tools
 
-### `bash`
-Execute bash commands in the sandbox.
+### Sandbox-based Tools (from `createAgentTools`)
 
-**Parameters:**
-- `command` (string): Bash command to execute
-- `description` (string): Why you're running this command
-- `restart` (boolean, optional): Restart the shell before executing
+| Tool | Purpose | Key Inputs |
+|------|---------|------------|
+| `Bash` | Execute shell commands | `command`, `timeout?`, `description?` |
+| `Read` | Read files or list directories | `file_path`, `offset?`, `limit?` |
+| `Write` | Create/overwrite files | `file_path`, `content` |
+| `Edit` | Replace strings in files | `file_path`, `old_string`, `new_string`, `replace_all?` |
+| `Glob` | Find files by pattern | `pattern`, `path?` |
+| `Grep` | Search file contents | `pattern`, `path?`, `output_mode?`, `-i?`, `-C?` |
 
-**Example:**
+### Workflow Tools (created separately)
+
+| Tool | Purpose | Factory |
+|------|---------|---------|
+| `Task` | Spawn sub-agents | `createTaskTool({ model, tools, subagentTypes? })` |
+| `TodoWrite` | Track task progress | `createTodoWriteTool(state, config?, onUpdate?)` |
+| `ExitPlanMode` | Exit planning mode | `createExitPlanModeTool(config?, onPlanSubmit?)` |
+
+### Web Tools (require `parallel-web` peer dependency)
+
+| Tool | Purpose | Factory |
+|------|---------|---------|
+| `WebSearch` | Search the web | `createWebSearchTool({ apiKey })` |
+| `WebFetch` | Fetch URL and process with AI | `createWebFetchTool({ apiKey, model })` |
+
+## Sandbox Types
+
+### LocalSandbox
+
+Runs commands directly on your filesystem. **Use when you have filesystem access** (desktop apps, local scripts, servers you control).
+
 ```typescript
-// Claude can call this tool like:
-{
-  tool: "bash",
-  args: {
-    command: "ls -la",
-    description: "List files in current directory"
-  }
-}
+import { createLocalSandbox } from '@bashkit';
+
+const sandbox = createLocalSandbox({ cwd: '/tmp/workspace' });
 ```
 
-### `view`
-View files and directories.
+### VercelSandbox
 
-**Parameters:**
-- `path` (string): Absolute path to file or directory
-- `description` (string): Why you need to view this
-- `view_range` ([number, number], optional): Line range for text files [start, end]
+Runs in isolated Firecracker microVMs on Vercel's infrastructure. **Use when you don't have filesystem access** (web apps, serverless functions, browser environments).
 
-### `create_file`
-Create a new file with content.
+```typescript
+import { createVercelSandbox } from '@bashkit';
 
-**Parameters:**
-- `path` (string): Path where file should be created
-- `file_text` (string): Content to write to the file
-- `description` (string): Why you're creating this file
+const sandbox = createVercelSandbox({
+  runtime: 'node22',
+  resources: { vcpus: 2 },
+});
+```
 
-### `str_replace`
-Replace a unique string in a file.
+### E2BSandbox
 
-**Parameters:**
-- `path` (string): Path to file to edit
-- `old_str` (string): String to replace (must appear exactly once)
-- `new_str` (string): Replacement string (empty to delete)
-- `description` (string): Why you're making this edit
+Runs in E2B's cloud sandboxes. Requires `@e2b/code-interpreter` peer dependency. **Use when you don't have filesystem access** and need E2B's features.
+
+```typescript
+import { createE2BSandbox } from '@bashkit';
+
+const sandbox = createE2BSandbox({
+  // E2B config
+});
+```
 
 ## Configuration
 
@@ -123,26 +158,25 @@ You can configure tools with security restrictions and limits:
 ```typescript
 const tools = createAgentTools(sandbox, {
   tools: {
-    bash: {
-      enabled: true,
+    Bash: {
       timeout: 30000,
       blockedCommands: ['rm -rf', 'curl'],
-      maxOutputLength: 10000
+      maxOutputLength: 10000,
     },
-    view: {
-      enabled: true,
-      allowedPaths: ['/workspace/**']
+    Read: {
+      allowedPaths: ['/workspace/**'],
     },
-    create_file: {
-      enabled: true,
-      maxFileSize: 1_000_000 // 1MB limit
+    Write: {
+      maxFileSize: 1_000_000, // 1MB limit
     },
-    str_replace: {
-      enabled: true
-    }
   },
-  defaultTimeout: 10000,
-  workingDirectory: '/workspace'
+  webSearch: {
+    apiKey: process.env.PARALLEL_API_KEY,
+  },
+  webFetch: {
+    apiKey: process.env.PARALLEL_API_KEY,
+    model: anthropic('claude-haiku-4'),
+  },
 });
 ```
 
@@ -153,16 +187,114 @@ const tools = createAgentTools(sandbox, {
 - `workingDirectory` (string): Default working directory for the sandbox
 
 #### Per-Tool Config
-- `enabled` (boolean): Enable/disable the tool
 - `timeout` (number): Tool-specific timeout
-- `maxFileSize` (number): Maximum file size in bytes (create_file)
-- `maxOutputLength` (number): Maximum output length (bash)
+- `maxFileSize` (number): Maximum file size in bytes (Write)
+- `maxOutputLength` (number): Maximum output length (Bash)
 - `allowedPaths` (string[]): Restrict file operations to specific paths
-- `blockedCommands` (string[]): Block commands containing these strings (bash)
+- `blockedCommands` (string[]): Block commands containing these strings (Bash)
+
+## Sub-agents with Task Tool
+
+The Task tool spawns new `generateText` calls for complex subtasks:
+
+```typescript
+import { createTaskTool } from '@bashkit';
+
+const taskTool = createTaskTool({
+  model: anthropic('claude-sonnet-4-5'),
+  tools: sandboxTools,
+  subagentTypes: {
+    research: {
+      model: anthropic('claude-haiku-4'), // Cheaper model for research
+      systemPrompt: 'You are a research specialist. Find information only.',
+      tools: ['Read', 'Grep', 'Glob'], // Limited tools
+    },
+    coding: {
+      systemPrompt: 'You are a coding expert. Write clean code.',
+      tools: ['Read', 'Write', 'Edit', 'Bash'],
+    },
+  },
+});
+
+// Add to tools
+const allTools = { ...sandboxTools, Task: taskTool };
+```
+
+The parent agent calls Task like any other tool:
+```typescript
+// Agent decides to delegate:
+{ tool: "Task", args: {
+  description: "Research API patterns",
+  prompt: "Find best practices for REST APIs",
+  subagent_type: "research"
+}}
+```
+
+## Context Management
+
+### Conversation Compaction
+
+Automatically summarize conversations when they exceed token limits:
+
+```typescript
+import { compactConversation, MODEL_CONTEXT_LIMITS } from '@bashkit';
+
+let compactState = { conversationSummary: '' };
+
+const result = await compactConversation(messages, {
+  maxTokens: MODEL_CONTEXT_LIMITS['claude-sonnet-4-5'],
+  summarizerModel: anthropic('claude-haiku-4'), // Fast/cheap model
+  compactionThreshold: 0.85, // Trigger at 85% usage
+  protectRecentMessages: 10, // Keep last 10 messages intact
+}, compactState);
+
+messages = result.messages;
+compactState = result.state;
+```
+
+### Context Status Monitoring
+
+Monitor context usage and inject guidance to prevent agents from rushing:
+
+```typescript
+import { getContextStatus, contextNeedsCompaction } from '@bashkit';
+
+const status = getContextStatus(messages, MODEL_CONTEXT_LIMITS['claude-sonnet-4-5']);
+
+if (status.guidance) {
+  // Inject into system prompt
+  system = `${system}\n\n<context_status>${status.guidance}</context_status>`;
+}
+
+if (contextNeedsCompaction(status)) {
+  // Trigger compaction
+  const compacted = await compactConversation(messages, config, state);
+}
+```
+
+## Prompt Caching
+
+Enable Anthropic prompt caching to reduce costs on repeated prefixes:
+
+```typescript
+import { wrapLanguageModel } from 'ai';
+import { anthropicPromptCacheMiddleware } from '@bashkit';
+
+const model = wrapLanguageModel({
+  model: anthropic('claude-sonnet-4-5'),
+  middleware: anthropicPromptCacheMiddleware,
+});
+
+// Check cache stats in result
+console.log({
+  cacheCreation: result.providerMetadata?.anthropic?.cacheCreationInputTokens,
+  cacheRead: result.providerMetadata?.anthropic?.cacheReadInputTokens,
+});
+```
 
 ## Sandbox Interface
 
-`bashkit` uses a bring-your-own-sandbox architecture. The default `VercelSandbox` is included, but you can implement custom sandboxes:
+`bashkit` uses a bring-your-own-sandbox architecture. You can implement custom sandboxes:
 
 ```typescript
 interface Sandbox {
@@ -178,7 +310,7 @@ interface Sandbox {
 ### Custom Sandbox Example
 
 ```typescript
-import { Sandbox } from '@yourusername/bashkit';
+import type { Sandbox } from '@bashkit';
 
 class DockerSandbox implements Sandbox {
   // Your implementation
@@ -197,20 +329,20 @@ const tools = createAgentTools(sandbox);
 ┌─────────────────────────────────────┐
 │   Your Next.js App / Script         │
 │                                     │
-│   ┌─────────────────────────────┐  │
-│   │  Vercel AI SDK              │  │
-│   │  (streamText/generateText)  │  │
-│   └──────────┬──────────────────┘  │
+│   ┌─────────────────────────────┐   │
+│   │  Vercel AI SDK              │   │
+│   │  (streamText/generateText)  │   │
+│   └──────────┬──────────────────┘   │
 │              │                      │
-│   ┌──────────▼──────────────────┐  │
-│   │  bashkit Tools              │  │
-│   │  (bash, view, create, etc)  │  │
-│   └──────────┬──────────────────┘  │
+│   ┌──────────▼──────────────────┐   │
+│   │  bashkit Tools              │   │
+│   │  (Bash, Read, Write, etc)   │   │
+│   └──────────┬──────────────────┘   │
 │              │                      │
-│   ┌──────────▼──────────────────┐  │
-│   │  Sandbox                    │  │
-│   │  (VercelSandbox/Custom)     │  │
-│   └─────────────────────────────┘  │
+│   ┌──────────▼──────────────────┐   │
+│   │  Sandbox                    │   │
+│   │  (Local/Vercel/E2B/Custom)  │   │
+│   └─────────────────────────────┘   │
 └─────────────────────────────────────┘
 ```
 
@@ -222,18 +354,19 @@ const tools = createAgentTools(sandbox);
 
 ## Design Principles
 
-1. **Bring Your Own Sandbox**: Start with VercelSandbox, swap in Docker/E2B/Modal as needed
+1. **Bring Your Own Sandbox**: Start with LocalSandbox for dev, swap in VercelSandbox/E2BSandbox for production
 2. **Type-Safe**: Full TypeScript support with proper type inference
 3. **Configurable**: Security controls and limits at the tool level
 4. **Vercel AI SDK Native**: Uses standard `tool()` format
-5. **Claude Code Compatible**: Tool signatures match Claude Code for prompt reusability
+5. **Composable**: Mix and match tools, utilities, and middleware as needed
 
 ## Examples
 
 See the `examples/` directory for complete working examples:
 
-- `basic-agent/` - Simple Next.js app with agent route
-- `custom-sandbox/` - Using a custom sandbox implementation
+- `basic.ts` - Full example with todos, sub-agents, and prompt caching
+- `test-tools.ts` - Testing individual tools
+- `test-web-tools.ts` - Web search and fetch examples
 
 ## API Reference
 
@@ -243,192 +376,92 @@ Creates a set of agent tools bound to a sandbox instance.
 
 **Parameters:**
 - `sandbox` (Sandbox): Sandbox instance for code execution
-- `config` (AgentConfig, optional): Configuration for tools and behavior
+- `config` (AgentConfig, optional): Configuration for tools and web tools
 
 **Returns:** Object with tool definitions compatible with Vercel AI SDK
 
-### `VercelSandbox`
+### Sandbox Factories
 
-Default sandbox implementation using Vercel's execution environment.
+- `createLocalSandbox(config?)` - Local execution sandbox
+- `createVercelSandbox(config?)` - Vercel Firecracker sandbox
+- `createE2BSandbox(config?)` - E2B cloud sandbox
 
-**Constructor:**
-- `workingDirectory` (string, optional): Working directory for the sandbox
+### Workflow Tools
 
-**Methods:**
-- All methods from `Sandbox` interface
+- `createTaskTool(config)` - Spawn sub-agents for complex tasks
+- `createTodoWriteTool(state, config?, onUpdate?)` - Track task progress
+- `createExitPlanModeTool(config?, onPlanSubmit?)` - Exit planning mode
+
+### Utilities
+
+- `compactConversation(messages, config, state)` - Summarize long conversations
+- `getContextStatus(messages, maxTokens, config?)` - Monitor context usage
+- `pruneMessagesByTokens(messages, config?)` - Remove old messages
+- `estimateMessagesTokens(messages)` - Estimate token count
+
+### Middleware
+
+- `anthropicPromptCacheMiddleware` - Enable prompt caching for Anthropic models
 
 ## Future Roadmap
 
 The following features are planned for future releases:
 
-### MCP (Model Context Protocol) Tools
+### Skills & Agent Profiles
 
-Support for MCP resources to enable AI agents to access external data sources:
+Configuration-based system for reusable agent patterns:
 
-#### `ListMcpResources`
-List all available MCP resources from connected servers.
+#### Skills Loader
 
-**Returns:**
-```typescript
+Load reusable prompt patterns from markdown files:
+
+```
+.bashkit/skills/
+  ├── refactor.md
+  ├── add-tests.md
+  └── code-review.md
+
+~/.bashkit/skills/  (global)
+  └── common-patterns.md
+```
+
+Skills can be automatically injected into system prompts or used as templates.
+
+#### Agent Profiles Loader
+
+Load pre-configured subagent types from JSON/TypeScript configs:
+
+```json
+// .bashkit/agents.json
 {
-  resources: Array<{
-    uri: string;
-    name: string;
-    description?: string;
-    mimeType?: string;
-    server: string;
-  }>;
-  total: number;
-}
-```
-
-#### `ReadMcpResource`
-Read the contents of a specific MCP resource.
-
-**Parameters:**
-- `uri` (string): The resource URI to read
-
-**Returns:**
-```typescript
-{
-  contents: Array<{
-    uri: string;
-    mimeType?: string;
-    text?: string;
-    blob?: string;
-  }>;
-  server: string;
-}
-```
-
-### Permission System
-
-Fine-grained permission control for tool operations:
-
-#### Permission Update Operations
-
-```typescript
-type PermissionUpdate =
-  | {
-      type: 'addRules';
-      rules: PermissionRuleValue[];
-      behavior: PermissionBehavior;
-      destination: PermissionUpdateDestination;
+  "subagentTypes": {
+    "research": {
+      "systemPrompt": "You are a research specialist...",
+      "tools": ["Read", "Grep", "Glob", "WebSearch"]
+    },
+    "coding": {
+      "systemPrompt": "You are a coding expert...",
+      "tools": ["Read", "Write", "Edit", "Bash"]
     }
-  | {
-      type: 'replaceRules';
-      rules: PermissionRuleValue[];
-      behavior: PermissionBehavior;
-      destination: PermissionUpdateDestination;
-    }
-  | {
-      type: 'removeRules';
-      rules: PermissionRuleValue[];
-      behavior: PermissionBehavior;
-      destination: PermissionUpdateDestination;
-    }
-  | {
-      type: 'setMode';
-      mode: PermissionMode;
-      destination: PermissionUpdateDestination;
-    }
-  | {
-      type: 'addDirectories';
-      directories: string[];
-      destination: PermissionUpdateDestination;
-    }
-  | {
-      type: 'removeDirectories';
-      directories: string[];
-      destination: PermissionUpdateDestination;
-    };
-```
-
-#### Permission Behaviors
-```typescript
-type PermissionBehavior = 'allow' | 'deny' | 'ask';
-```
-
-#### Permission Destinations
-```typescript
-type PermissionUpdateDestination =
-  | 'userSettings'     // Global user settings
-  | 'projectSettings'  // Per-directory project settings
-  | 'localSettings'    // Gitignored local settings
-  | 'session';         // Current session only
-```
-
-#### Permission Rules
-```typescript
-type PermissionRuleValue = {
-  toolName: string;
-  ruleContent?: string;
-}
-```
-
-**Usage Example:**
-```typescript
-const tools = createAgentTools(sandbox, {
-  permissions: {
-    rules: [
-      { toolName: 'bash', ruleContent: 'rm -rf' }  // Block dangerous commands
-    ],
-    behavior: 'deny',
-    destination: 'projectSettings'
   }
+}
+```
+
+Helper function to auto-load profiles:
+```typescript
+import { createTaskToolWithProfiles } from '@bashkit';
+
+const taskTool = createTaskToolWithProfiles({
+  model,
+  tools,
+  profilesPath: '.bashkit/agents.json', // Auto-loads
 });
 ```
 
-### Advanced Sandbox Configuration
-
-Enhanced sandbox settings for security and network control:
-
-```typescript
-type SandboxSettings = {
-  enabled?: boolean;
-  autoAllowBashIfSandboxed?: boolean;
-  excludedCommands?: string[];
-  allowUnsandboxedCommands?: boolean;
-  network?: NetworkSandboxSettings;
-  ignoreViolations?: SandboxIgnoreViolations;
-  enableWeakerNestedSandbox?: boolean;
-}
-```
-
-#### Configuration Properties
-
-| Property | Type | Default | Description |
-|----------|------|---------|-------------|
-| `enabled` | boolean | `false` | Enable sandbox mode for command execution |
-| `autoAllowBashIfSandboxed` | boolean | `false` | Auto-approve bash commands when sandbox is enabled |
-| `excludedCommands` | string[] | `[]` | Commands that always bypass sandbox restrictions (e.g., `['docker']`). These run unsandboxed automatically without model involvement |
-| `allowUnsandboxedCommands` | boolean | `false` | Allow the model to request running commands outside the sandbox. When true, the model can set `dangerouslyDisableSandbox` in tool input, which falls back to the permissions system |
-| `network` | NetworkSandboxSettings | `undefined` | Network-specific sandbox configuration |
-| `ignoreViolations` | SandboxIgnoreViolations | `undefined` | Configure which sandbox violations to ignore |
-| `enableWeakerNestedSandbox` | boolean | `false` | Enable a weaker nested sandbox for compatibility |
-
-**Usage Example:**
-```typescript
-const tools = createAgentTools(sandbox, {
-  sandbox: {
-    enabled: true,
-    autoAllowBashIfSandboxed: true,
-    excludedCommands: ['docker', 'kubectl'],
-    allowUnsandboxedCommands: false,
-    network: {
-      allowedDomains: ['api.github.com', '*.npmjs.org'],
-      blockedDomains: ['evil.com']
-    }
-  }
-});
-```
-
-**Important Notes:**
-- Filesystem read restrictions: Controlled by `Read` deny rules
-- Filesystem write restrictions: Controlled by `Edit` allow/deny rules
-- Network restrictions: Controlled by `WebFetch` allow/deny rules
-- Use sandbox settings for command execution sandboxing
-- Use permission rules for filesystem and network access control
+This will make it easy to:
+- Share agent configurations across projects
+- Standardize agent patterns within teams
+- Quickly set up specialized agents for different tasks
 
 ## Contributing
 
