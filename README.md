@@ -20,7 +20,7 @@ Agentic coding tools for Vercel AI SDK. Give AI agents the ability to execute co
 ## Installation
 
 ```bash
-bun add @bashkit ai zod
+bun add bashkit ai zod
 ```
 
 For web tools, also install:
