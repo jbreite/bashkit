@@ -71,8 +71,42 @@ export function createReadTool(sandbox: Sandbox, config?: ToolConfig) {
 
         // It's a file
         const content = await sandbox.readFile(file_path);
+
+        // Check for binary content (contains null bytes early in file)
+        const nullByteIndex = content.indexOf("\0");
+        if (nullByteIndex !== -1 && nullByteIndex < 1000) {
+          const ext = file_path.split(".").pop()?.toLowerCase();
+          const binaryExtensions = [
+            "pdf",
+            "png",
+            "jpg",
+            "jpeg",
+            "gif",
+            "zip",
+            "tar",
+            "gz",
+            "exe",
+            "bin",
+            "so",
+            "dylib",
+          ];
+          if (binaryExtensions.includes(ext || "")) {
+            return {
+              error: `Cannot read binary file: ${file_path}. Use appropriate tools to process ${ext?.toUpperCase()} files (e.g., Python scripts for PDFs).`,
+            };
+          }
+        }
+
         const allLines = content.split("\n");
         const totalLines = allLines.length;
+
+        // If file is large and no limit specified, require pagination
+        const maxLinesWithoutLimit = config?.maxFileSize || 500;
+        if (!limit && totalLines > maxLinesWithoutLimit) {
+          return {
+            error: `File is large (${totalLines} lines). Use 'offset' and 'limit' to read in chunks. Example: offset=1, limit=100 for first 100 lines.`,
+          };
+        }
 
         // Apply offset and limit
         const startLine = offset ? offset - 1 : 0;

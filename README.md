@@ -395,11 +395,63 @@ Use when the user needs to work with PDF files...
 - `metadata`: Arbitrary key-value pairs
 - `allowed-tools`: Space-delimited list of pre-approved tools (experimental)
 
+### Using Remote Skills
+
+Fetch complete skill folders from GitHub repositories, including all scripts and resources:
+
+```typescript
+import { fetchSkill, fetchSkills, setupAgentEnvironment } from '@bashkit';
+
+// Fetch a complete skill folder from Anthropic's official skills repo
+const pdfSkill = await fetchSkill('anthropics/skills/pdf');
+// Returns a SkillBundle:
+// {
+//   name: 'pdf',
+//   files: {
+//     'SKILL.md': '...',
+//     'scripts/extract_text.py': '...',
+//     'forms.md': '...',
+//     // ... all files in the skill folder
+//   }
+// }
+
+// Or batch fetch multiple skills
+const remoteSkills = await fetchSkills([
+  'anthropics/skills/pdf',
+  'anthropics/skills/web-research',
+]);
+// Returns: { 'pdf': SkillBundle, 'web-research': SkillBundle }
+
+// Use with setupAgentEnvironment - writes all files to .skills/
+const config = {
+  skills: {
+    ...remoteSkills,                    // SkillBundles (all files)
+    'my-custom': myCustomSkillContent,  // Inline string (just SKILL.md)
+  },
+};
+
+const { skills } = await setupAgentEnvironment(sandbox, config);
+// Creates: .skills/pdf/SKILL.md, .skills/pdf/scripts/*, etc.
+```
+
+**GitHub reference format:** `owner/repo/skillName`
+- `anthropics/skills/pdf` → fetches all files from `https://github.com/anthropics/skills/tree/main/skills/pdf`
+
 ### API Reference
 
 ```typescript
 // Discover skills from filesystem
 discoverSkills(options?: DiscoverSkillsOptions): Promise<SkillMetadata[]>
+
+// Fetch complete skill folders from GitHub
+fetchSkill(ref: string): Promise<SkillBundle>
+fetchSkills(refs: string[]): Promise<Record<string, SkillBundle>>
+
+// SkillBundle type
+interface SkillBundle {
+  name: string;
+  files: Record<string, string>;  // relative path -> content
+}
 
 // Generate XML for system prompts
 skillsToXml(skills: SkillMetadata[]): string

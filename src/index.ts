@@ -105,9 +105,23 @@ export {
 } from "./utils";
 
 // Skills (Agent Skills standard support)
-export type { DiscoverSkillsOptions, SkillMetadata } from "./skills";
-export { discoverSkills, parseSkillMetadata, skillsToXml } from "./skills";
+export type {
+  DiscoverSkillsOptions,
+  SkillBundle,
+  SkillMetadata,
+} from "./skills";
+export {
+  discoverSkills,
+  fetchSkill,
+  fetchSkills,
+  parseSkillMetadata,
+  skillsToXml,
+} from "./skills";
 
 // Setup (Agent environment setup for sandboxes)
-export type { AgentEnvironmentConfig, SetupResult } from "./setup";
+export type {
+  AgentEnvironmentConfig,
+  SetupResult,
+  SkillContent,
+} from "./setup";
 export { setupAgentEnvironment } from "./setup";

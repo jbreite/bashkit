@@ -1,3 +1,4 @@
+import { existsSync, mkdirSync } from "node:fs";
 import type { ExecOptions, ExecResult, Sandbox } from "./interface";
 
 export interface LocalSandboxConfig {
@@ -7,6 +8,11 @@ export interface LocalSandboxConfig {
 export function createLocalSandbox(config: LocalSandboxConfig = {}): Sandbox {
   const workingDirectory = config.cwd || "/tmp";
 
+  // Ensure the working directory exists
+  if (!existsSync(workingDirectory)) {
+    mkdirSync(workingDirectory, { recursive: true });
+  }
+
   const exec = async (
     command: string,
     options?: ExecOptions,
@@ -14,8 +20,15 @@ export function createLocalSandbox(config: LocalSandboxConfig = {}): Sandbox {
     const startTime = performance.now();
     let interrupted = false;
 
-    const proc = Bun.spawn(["bash", "-c", command], {
-      cwd: options?.cwd || workingDirectory,
+    const cwd = options?.cwd || workingDirectory;
+
+    // Ensure cwd exists before spawning
+    if (!existsSync(cwd)) {
+      mkdirSync(cwd, { recursive: true });
+    }
+
+    const proc = Bun.spawn(["sh", "-c", command], {
+      cwd,
       stdout: "pipe",
       stderr: "pipe",
     });
@@ -51,28 +64,49 @@ export function createLocalSandbox(config: LocalSandboxConfig = {}): Sandbox {
     exec,
 
     async readFile(path: string): Promise<string> {
-      const file = Bun.file(path);
+      const fullPath = path.startsWith("/")
+        ? path
+        : `${workingDirectory}/${path}`;
+      const file = Bun.file(fullPath);
       return await file.text();
     },
 
     async writeFile(path: string, content: string): Promise<void> {
-      await Bun.write(path, content);
+      const fullPath = path.startsWith("/")
+        ? path
+        : `${workingDirectory}/${path}`;
+      await Bun.write(fullPath, content);
     },
 
     async readDir(path: string): Promise<string[]> {
+      const fullPath = path.startsWith("/")
+        ? path
+        : `${workingDirectory}/${path}`;
       const fs = await import("fs/promises");
-      return await fs.readdir(path);
+      return await fs.readdir(fullPath);
     },
 
     async fileExists(path: string): Promise<boolean> {
-      const file = Bun.file(path);
-      return await file.exists();
+      const fullPath = path.startsWith("/")
+        ? path
+        : `${workingDirectory}/${path}`;
+      // Use fs.stat instead of Bun.file for directory support
+      const fs = await import("fs/promises");
+      try {
+        await fs.stat(fullPath);
+        return true;
+      } catch {
+        return false;
+      }
     },
 
     async isDirectory(path: string): Promise<boolean> {
+      const fullPath = path.startsWith("/")
+        ? path
+        : `${workingDirectory}/${path}`;
       const fs = await import("fs/promises");
       try {
-        const stat = await fs.stat(path);
+        const stat = await fs.stat(fullPath);
         return stat.isDirectory();
       } catch {
         return false;

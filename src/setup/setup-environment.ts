@@ -1,7 +1,19 @@
 import type { Sandbox } from "../sandbox/interface";
 import { parseSkillMetadata } from "../skills";
 import type { SkillMetadata } from "../skills";
-import type { AgentEnvironmentConfig, SetupResult } from "./types";
+import type { SkillBundle } from "../skills/fetch";
+import type {
+  AgentEnvironmentConfig,
+  SetupResult,
+  SkillContent,
+} from "./types";
+
+/**
+ * Checks if a skill content is a SkillBundle (has files) vs a plain string.
+ */
+function isSkillBundle(content: SkillContent): content is SkillBundle {
+  return typeof content === "object" && "files" in content;
+}
 
 /**
  * Sets up an agent environment in a sandbox.
@@ -15,13 +27,16 @@ import type { AgentEnvironmentConfig, SetupResult } from "./types";
  *
  * @example
  * ```typescript
+ * const pdfSkill = await fetchSkill('anthropics/skills/pdf');
+ *
  * const config = {
  *   workspace: {
  *     notes: 'files/notes/',
  *     outputs: 'files/outputs/',
  *   },
  *   skills: {
- *     'web-research': webResearchContent,
+ *     'pdf': pdfSkill,  // SkillBundle with all files
+ *     'my-custom': mySkillContent,  // inline string
  *   },
  * };
  *
@@ -53,30 +68,76 @@ export async function setupAgentEnvironment(
 
     for (const [name, content] of Object.entries(config.skills)) {
       const skillDir = `.skills/${name}`;
-      const skillPath = `${skillDir}/SKILL.md`;
 
-      // Create skill directory
-      await createDirectory(sandbox, skillDir);
+      if (isSkillBundle(content)) {
+        // SkillBundle: write all files from the bundle
+        await seedSkillBundle(sandbox, skillDir, content);
 
-      // Write SKILL.md
-      await sandbox.writeFile(skillPath, content);
+        // Parse metadata from SKILL.md
+        const skillMdContent = content.files["SKILL.md"];
+        if (skillMdContent) {
+          try {
+            const metadata = parseSkillMetadata(
+              skillMdContent,
+              `${skillDir}/SKILL.md`,
+            );
+            skills.push(metadata);
+          } catch {
+            skills.push({
+              name,
+              description: `Skill: ${name}`,
+              path: `${skillDir}/SKILL.md`,
+            });
+          }
+        }
+      } else {
+        // String: just write SKILL.md
+        const skillPath = `${skillDir}/SKILL.md`;
+        await createDirectory(sandbox, skillDir);
+        await sandbox.writeFile(skillPath, content);
 
-      // Parse metadata
-      try {
-        const metadata = parseSkillMetadata(content, skillPath);
-        skills.push(metadata);
-      } catch {
-        // If parsing fails, create minimal metadata
-        skills.push({
-          name,
-          description: `Skill: ${name}`,
-          path: skillPath,
-        });
+        // Parse metadata
+        try {
+          const metadata = parseSkillMetadata(content, skillPath);
+          skills.push(metadata);
+        } catch {
+          skills.push({
+            name,
+            description: `Skill: ${name}`,
+            path: skillPath,
+          });
+        }
       }
     }
   }
 
   return { skills };
+}
+
+/**
+ * Seeds a complete SkillBundle into the sandbox.
+ */
+async function seedSkillBundle(
+  sandbox: Sandbox,
+  skillDir: string,
+  bundle: SkillBundle,
+): Promise<void> {
+  // Create the skill directory
+  await createDirectory(sandbox, skillDir);
+
+  // Write all files from the bundle
+  for (const [relativePath, content] of Object.entries(bundle.files)) {
+    const fullPath = `${skillDir}/${relativePath}`;
+
+    // Create parent directories if needed
+    const parentDir = fullPath.substring(0, fullPath.lastIndexOf("/"));
+    if (parentDir && parentDir !== skillDir) {
+      await createDirectory(sandbox, parentDir);
+    }
+
+    // Write the file
+    await sandbox.writeFile(fullPath, content);
+  }
 }
 
 /**
