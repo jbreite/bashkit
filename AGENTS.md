@@ -310,6 +310,34 @@ description: Extract text and tables from PDF files.
 Instructions for the agent...
 ```
 
+## Setting Up Agent Environments
+
+For cloud sandboxes, use `setupAgentEnvironment` to create workspace directories and seed skills:
+
+```typescript
+import { setupAgentEnvironment, skillsToXml, createAgentTools, createVercelSandbox } from "@jbreite/bashkit";
+
+const config = {
+  workspace: {
+    notes: 'files/notes/',
+    outputs: 'files/outputs/',
+  },
+  skills: {
+    'web-research': webResearchSkillContent,
+  },
+};
+
+const sandbox = createVercelSandbox({});
+const { skills } = await setupAgentEnvironment(sandbox, config);
+
+// Use same config in prompt - stays in sync!
+const systemPrompt = `Save notes to: ${config.workspace.notes}
+${skillsToXml(skills)}
+`;
+
+const tools = createAgentTools(sandbox);
+```
+
 ## Common Patterns
 
 ### Full Agent Setup

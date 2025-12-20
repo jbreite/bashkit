@@ -107,3 +107,7 @@ export {
 // Skills (Agent Skills standard support)
 export type { DiscoverSkillsOptions, SkillMetadata } from "./skills";
 export { discoverSkills, parseSkillMetadata, skillsToXml } from "./skills";
+
+// Setup (Agent environment setup for sandboxes)
+export type { AgentEnvironmentConfig, SetupResult } from "./setup";
+export { setupAgentEnvironment } from "./setup";

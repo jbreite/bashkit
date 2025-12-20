@@ -408,6 +408,89 @@ skillsToXml(skills: SkillMetadata[]): string
 parseSkillMetadata(content: string, skillPath: string): SkillMetadata
 ```
 
+## Setting Up Agent Environments
+
+For cloud sandboxes (VercelSandbox/E2B), use `setupAgentEnvironment` to create workspace directories and seed skills.
+
+```typescript
+import { 
+  setupAgentEnvironment, 
+  skillsToXml, 
+  createAgentTools, 
+  createVercelSandbox 
+} from '@bashkit';
+
+// Define your environment config
+const config = {
+  workspace: {
+    notes: 'files/notes/',
+    outputs: 'files/outputs/',
+  },
+  skills: {
+    'web-research': `---
+name: web-research
+description: Research topics using web search and save findings.
+---
+# Web Research
+Use WebSearch to find information...
+`,
+  },
+};
+
+// Create sandbox and set up environment
+const sandbox = createVercelSandbox({});
+const { skills } = await setupAgentEnvironment(sandbox, config);
+
+// Build prompt using the same config (stays in sync!)
+const systemPrompt = `You are a research assistant.
+
+**ENVIRONMENT:**
+- Save notes to: ${config.workspace.notes}
+- Save outputs to: ${config.workspace.outputs}
+
+${skillsToXml(skills)}
+`;
+
+// Create tools and run
+const tools = createAgentTools(sandbox);
+
+const result = await generateText({
+  model: anthropic('claude-sonnet-4-5'),
+  tools,
+  system: systemPrompt,
+  messages,
+});
+```
+
+### What setupAgentEnvironment Does
+
+1. **Creates workspace directories** - All paths in `config.workspace` are created
+2. **Seeds skills** - Skills in `config.skills` are written to `.skills/` directory
+3. **Returns skill metadata** - For use with `skillsToXml()`
+
+### Using with Subagents
+
+Use the same config for subagent prompts:
+
+```typescript
+const taskTool = createTaskTool({
+  model,
+  tools,
+  subagentTypes: {
+    researcher: {
+      systemPrompt: `You are a researcher.
+Save findings to: ${config.workspace.notes}`,
+      tools: ['WebSearch', 'Write'],
+    },
+    'report-writer': {
+      systemPrompt: `Read from: ${config.workspace.notes}
+Save reports to: ${config.workspace.outputs}`,
+      tools: ['Read', 'Glob', 'Write'],
+    },
+  },
+});
+```
+
 ## Sandbox Interface
 
 `bashkit` uses a bring-your-own-sandbox architecture. You can implement custom sandboxes:
@@ -520,6 +603,10 @@ Creates a set of agent tools bound to a sandbox instance.
 - `discoverSkills(options?)` - Discover skills from filesystem (metadata only)
 - `skillsToXml(skills)` - Generate XML for system prompts
 - `parseSkillMetadata(content, path)` - Parse a SKILL.md file
+
+### Setup
+
+- `setupAgentEnvironment(sandbox, config)` - Set up workspace directories and seed skills
 
 ### Middleware
 
