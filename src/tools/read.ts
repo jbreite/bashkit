@@ -92,7 +92,7 @@ export function createReadTool(sandbox: Sandbox, config?: ToolConfig) {
           ];
           if (binaryExtensions.includes(ext || "")) {
             return {
-              error: `Cannot read binary file: ${file_path}. Use appropriate tools to process ${ext?.toUpperCase()} files (e.g., Python scripts for PDFs).`,
+              error: `Cannot read binary file: ${file_path} (file exists, ${content.length} bytes). Use appropriate tools to process ${ext?.toUpperCase()} files (e.g., Python scripts for PDFs).`,
             };
           }
         }

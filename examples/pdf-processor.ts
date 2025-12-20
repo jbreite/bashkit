@@ -35,7 +35,7 @@ async function main() {
     console.error("");
     console.error("Example:");
     console.error(
-      "  bun run examples/pdf-processor.ts ~/Documents/invoice.pdf",
+      "  bun run examples/pdf-processor.ts ~/Documents/invoice.pdf"
     );
     process.exit(1);
   }
@@ -111,17 +111,18 @@ ${skillsToXml(skills)}
 4. Save all output files to the output/ directory
 
 **IMPORTANT:**
-- Always check if required tools (like poppler-utils, pypdf) are installed
+- Use \`python3\` (not \`python\`) for running scripts
+- Install required packages with \`pip3 install\` if needed
 - Use the scripts provided in the skill when applicable
 - Explain what you're doing at each step`;
 
   // 7. Wrap model with prompt caching
   const model = wrapLanguageModel({
-    model: anthropic("claude-sonnet-4-20250514"),
+    model: anthropic("claude-sonnet-4-5-20250929"),
     middleware: anthropicPromptCacheMiddleware,
   });
 
-  console.log("\n" + "=".repeat(60));
+  console.log(`\n${"=".repeat(60)}`);
   console.log("\n🤖 Starting agent...\n");
 
   let stepNumber = 0;
@@ -135,7 +136,10 @@ ${skillsToXml(skills)}
 
 1. First, read the PDF skill instructions at .skills/pdf/SKILL.md to understand what tools and scripts are available.
 
-2. Extract the text content from the PDF and save it to output/${pdfFilename.replace(".pdf", ".txt")}.
+2. Extract the text content from the PDF and save it to output/${pdfFilename.replace(
+      ".pdf",
+      ".txt"
+    )}.
 
 3. If the PDF appears to be a form, also extract the form field information.
 
@@ -143,9 +147,9 @@ ${skillsToXml(skills)}
     stopWhen: stepCountIs(20),
     onStepFinish: ({ finishReason, toolCalls, toolResults, text, usage }) => {
       stepNumber++;
-      console.log("\n" + "-".repeat(60));
+      console.log(`\n${"-".repeat(60)}`);
       console.log(`📍 Step ${stepNumber} (${finishReason})`);
-      console.log("-".repeat(60));
+      console.log(`${"-".repeat(60)}`);
 
       if (toolCalls && toolCalls.length > 0) {
         for (const call of toolCalls) {
@@ -164,9 +168,9 @@ ${skillsToXml(skills)}
           } else {
             const inputStr = JSON.stringify(input, null, 2);
             const truncatedInput =
-              inputStr.length > 500 ? inputStr.slice(0, 500) + "..." : inputStr;
+              inputStr.length > 500 ? `${inputStr.slice(0, 500)}...` : inputStr;
             console.log(
-              `   Input: ${truncatedInput.split("\n").join("\n   ")}`,
+              `   Input: ${truncatedInput.split("\n").join("\n   ")}`
             );
           }
         }
@@ -186,10 +190,10 @@ ${skillsToXml(skills)}
             if (stdout) {
               const truncatedStdout =
                 stdout.length > 800
-                  ? stdout.slice(0, 800) + "\n   ... (truncated)"
+                  ? `${stdout.slice(0, 800)}\n   ... (truncated)\n`
                   : stdout;
               console.log(
-                `   stdout:\n   ${truncatedStdout.split("\n").join("\n   ")}`,
+                `   stdout:\n   ${truncatedStdout.split("\n").join("\n   ")}`
               );
             }
             if (stderr) {
@@ -200,10 +204,12 @@ ${skillsToXml(skills)}
             const content = String(output.content);
             const truncated =
               content.length > 600
-                ? content.slice(0, 600) + "\n... (truncated)"
+                ? `${content.slice(0, 600)}\n... (truncated)\n`
                 : content;
             console.log(
-              `\n   ✅ Content (${content.length} chars):\n   ${truncated.split("\n").join("\n   ")}`,
+              `\n   ✅ Content (${content.length} chars):\n   ${truncated
+                .split("\n")
+                .join("\n   ")}`
             );
           } else if (output.success !== undefined) {
             // Write output
@@ -212,10 +218,10 @@ ${skillsToXml(skills)}
             const outputStr = JSON.stringify(output, null, 2);
             const truncated =
               outputStr.length > 600
-                ? outputStr.slice(0, 600) + "..."
+                ? `${outputStr.slice(0, 600)}...`
                 : outputStr;
             console.log(
-              `\n   ✅ Result:\n   ${truncated.split("\n").join("\n   ")}`,
+              `\n   ✅ Result:\n   ${truncated.split("\n").join("\n   ")}`
             );
           }
         }
@@ -227,13 +233,13 @@ ${skillsToXml(skills)}
 
       if (usage) {
         console.log(
-          `\n📊 Tokens: in=${usage.inputTokens} out=${usage.outputTokens}`,
+          `\n📊 Tokens: in=${usage.inputTokens} out=${usage.outputTokens}`
         );
       }
     },
   });
 
-  console.log("\n" + "=".repeat(60));
+  console.log(`\n${"=".repeat(60)}`);
   console.log("\n✅ Agent completed!\n");
   console.log("Final response:", result.text || "(no text response)");
   console.log("\n📈 Summary:");
@@ -263,12 +269,12 @@ ${skillsToXml(skills)}
             const content = await sandbox.readFile(`output/${file}`);
             const preview = content.slice(0, 500);
             console.log("\n   Preview:");
-            console.log("   " + "-".repeat(40));
-            console.log("   " + preview.split("\n").join("\n   "));
+            console.log(`   ${"-".repeat(40)}`);
+            console.log(`   ${preview.split("\n").join("\n   ")}`);
             if (content.length > 500) {
               console.log("   ... (truncated)");
             }
-            console.log("   " + "-".repeat(40));
+            console.log(`   ${"-".repeat(40)}`);
           } catch {
             // Skip preview if can't read
           }
