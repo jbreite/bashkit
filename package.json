@@ -68,7 +68,7 @@
     "zod": "^4.1.8",
     "@vercel/sandbox": "^1.0.0",
     "@e2b/code-interpreter": "^1.0.0",
-    "parallel-web": "^1.0.0"
+    "parallel-web": "^0.2.4"
   },
   "peerDependenciesMeta": {
     "@vercel/sandbox": {

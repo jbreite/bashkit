@@ -35,7 +35,7 @@ bun add parallel-web
 When you have direct filesystem access, use `LocalSandbox`:
 
 ```typescript
-import { createAgentTools, createLocalSandbox } from '@bashkit';
+import { createAgentTools, createLocalSandbox } from 'bashkit';
 import { anthropic } from '@ai-sdk/anthropic';
 import { generateText, stepCountIs } from 'ai';
 
@@ -64,7 +64,7 @@ await sandbox.destroy();
 When you're in a web or serverless environment without filesystem access, use `VercelSandbox` or `E2BSandbox`:
 
 ```typescript
-import { createAgentTools, createVercelSandbox } from '@bashkit';
+import { createAgentTools, createVercelSandbox } from 'bashkit';
 import { anthropic } from '@ai-sdk/anthropic';
 import { streamText, stepCountIs } from 'ai';
 
@@ -122,7 +122,7 @@ await sandbox.destroy();
 Runs commands directly on your filesystem. **Use when you have filesystem access** (desktop apps, local scripts, servers you control).
 
 ```typescript
-import { createLocalSandbox } from '@bashkit';
+import { createLocalSandbox } from 'bashkit';
 
 const sandbox = createLocalSandbox({ cwd: '/tmp/workspace' });
 ```
@@ -132,7 +132,7 @@ const sandbox = createLocalSandbox({ cwd: '/tmp/workspace' });
 Runs in isolated Firecracker microVMs on Vercel's infrastructure. **Use when you don't have filesystem access** (web apps, serverless functions, browser environments).
 
 ```typescript
-import { createVercelSandbox } from '@bashkit';
+import { createVercelSandbox } from 'bashkit';
 
 const sandbox = createVercelSandbox({
   runtime: 'node22',
@@ -145,7 +145,7 @@ const sandbox = createVercelSandbox({
 Runs in E2B's cloud sandboxes. Requires `@e2b/code-interpreter` peer dependency. **Use when you don't have filesystem access** and need E2B's features.
 
 ```typescript
-import { createE2BSandbox } from '@bashkit';
+import { createE2BSandbox } from 'bashkit';
 
 const sandbox = createE2BSandbox({
   // E2B config
@@ -199,7 +199,7 @@ const tools = createAgentTools(sandbox, {
 The Task tool spawns new `generateText` calls for complex subtasks:
 
 ```typescript
-import { createTaskTool } from '@bashkit';
+import { createTaskTool } from 'bashkit';
 
 const taskTool = createTaskTool({
   model: anthropic('claude-sonnet-4-5'),
@@ -238,7 +238,7 @@ The parent agent calls Task like any other tool:
 Automatically summarize conversations when they exceed token limits:
 
 ```typescript
-import { compactConversation, MODEL_CONTEXT_LIMITS } from '@bashkit';
+import { compactConversation, MODEL_CONTEXT_LIMITS } from 'bashkit';
 
 let compactState = { conversationSummary: '' };
 
@@ -258,7 +258,7 @@ compactState = result.state;
 Monitor context usage and inject guidance to prevent agents from rushing:
 
 ```typescript
-import { getContextStatus, contextNeedsCompaction } from '@bashkit';
+import { getContextStatus, contextNeedsCompaction } from 'bashkit';
 
 const status = getContextStatus(messages, MODEL_CONTEXT_LIMITS['claude-sonnet-4-5']);
 
@@ -279,7 +279,7 @@ Enable Anthropic prompt caching to reduce costs on repeated prefixes:
 
 ```typescript
 import { wrapLanguageModel } from 'ai';
-import { anthropicPromptCacheMiddleware } from '@bashkit';
+import { anthropicPromptCacheMiddleware } from 'bashkit';
 
 const model = wrapLanguageModel({
   model: anthropic('claude-sonnet-4-5'),
@@ -314,7 +314,7 @@ When using LocalSandbox, skills are discovered from:
 This allows agents to pick up project-specific skills and user-installed skills automatically.
 
 ```typescript
-import { discoverSkills, skillsToXml } from '@bashkit';
+import { discoverSkills, skillsToXml } from 'bashkit';
 
 // Discover skills (metadata only - fast, low context)
 const skills = await discoverSkills();
@@ -331,7 +331,7 @@ const skills = await discoverSkills({
 Inject skill metadata into the system prompt using XML format (recommended for Claude):
 
 ```typescript
-import { discoverSkills, skillsToXml, createAgentTools, createLocalSandbox } from '@bashkit';
+import { discoverSkills, skillsToXml, createAgentTools, createLocalSandbox } from 'bashkit';
 
 const skills = await discoverSkills();
 const sandbox = createLocalSandbox({ cwd: '/tmp/workspace' });
@@ -400,7 +400,7 @@ Use when the user needs to work with PDF files...
 Fetch complete skill folders from GitHub repositories, including all scripts and resources:
 
 ```typescript
-import { fetchSkill, fetchSkills, setupAgentEnvironment } from '@bashkit';
+import { fetchSkill, fetchSkills, setupAgentEnvironment } from 'bashkit';
 
 // Fetch a complete skill folder from Anthropic's official skills repo
 const pdfSkill = await fetchSkill('anthropics/skills/pdf');
@@ -465,12 +465,12 @@ parseSkillMetadata(content: string, skillPath: string): SkillMetadata
 For cloud sandboxes (VercelSandbox/E2B), use `setupAgentEnvironment` to create workspace directories and seed skills.
 
 ```typescript
-import { 
-  setupAgentEnvironment, 
-  skillsToXml, 
-  createAgentTools, 
-  createVercelSandbox 
-} from '@bashkit';
+import {
+  setupAgentEnvironment,
+  skillsToXml,
+  createAgentTools,
+  createVercelSandbox
+} from 'bashkit';
 
 // Define your environment config
 const config = {
@@ -561,7 +561,7 @@ interface Sandbox {
 ### Custom Sandbox Example
 
 ```typescript
-import type { Sandbox } from '@bashkit';
+import type { Sandbox } from 'bashkit';
 
 class DockerSandbox implements Sandbox {
   // Your implementation
@@ -690,7 +690,7 @@ Load pre-configured subagent types from JSON/TypeScript configs:
 
 Helper function to auto-load profiles:
 ```typescript
-import { createTaskToolWithProfiles } from '@bashkit';
+import { createTaskToolWithProfiles } from 'bashkit';
 
 const taskTool = createTaskToolWithProfiles({
   model,
