@@ -54,7 +54,7 @@ export const anthropicPromptCacheMiddleware: LanguageModelV2Middleware = {
     ensureCacheMarker(
       messages
         .slice(0, -1)
-        .findLast((m: LanguageModelV2Message) => m.role !== "assistant")
+        .findLast((m: LanguageModelV2Message) => m.role !== "assistant"),
     );
     return {
       ...params,
