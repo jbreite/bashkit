@@ -103,3 +103,7 @@ export {
   MODEL_CONTEXT_LIMITS,
   pruneMessagesByTokens,
 } from "./utils";
+
+// Skills (Agent Skills standard support)
+export type { DiscoverSkillsOptions, SkillMetadata } from "./skills";
+export { discoverSkills, parseSkillMetadata, skillsToXml } from "./skills";

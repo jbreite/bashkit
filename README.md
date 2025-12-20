@@ -15,6 +15,7 @@ Agentic coding tools for Vercel AI SDK. Give AI agents the ability to execute co
 - Spawn sub-agents for complex tasks
 - Track task progress with todos
 - Search the web and fetch URLs
+- Load skills on-demand via the [Agent Skills](https://agentskills.io) standard
 
 ## Installation
 
@@ -292,6 +293,121 @@ console.log({
 });
 ```
 
+## Agent Skills
+
+bashkit supports the [Agent Skills](https://agentskills.io) standard - an open format for giving agents new capabilities and expertise. Skills are folders containing a `SKILL.md` file with instructions that agents can load on-demand.
+
+> **Note:** Skill discovery is designed for **LocalSandbox** use cases where the agent has access to the user's filesystem. For cloud sandboxes (VercelSandbox/E2B), you would bundle skills with your app and inject them directly into the system prompt.
+
+### Progressive Disclosure
+
+Skills use progressive disclosure to keep context lean:
+1. **At startup**: Only skill metadata (name, description, path) is loaded (~50-100 tokens per skill)
+2. **On activation**: Agent reads the full `SKILL.md` via the Read tool when needed
+
+### Discovering Skills
+
+When using LocalSandbox, skills are discovered from:
+1. `.skills/` in the project directory (highest priority)
+2. `~/.bashkit/skills/` for user-global skills
+
+This allows agents to pick up project-specific skills and user-installed skills automatically.
+
+```typescript
+import { discoverSkills, skillsToXml } from '@bashkit';
+
+// Discover skills (metadata only - fast, low context)
+const skills = await discoverSkills();
+
+// Or with custom paths
+const skills = await discoverSkills({
+  paths: ['.skills', '/path/to/shared/skills'],
+  cwd: '/my/project',
+});
+```
+
+### Using Skills with Agents
+
+Inject skill metadata into the system prompt using XML format (recommended for Claude):
+
+```typescript
+import { discoverSkills, skillsToXml, createAgentTools, createLocalSandbox } from '@bashkit';
+
+const skills = await discoverSkills();
+const sandbox = createLocalSandbox({ cwd: '/tmp/workspace' });
+const tools = createAgentTools(sandbox);
+
+const result = await generateText({
+  model: anthropic('claude-sonnet-4-5'),
+  tools,
+  system: `You are a coding assistant.
+
+${skillsToXml(skills)}
+
+When a task matches a skill, use the Read tool to load its full instructions from the location path.`,
+  prompt: 'Extract text from invoice.pdf',
+  stopWhen: stepCountIs(10),
+});
+
+// Agent will call Read({ file_path: "/path/to/.skills/pdf-processing/SKILL.md" })
+// when it decides to use the pdf-processing skill
+```
+
+### Creating Skills
+
+Create a folder with a `SKILL.md` file:
+
+```
+.skills/
+└── pdf-processing/
+    └── SKILL.md
+```
+
+The `SKILL.md` file has YAML frontmatter and markdown instructions:
+
+```markdown
+---
+name: pdf-processing
+description: Extract text and tables from PDF files, fill forms, merge documents.
+license: MIT
+compatibility: Requires poppler-utils
+metadata:
+  author: my-org
+  version: "1.0"
+---
+
+# PDF Processing
+
+## When to use this skill
+Use when the user needs to work with PDF files...
+
+## How to extract text
+1. Use pdftotext for text extraction...
+```
+
+**Required fields:**
+- `name`: 1-64 chars, lowercase letters, numbers, and hyphens. Must match folder name.
+- `description`: 1-1024 chars. Describes when to use this skill.
+
+**Optional fields:**
+- `license`: License info
+- `compatibility`: Environment requirements
+- `metadata`: Arbitrary key-value pairs
+- `allowed-tools`: Space-delimited list of pre-approved tools (experimental)
+
+### API Reference
+
+```typescript
+// Discover skills from filesystem
+discoverSkills(options?: DiscoverSkillsOptions): Promise<SkillMetadata[]>
+
+// Generate XML for system prompts
+skillsToXml(skills: SkillMetadata[]): string
+
+// Parse a single SKILL.md file
+parseSkillMetadata(content: string, skillPath: string): SkillMetadata
+```
+
 ## Sandbox Interface
 
 `bashkit` uses a bring-your-own-sandbox architecture. You can implement custom sandboxes:
@@ -399,6 +515,12 @@ Creates a set of agent tools bound to a sandbox instance.
 - `pruneMessagesByTokens(messages, config?)` - Remove old messages
 - `estimateMessagesTokens(messages)` - Estimate token count
 
+### Skills
+
+- `discoverSkills(options?)` - Discover skills from filesystem (metadata only)
+- `skillsToXml(skills)` - Generate XML for system prompts
+- `parseSkillMetadata(content, path)` - Parse a SKILL.md file
+
 ### Middleware
 
 - `anthropicPromptCacheMiddleware` - Enable prompt caching for Anthropic models
@@ -407,27 +529,7 @@ Creates a set of agent tools bound to a sandbox instance.
 
 The following features are planned for future releases:
 
-### Skills & Agent Profiles
-
-Configuration-based system for reusable agent patterns:
-
-#### Skills Loader
-
-Load reusable prompt patterns from markdown files:
-
-```
-.bashkit/skills/
-  ├── refactor.md
-  ├── add-tests.md
-  └── code-review.md
-
-~/.bashkit/skills/  (global)
-  └── common-patterns.md
-```
-
-Skills can be automatically injected into system prompts or used as templates.
-
-#### Agent Profiles Loader
+### Agent Profiles Loader
 
 Load pre-configured subagent types from JSON/TypeScript configs:
 

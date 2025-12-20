@@ -247,6 +247,69 @@ const tools = {
 }
 ```
 
+## Agent Skills
+
+bashkit supports the [Agent Skills](https://agentskills.io) standard for progressive skill loading.
+
+> **Note:** Skill discovery is for **LocalSandbox** use cases where the agent has filesystem access. For cloud sandboxes, bundle skills with your app directly.
+
+### Discovering Skills (LocalSandbox)
+
+When using LocalSandbox, discover project and user-global skills:
+
+```typescript
+import { discoverSkills, skillsToXml } from "@jbreite/bashkit";
+
+// Discovers from .skills/ (project) and ~/.bashkit/skills/ (user-global)
+const skills = await discoverSkills();
+```
+
+### Using Skills with Agents
+
+```typescript
+import { discoverSkills, skillsToXml, createAgentTools, LocalSandbox } from "@jbreite/bashkit";
+import { generateText, stepCountIs } from "ai";
+import { anthropic } from "@ai-sdk/anthropic";
+
+const skills = await discoverSkills();
+const sandbox = new LocalSandbox("/tmp/workspace");
+const tools = createAgentTools(sandbox);
+
+const result = await generateText({
+  model: anthropic("claude-sonnet-4-20250514"),
+  tools,
+  system: `You are a coding assistant.
+
+${skillsToXml(skills)}
+
+When a task matches a skill, use the Read tool to load its full instructions from the location path.`,
+  prompt: "Extract text from invoice.pdf",
+  stopWhen: stepCountIs(10),
+});
+```
+
+### How It Works
+
+1. `discoverSkills()` loads only metadata (name, description, path) - ~50-100 tokens per skill
+2. `skillsToXml()` generates XML listing available skills
+3. Agent decides when to activate a skill by reading its SKILL.md with the Read tool
+4. Full instructions enter context only when the skill is actually used
+
+### Creating Skills
+
+Create `.skills/<skill-name>/SKILL.md`:
+
+```markdown
+---
+name: pdf-processing
+description: Extract text and tables from PDF files.
+---
+
+# PDF Processing
+
+Instructions for the agent...
+```
+
 ## Common Patterns
 
 ### Full Agent Setup
