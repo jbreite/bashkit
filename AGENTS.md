@@ -310,6 +310,34 @@ description: Extract text and tables from PDF files.
 Instructions for the agent...
 ```
 
+### Using Remote Skills
+
+Fetch complete skill folders from GitHub repositories (e.g., Anthropic's official skills):
+
+```typescript
+import { fetchSkill, fetchSkills, setupAgentEnvironment } from "@jbreite/bashkit";
+
+// Fetch a single skill (gets all files: SKILL.md, scripts/, etc.)
+const pdfSkill = await fetchSkill('anthropics/skills/pdf');
+
+// Or batch fetch multiple
+const remoteSkills = await fetchSkills([
+  'anthropics/skills/pdf',
+  'anthropics/skills/web-research',
+]);
+
+// Use with setupAgentEnvironment
+const config = {
+  skills: {
+    ...remoteSkills,
+    'my-custom': myContent,
+  },
+};
+const { skills } = await setupAgentEnvironment(sandbox, config);
+```
+
+**Format:** `owner/repo/skillName` (fetches entire skill folder from GitHub)
+
 ## Setting Up Agent Environments
 
 For cloud sandboxes, use `setupAgentEnvironment` to create workspace directories and seed skills:

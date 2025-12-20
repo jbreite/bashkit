@@ -1,4 +1,12 @@
 import type { SkillMetadata } from "../skills";
+import type { SkillBundle } from "../skills/fetch";
+
+/**
+ * A skill can be either:
+ * - A string (just SKILL.md content for inline skills)
+ * - A SkillBundle (complete folder with all files, from fetchSkill)
+ */
+export type SkillContent = string | SkillBundle;
 
 /**
  * Configuration for setting up an agent environment in a sandbox.
@@ -18,15 +26,18 @@ export interface AgentEnvironmentConfig {
 
   /**
    * Skills to seed into the sandbox.
-   * Keys are skill names (folder names), values are SKILL.md content.
+   * Keys are skill names (folder names).
+   * Values can be:
+   * - A string: just the SKILL.md content (for inline skills)
+   * - A SkillBundle: complete folder from fetchSkill() (for remote skills)
    *
    * @example
    * skills: {
-   *   'web-research': webResearchSkillContent,
-   *   'code-review': codeReviewSkillContent,
+   *   'web-research': webResearchSkillContent,  // inline string
+   *   'pdf': await fetchSkill('anthropics/skills/pdf'),  // SkillBundle
    * }
    */
-  skills?: Record<string, string>;
+  skills?: Record<string, SkillContent>;
 }
 
 /**
