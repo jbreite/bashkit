@@ -32,7 +32,6 @@ export function createE2BSandbox(config: E2BSandboxConfig = {}): Sandbox {
   ): Promise<ExecResult> => {
     const sbx = await ensureSandbox();
     const startTime = performance.now();
-    const interrupted = false;
 
     try {
       const result = await sbx.commands.run(command, {
@@ -47,7 +46,7 @@ export function createE2BSandbox(config: E2BSandboxConfig = {}): Sandbox {
         stderr: result.stderr,
         exitCode: result.exitCode,
         durationMs,
-        interrupted,
+        interrupted: false,
       };
     } catch (error) {
       const durationMs = Math.round(performance.now() - startTime);
@@ -65,6 +64,19 @@ export function createE2BSandbox(config: E2BSandboxConfig = {}): Sandbox {
         };
       }
 
+      // E2B SDK throws on non-zero exit codes - extract exit code from error
+      if (error instanceof Error) {
+        const exitMatch = error.message.match(/exit status (\d+)/i);
+        const exitCode = exitMatch ? parseInt(exitMatch[1], 10) : 1;
+        return {
+          stdout: "",
+          stderr: error.message,
+          exitCode,
+          durationMs,
+          interrupted: false,
+        };
+      }
+
       throw error;
     }
   };
@@ -73,20 +85,12 @@ export function createE2BSandbox(config: E2BSandboxConfig = {}): Sandbox {
     exec,
 
     async readFile(path: string): Promise<string> {
-      const sbx = await ensureSandbox();
-      try {
-        return await sbx.files.read(path);
-      } catch (error) {
-        // Log detailed error info for debugging
-        console.error("[E2B readFile] Error reading:", path);
-        console.error("[E2B readFile] Error type:", error?.constructor?.name);
-        console.error(
-          "[E2B readFile] Error message:",
-          error instanceof Error ? error.message : error,
-        );
-        console.error("[E2B readFile] Full error:", error);
-        throw error;
+      // Use cat command instead of files.read() due to SDK issues
+      const result = await exec(`cat "${path}"`);
+      if (result.exitCode !== 0) {
+        throw new Error(`Failed to read file: ${result.stderr}`);
       }
+      return result.stdout;
     },
 
     async writeFile(path: string, content: string): Promise<void> {
@@ -95,7 +99,7 @@ export function createE2BSandbox(config: E2BSandboxConfig = {}): Sandbox {
     },
 
     async readDir(path: string): Promise<string[]> {
-      const result = await exec(`ls -1 ${path}`);
+      const result = await exec(`ls -1 "${path}"`);
       if (result.exitCode !== 0) {
         throw new Error(`Failed to read directory: ${result.stderr}`);
       }
@@ -103,12 +107,12 @@ export function createE2BSandbox(config: E2BSandboxConfig = {}): Sandbox {
     },
 
     async fileExists(path: string): Promise<boolean> {
-      const result = await exec(`test -e ${path}`);
+      const result = await exec(`test -e "${path}"`);
       return result.exitCode === 0;
     },
 
     async isDirectory(path: string): Promise<boolean> {
-      const result = await exec(`test -d ${path}`);
+      const result = await exec(`test -d "${path}"`);
       return result.exitCode === 0;
     },
 
