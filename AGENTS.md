@@ -4,14 +4,14 @@ bashkit provides agentic coding tools for the Vercel AI SDK. This guide helps AI
 
 ## Installation
 
-<!-- TODO: Update when published to npm -->
 ```bash
-# Not yet published - use bun link for local development
-cd /path/to/bashkit && bun link
-cd /path/to/your-project && bun link @jbreite/bashkit
-
-# Also install peer dependencies
-bun add ai @ai-sdk/anthropic
+npm install bashkit ai @ai-sdk/anthropic
+# or
+pnpm add bashkit ai @ai-sdk/anthropic
+# or
+yarn add bashkit ai @ai-sdk/anthropic
+# or
+bun add bashkit ai @ai-sdk/anthropic
 ```
 
 ## Quick Setup
@@ -21,7 +21,7 @@ bun add ai @ai-sdk/anthropic
 Runs commands directly on the local machine. Use for development/testing only.
 
 ```typescript
-import { createAgentTools, LocalSandbox } from "@jbreite/bashkit";
+import { createAgentTools, LocalSandbox } from "bashkit";
 
 const sandbox = new LocalSandbox("/tmp/workspace");
 const tools = createAgentTools(sandbox);
@@ -32,7 +32,7 @@ const tools = createAgentTools(sandbox);
 Runs in isolated Firecracker microVMs on Vercel's infrastructure.
 
 ```typescript
-import { createAgentTools, VercelSandbox } from "@jbreite/bashkit";
+import { createAgentTools, VercelSandbox } from "bashkit";
 
 const sandbox = new VercelSandbox({
   runtime: "node22",
@@ -81,7 +81,7 @@ import {
   createAgentTools,
   LocalSandbox,
   anthropicPromptCacheMiddleware,
-} from "@jbreite/bashkit";
+} from "bashkit";
 
 const sandbox = new LocalSandbox("/tmp/workspace");
 const tools = createAgentTools(sandbox);
@@ -115,7 +115,7 @@ await sandbox.destroy();
 The Task tool spawns new `generateText` calls for complex subtasks:
 
 ```typescript
-import { createTaskTool } from "@jbreite/bashkit";
+import { createTaskTool } from "bashkit";
 
 const taskTool = createTaskTool({
   model: anthropic("claude-sonnet-4-20250514"),
@@ -153,7 +153,7 @@ Enable Anthropic prompt caching to reduce costs on repeated prefixes:
 
 ```typescript
 import { wrapLanguageModel } from "ai";
-import { anthropicPromptCacheMiddleware } from "@jbreite/bashkit";
+import { anthropicPromptCacheMiddleware } from "bashkit";
 
 const model = wrapLanguageModel({
   model: anthropic("claude-sonnet-4-20250514"),
@@ -186,7 +186,7 @@ export PARALLEL_API_KEY="your_api_key"
 Search the web and get formatted results:
 
 ```typescript
-import { createWebSearchTool } from "@jbreite/bashkit";
+import { createWebSearchTool } from "bashkit";
 
 const webSearch = createWebSearchTool({
   apiKey: process.env.PARALLEL_API_KEY!,
@@ -218,7 +218,7 @@ const tools = {
 Fetch a URL and process the content with an AI model:
 
 ```typescript
-import { createWebFetchTool } from "@jbreite/bashkit";
+import { createWebFetchTool } from "bashkit";
 import { anthropic } from "@ai-sdk/anthropic";
 
 const webFetch = createWebFetchTool({
@@ -258,7 +258,7 @@ bashkit supports the [Agent Skills](https://agentskills.io) standard for progres
 When using LocalSandbox, discover project and user-global skills:
 
 ```typescript
-import { discoverSkills, skillsToXml } from "@jbreite/bashkit";
+import { discoverSkills, skillsToXml } from "bashkit";
 
 // Discovers from .skills/ (project) and ~/.bashkit/skills/ (user-global)
 const skills = await discoverSkills();
@@ -267,7 +267,7 @@ const skills = await discoverSkills();
 ### Using Skills with Agents
 
 ```typescript
-import { discoverSkills, skillsToXml, createAgentTools, LocalSandbox } from "@jbreite/bashkit";
+import { discoverSkills, skillsToXml, createAgentTools, LocalSandbox } from "bashkit";
 import { generateText, stepCountIs } from "ai";
 import { anthropic } from "@ai-sdk/anthropic";
 
@@ -315,7 +315,7 @@ Instructions for the agent...
 Fetch complete skill folders from GitHub repositories (e.g., Anthropic's official skills):
 
 ```typescript
-import { fetchSkill, fetchSkills, setupAgentEnvironment } from "@jbreite/bashkit";
+import { fetchSkill, fetchSkills, setupAgentEnvironment } from "bashkit";
 
 // Fetch a single skill (gets all files: SKILL.md, scripts/, etc.)
 const pdfSkill = await fetchSkill('anthropics/skills/pdf');
@@ -343,7 +343,7 @@ const { skills } = await setupAgentEnvironment(sandbox, config);
 For cloud sandboxes, use `setupAgentEnvironment` to create workspace directories and seed skills:
 
 ```typescript
-import { setupAgentEnvironment, skillsToXml, createAgentTools, createVercelSandbox } from "@jbreite/bashkit";
+import { setupAgentEnvironment, skillsToXml, createAgentTools, createVercelSandbox } from "bashkit";
 
 const config = {
   workspace: {
@@ -380,7 +380,7 @@ import {
   LocalSandbox,
   anthropicPromptCacheMiddleware,
   type TodoState,
-} from "@jbreite/bashkit";
+} from "bashkit";
 
 // 1. Create sandbox
 const sandbox = new LocalSandbox("/tmp/workspace");
