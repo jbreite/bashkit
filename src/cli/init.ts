@@ -64,7 +64,7 @@ export const config: AgentConfig = {${
   }};
 
 // Create tools
-export const tools = createAgentTools(sandbox${webTools ? ", config" : ""});
+export const { tools } = createAgentTools(sandbox${webTools ? ", config" : ""});
 `;
 
   const configPath = join(process.cwd(), "bashkit.config.ts");
@@ -168,7 +168,7 @@ async function init() {
         stdio: "inherit",
       });
       s.stop("Dependencies installed ✓");
-    } catch (error) {
+    } catch {
       s.stop("Installation failed ✗");
       console.error("\n❌ Failed to install dependencies");
       console.error(

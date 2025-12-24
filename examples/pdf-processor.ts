@@ -35,7 +35,7 @@ async function main() {
     console.error("");
     console.error("Example:");
     console.error(
-      "  bun run examples/pdf-processor.ts ~/Documents/invoice.pdf"
+      "  bun run examples/pdf-processor.ts ~/Documents/invoice.pdf",
     );
     process.exit(1);
   }
@@ -92,7 +92,7 @@ async function main() {
   console.log(`   ✓ Copied PDF to input/${pdfFilename}`);
 
   // 5. Create tools
-  const tools = createAgentTools(sandbox);
+  const { tools } = createAgentTools(sandbox);
 
   // 6. Build system prompt with skills
   const systemPrompt = `You are a PDF processing assistant with access to powerful PDF manipulation tools.
@@ -138,7 +138,7 @@ ${skillsToXml(skills)}
 
 2. Extract the text content from the PDF and save it to output/${pdfFilename.replace(
       ".pdf",
-      ".txt"
+      ".txt",
     )}.
 
 3. If the PDF appears to be a form, also extract the form field information.
@@ -170,7 +170,7 @@ ${skillsToXml(skills)}
             const truncatedInput =
               inputStr.length > 500 ? `${inputStr.slice(0, 500)}...` : inputStr;
             console.log(
-              `   Input: ${truncatedInput.split("\n").join("\n   ")}`
+              `   Input: ${truncatedInput.split("\n").join("\n   ")}`,
             );
           }
         }
@@ -193,7 +193,7 @@ ${skillsToXml(skills)}
                   ? `${stdout.slice(0, 800)}\n   ... (truncated)\n`
                   : stdout;
               console.log(
-                `   stdout:\n   ${truncatedStdout.split("\n").join("\n   ")}`
+                `   stdout:\n   ${truncatedStdout.split("\n").join("\n   ")}`,
               );
             }
             if (stderr) {
@@ -209,7 +209,7 @@ ${skillsToXml(skills)}
             console.log(
               `\n   ✅ Content (${content.length} chars):\n   ${truncated
                 .split("\n")
-                .join("\n   ")}`
+                .join("\n   ")}`,
             );
           } else if (output.success !== undefined) {
             // Write output
@@ -221,7 +221,7 @@ ${skillsToXml(skills)}
                 ? `${outputStr.slice(0, 600)}...`
                 : outputStr;
             console.log(
-              `\n   ✅ Result:\n   ${truncated.split("\n").join("\n   ")}`
+              `\n   ✅ Result:\n   ${truncated.split("\n").join("\n   ")}`,
             );
           }
         }
@@ -233,7 +233,7 @@ ${skillsToXml(skills)}
 
       if (usage) {
         console.log(
-          `\n📊 Tokens: in=${usage.inputTokens} out=${usage.outputTokens}`
+          `\n📊 Tokens: in=${usage.inputTokens} out=${usage.outputTokens}`,
         );
       }
     },

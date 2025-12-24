@@ -20,7 +20,7 @@ async function main() {
   const sandbox = createLocalSandbox({ cwd: "/tmp/bashkit-test" });
 
   // Create sandbox-based tools
-  const sandboxTools = createAgentTools(sandbox);
+  const { tools: sandboxTools } = createAgentTools(sandbox);
 
   // Create state for todos
   const todoState: TodoState = { todos: [] };
@@ -53,14 +53,14 @@ async function main() {
   // Combine all tools
   const tools = {
     ...sandboxTools,
-    TodoWrite: todoTool!,
+    TodoWrite: todoTool,
     Task: taskTool,
   };
 
   console.log("🚀 Starting bashkit test...\n");
   console.log("Available tools:", Object.keys(tools).join(", "));
   console.log("Prompt caching: enabled");
-  console.log("\n" + "=".repeat(60) + "\n");
+  console.log(`\n${"=".repeat(60)}\n`);
 
   let stepNumber = 0;
 
@@ -93,7 +93,7 @@ When given a task:
           const outputStr = JSON.stringify(res.output, null, 2);
           const truncated =
             outputStr.length > 300
-              ? outputStr.slice(0, 300) + "..."
+              ? `${outputStr.slice(0, 300)}...`
               : outputStr;
           console.log(
             `   ✅ Result: ${truncated.split("\n").join("\n      ")}`,
@@ -115,7 +115,7 @@ When given a task:
     },
   });
 
-  console.log("\n" + "=".repeat(60));
+  console.log(`\n${"=".repeat(60)}`);
   console.log("\n✅ Agent completed!\n");
   console.log("Final response:", result.text || "(no text response)");
   console.log("\n📈 Summary:");

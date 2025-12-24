@@ -24,7 +24,7 @@ Runs commands directly on the local machine. Use for development/testing only.
 import { createAgentTools, LocalSandbox } from "bashkit";
 
 const sandbox = new LocalSandbox("/tmp/workspace");
-const tools = createAgentTools(sandbox);
+const { tools } = createAgentTools(sandbox);
 ```
 
 ### VercelSandbox (Production)
@@ -38,7 +38,7 @@ const sandbox = new VercelSandbox({
   runtime: "node22",
   resources: { vcpus: 2 },
 });
-const tools = createAgentTools(sandbox);
+const { tools } = createAgentTools(sandbox);
 
 // Don't forget to cleanup
 await sandbox.destroy();
@@ -46,7 +46,7 @@ await sandbox.destroy();
 
 ## Available Tools
 
-### Sandbox-based Tools (from createAgentTools)
+### Default Tools (always included)
 
 | Tool | Purpose | Key Inputs |
 |------|---------|------------|
@@ -57,13 +57,23 @@ await sandbox.destroy();
 | `Glob` | Find files by pattern | `pattern`, `path?` |
 | `Grep` | Search file contents | `pattern`, `path?`, `output_mode?`, `-i?`, `-C?` |
 
+### Optional Tools (via config)
+
+| Tool | Purpose | Config Key |
+|------|---------|------------|
+| `AskUser` | Ask user clarifying questions | `askUser: { onQuestion? }` |
+| `EnterPlanMode` | Enter planning/exploration mode | `planMode: true` |
+| `ExitPlanMode` | Exit planning mode with a plan | `planMode: true` |
+| `Skill` | Execute skills | `skill: { skills }` |
+| `WebSearch` | Search the web | `webSearch: { apiKey }` |
+| `WebFetch` | Fetch URL and process with AI | `webFetch: { apiKey, model }` |
+
 ### Workflow Tools (created separately)
 
 | Tool | Purpose | Factory |
 |------|---------|---------|
 | `Task` | Spawn sub-agents | `createTaskTool({ model, tools, subagentTypes? })` |
 | `TodoWrite` | Track task progress | `createTodoWriteTool(state, config?, onUpdate?)` |
-| `ExitPlanMode` | Exit planning mode | `createExitPlanModeTool(config?, onPlanSubmit?)` |
 
 ### Web Tools (require `parallel-web` peer dependency)
 
@@ -84,7 +94,7 @@ import {
 } from "bashkit";
 
 const sandbox = new LocalSandbox("/tmp/workspace");
-const tools = createAgentTools(sandbox);
+const { tools } = createAgentTools(sandbox);
 
 // Wrap model with prompt caching (recommended)
 const model = wrapLanguageModel({
@@ -273,7 +283,7 @@ import { anthropic } from "@ai-sdk/anthropic";
 
 const skills = await discoverSkills();
 const sandbox = new LocalSandbox("/tmp/workspace");
-const tools = createAgentTools(sandbox);
+const { tools } = createAgentTools(sandbox);
 
 const result = await generateText({
   model: anthropic("claude-sonnet-4-20250514"),
@@ -363,7 +373,7 @@ const systemPrompt = `Save notes to: ${config.workspace.notes}
 ${skillsToXml(skills)}
 `;
 
-const tools = createAgentTools(sandbox);
+const { tools } = createAgentTools(sandbox);
 ```
 
 ## Common Patterns
@@ -386,7 +396,7 @@ import {
 const sandbox = new LocalSandbox("/tmp/workspace");
 
 // 2. Create sandbox tools
-const sandboxTools = createAgentTools(sandbox);
+const { tools: sandboxTools } = createAgentTools(sandbox);
 
 // 3. Create model with caching
 const model = wrapLanguageModel({
@@ -424,7 +434,7 @@ await sandbox.destroy();
 Restrict tools with configuration:
 
 ```typescript
-const tools = createAgentTools(sandbox, {
+const { tools } = createAgentTools(sandbox, {
   tools: {
     Bash: {
       enabled: true,

@@ -1,4 +1,4 @@
-import { fetchSkill } from "./src/skills/fetch";
+import { fetchSkill } from "../src/skills/fetch";
 
 console.log("Testing fetchSkill (full folder)...\n");
 

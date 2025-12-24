@@ -55,8 +55,13 @@ async function main() {
   console.log("🔍 Testing WebSearch tool...");
   const webSearch = createWebSearchTool({ apiKey: parallelApiKey });
 
+  if (!webSearch.execute) {
+    console.error("❌ WebSearch tool has no execute function");
+    process.exit(1);
+  }
+
   const searchResult = await unwrapToolResult(
-    await webSearch.execute!(
+    await webSearch.execute(
       {
         query: "What is the Vercel AI SDK?",
       },
@@ -84,7 +89,7 @@ async function main() {
   // Test WebSearch with domain filtering
   console.log("\n🔍 Testing WebSearch with domain filter...");
   const filteredSearchResult = await unwrapToolResult(
-    await webSearch.execute!(
+    await webSearch.execute(
       {
         query: "AI SDK documentation",
         allowed_domains: ["vercel.com", "sdk.vercel.ai"],
@@ -110,8 +115,13 @@ async function main() {
     model: anthropic("claude-3-5-haiku-latest"),
   });
 
+  if (!webFetch.execute) {
+    console.error("❌ WebFetch tool has no execute function");
+    process.exit(1);
+  }
+
   const fetchResult = await unwrapToolResult(
-    await webFetch.execute!(
+    await webFetch.execute(
       {
         url: "https://sdk.vercel.ai/docs/introduction",
         prompt: "Summarize this page in 2-3 sentences. What is the AI SDK?",
