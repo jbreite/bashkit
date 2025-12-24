@@ -1,10 +1,16 @@
-/**
- * Test E2B sandbox tools directly (no AI needed)
- *
- * Run with: E2B_API_KEY=your_key bun run examples/test-e2b.ts
- */
-
+import type { ToolCallOptions } from "ai";
 import { createAgentTools, createE2BSandbox } from "../src";
+
+// Helper for direct tool execution in tests
+// biome-ignore lint/suspicious/noExplicitAny: test helper
+async function execute(
+  tool: { execute?: (...args: any[]) => any },
+  input: unknown,
+  options: ToolCallOptions,
+) {
+  if (!tool.execute) throw new Error("Tool has no execute function");
+  return tool.execute(input, options);
+}
 
 async function main() {
   console.log("🧪 Testing E2B sandbox tools...\n");
@@ -14,13 +20,14 @@ async function main() {
     cwd: "/home/user",
   });
 
-  const tools = createAgentTools(sandbox);
+  const { tools } = createAgentTools(sandbox);
   const toolOptions = { toolCallId: "test", messages: [] };
 
   try {
     // Test Write first
     console.log("📝 Testing Write tool...");
-    const writeResult = await tools.Write.execute!(
+    const writeResult = await execute(
+      tools.Write,
       {
         file_path: "/home/user/test.txt",
         content: "Hello from E2B sandbox!",
@@ -31,7 +38,8 @@ async function main() {
 
     // Test Read
     console.log("\n📖 Testing Read tool...");
-    const readResult = await tools.Read.execute!(
+    const readResult = await execute(
+      tools.Read,
       { file_path: "/home/user/test.txt" },
       toolOptions,
     );
@@ -39,7 +47,8 @@ async function main() {
 
     // Test Read directory listing
     console.log("\n📁 Testing Read (directory)...");
-    const dirResult = await tools.Read.execute!(
+    const dirResult = await execute(
+      tools.Read,
       { file_path: "/home/user" },
       toolOptions,
     );
@@ -47,7 +56,8 @@ async function main() {
 
     // Test Bash
     console.log("\n💻 Testing Bash tool...");
-    const bashResult = await tools.Bash.execute!(
+    const bashResult = await execute(
+      tools.Bash,
       {
         command: "cat /home/user/test.txt && echo ' - read via cat'",
         description: "Read test file with cat",
@@ -58,7 +68,8 @@ async function main() {
 
     // Test Edit
     console.log("\n✏️ Testing Edit tool...");
-    const editResult = await tools.Edit.execute!(
+    const editResult = await execute(
+      tools.Edit,
       {
         file_path: "/home/user/test.txt",
         old_string: "Hello from E2B sandbox!",
@@ -69,7 +80,8 @@ async function main() {
     console.log("Edit result:", editResult);
 
     // Verify edit
-    const verifyResult = await tools.Read.execute!(
+    const verifyResult = await execute(
+      tools.Read,
       { file_path: "/home/user/test.txt" },
       toolOptions,
     );
@@ -77,7 +89,8 @@ async function main() {
 
     // Test Glob
     console.log("\n🔍 Testing Glob tool...");
-    const globResult = await tools.Glob.execute!(
+    const globResult = await execute(
+      tools.Glob,
       { pattern: "*.txt", path: "/home/user" },
       toolOptions,
     );
@@ -85,7 +98,8 @@ async function main() {
 
     // Test Grep
     console.log("\n🔎 Testing Grep tool...");
-    const grepResult = await tools.Grep.execute!(
+    const grepResult = await execute(
+      tools.Grep,
       { pattern: "E2B", path: "/home/user" },
       toolOptions,
     );
@@ -100,4 +114,3 @@ async function main() {
 }
 
 main().catch(console.error);
-

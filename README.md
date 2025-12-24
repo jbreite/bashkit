@@ -43,7 +43,7 @@ import { generateText, stepCountIs } from 'ai';
 const sandbox = createLocalSandbox({ cwd: '/tmp/workspace' });
 
 // Create tools bound to the sandbox
-const tools = createAgentTools(sandbox);
+const { tools } = createAgentTools(sandbox);
 
 // Use with Vercel AI SDK
 const result = await generateText({
@@ -74,7 +74,7 @@ const sandbox = createVercelSandbox({
   resources: { vcpus: 2 },
 });
 
-const tools = createAgentTools(sandbox);
+const { tools } = createAgentTools(sandbox);
 
 const result = streamText({
   model: anthropic('claude-sonnet-4-5'),
@@ -157,7 +157,7 @@ const sandbox = createE2BSandbox({
 You can configure tools with security restrictions and limits:
 
 ```typescript
-const tools = createAgentTools(sandbox, {
+const { tools } = createAgentTools(sandbox, {
   tools: {
     Bash: {
       timeout: 30000,
@@ -335,7 +335,7 @@ import { discoverSkills, skillsToXml, createAgentTools, createLocalSandbox } fro
 
 const skills = await discoverSkills();
 const sandbox = createLocalSandbox({ cwd: '/tmp/workspace' });
-const tools = createAgentTools(sandbox);
+const { tools } = createAgentTools(sandbox);
 
 const result = await generateText({
   model: anthropic('claude-sonnet-4-5'),
@@ -504,7 +504,7 @@ ${skillsToXml(skills)}
 `;
 
 // Create tools and run
-const tools = createAgentTools(sandbox);
+const { tools } = createAgentTools(sandbox);
 
 const result = await generateText({
   model: anthropic('claude-sonnet-4-5'),
@@ -571,7 +571,7 @@ class DockerSandbox implements Sandbox {
 }
 
 const sandbox = new DockerSandbox();
-const tools = createAgentTools(sandbox);
+const { tools } = createAgentTools(sandbox);
 ```
 
 ## Architecture

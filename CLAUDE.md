@@ -92,7 +92,7 @@ src/
 All tools and sandboxes created via factory functions:
 ```typescript
 const sandbox = createLocalSandbox({ workingDirectory: '/tmp' });
-const tools = createAgentTools(sandbox, config);
+const { tools } = createAgentTools(sandbox, config);
 ```
 
 #### 2. Sandbox Abstraction
@@ -112,7 +112,7 @@ interface Sandbox {
 #### 3. Tool Composition
 Tools assembled into a ToolSet for Vercel AI SDK:
 ```typescript
-const tools = createAgentTools(sandbox, {
+const { tools } = createAgentTools(sandbox, {
   tools: { Bash: { timeout: 30000 } },
   webSearch: { apiKey: process.env.PARALLEL_API_KEY }
 });
@@ -232,7 +232,7 @@ ANTHROPIC_API_KEY=xxx bun examples/basic.ts
 import { createLocalSandbox, createAgentTools } from './src';
 
 const sandbox = createLocalSandbox({ workingDirectory: '/tmp' });
-const tools = createAgentTools(sandbox);
+const { tools } = createAgentTools(sandbox);
 
 // Test your changes...
 await tools.Bash.execute({
@@ -698,7 +698,7 @@ Keeps conversations within token limits.
 
 **Timeout Configuration**:
 ```typescript
-const tools = createAgentTools(sandbox, {
+const { tools } = createAgentTools(sandbox, {
   defaultTimeout: 30000, // 30 seconds instead of 120s
   tools: {
     Bash: { timeout: 10000 } // Override per-tool
@@ -716,7 +716,7 @@ const tools = createAgentTools(sandbox, {
 **Configuration-Based Security**:
 
 ```typescript
-const tools = createAgentTools(sandbox, {
+const { tools } = createAgentTools(sandbox, {
   tools: {
     Bash: {
       blockedCommands: ['rm -rf', 'dd if=', 'curl'],

@@ -16,16 +16,25 @@ export {
 
 // Sandbox interface
 export type { ExecOptions, ExecResult, Sandbox } from "./sandbox/interface";
-// Sandbox tool output types
-// State/workflow tool types
-// Web tool types
+// Tool output types
 export type {
+  // Result type from createAgentTools
+  AgentToolsResult,
+  // AskUser tool
+  AskUserError,
+  AskUserOutput,
+  AskUserResponseHandler,
+  // Sandbox tools
   BashError,
   BashOutput,
   EditError,
   EditOutput,
+  // Plan mode tools
+  EnterPlanModeError,
+  EnterPlanModeOutput,
   ExitPlanModeError,
   ExitPlanModeOutput,
+  PlanModeState,
   GlobError,
   GlobOutput,
   GrepContentOutput,
@@ -38,15 +47,22 @@ export type {
   ReadError,
   ReadOutput,
   ReadTextOutput,
+  // Skill tool
+  SkillError,
+  SkillOutput,
+  SkillToolConfig,
+  // Task tool
   SubagentStepEvent,
   SubagentTypeConfig,
   TaskError,
   TaskOutput,
   TaskToolConfig,
+  // TodoWrite tool
   TodoItem,
   TodoState,
   TodoWriteError,
   TodoWriteOutput,
+  // Web tools
   WebFetchError,
   WebFetchOutput,
   WebFetchToolConfig,
@@ -57,14 +73,18 @@ export type {
   WriteError,
   WriteOutput,
 } from "./tools";
+// Tool factories
 export {
   createAgentTools,
+  createAskUserTool,
   createBashTool,
   createEditTool,
+  createEnterPlanModeTool,
   createExitPlanModeTool,
   createGlobTool,
   createGrepTool,
   createReadTool,
+  createSkillTool,
   createTaskTool,
   createTodoWriteTool,
   createWebFetchTool,
@@ -74,6 +94,8 @@ export {
 // Configuration types
 export type {
   AgentConfig,
+  AskUserConfig,
+  SkillConfig,
   ToolConfig,
   WebFetchConfig,
   WebSearchConfig,
