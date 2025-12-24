@@ -89,7 +89,7 @@ await sandbox.destroy();
 
 ## Available Tools
 
-### Sandbox-based Tools (from `createAgentTools`)
+### Default Tools (always included)
 
 | Tool | Purpose | Key Inputs |
 |------|---------|------------|
@@ -100,13 +100,23 @@ await sandbox.destroy();
 | `Glob` | Find files by pattern | `pattern`, `path?` |
 | `Grep` | Search file contents | `pattern`, `path?`, `output_mode?`, `-i?`, `-C?` |
 
+### Optional Tools (via config)
+
+| Tool | Purpose | Config Key |
+|------|---------|------------|
+| `AskUser` | Ask user clarifying questions | `askUser: { onQuestion? }` |
+| `EnterPlanMode` | Enter planning/exploration mode | `planMode: true` |
+| `ExitPlanMode` | Exit planning mode with a plan | `planMode: true` |
+| `Skill` | Execute skills | `skill: { skills }` |
+| `WebSearch` | Search the web | `webSearch: { apiKey }` |
+| `WebFetch` | Fetch URL and process with AI | `webFetch: { apiKey, model }` |
+
 ### Workflow Tools (created separately)
 
 | Tool | Purpose | Factory |
 |------|---------|---------|
 | `Task` | Spawn sub-agents | `createTaskTool({ model, tools, subagentTypes? })` |
 | `TodoWrite` | Track task progress | `createTodoWriteTool(state, config?, onUpdate?)` |
-| `ExitPlanMode` | Exit planning mode | `createExitPlanModeTool(config?, onPlanSubmit?)` |
 
 ### Web Tools (require `parallel-web` peer dependency)
 
@@ -154,10 +164,30 @@ const sandbox = createE2BSandbox({
 
 ## Configuration
 
-You can configure tools with security restrictions and limits:
+You can configure tools with security restrictions and limits, and enable optional tools:
 
 ```typescript
-const { tools } = createAgentTools(sandbox, {
+const { tools, planModeState } = createAgentTools(sandbox, {
+  // Enable optional tools
+  askUser: {
+    onQuestion: async (question) => {
+      // Return user's answer, or undefined to return awaiting_response
+      return await promptUser(question);
+    },
+  },
+  planMode: true, // Enables EnterPlanMode and ExitPlanMode
+  skill: {
+    skills: discoveredSkills, // From discoverSkills()
+  },
+  webSearch: {
+    apiKey: process.env.PARALLEL_API_KEY,
+  },
+  webFetch: {
+    apiKey: process.env.PARALLEL_API_KEY,
+    model: anthropic('claude-haiku-4'),
+  },
+
+  // Tool-specific config
   tools: {
     Bash: {
       timeout: 30000,
@@ -170,13 +200,6 @@ const { tools } = createAgentTools(sandbox, {
     Write: {
       maxFileSize: 1_000_000, // 1MB limit
     },
-  },
-  webSearch: {
-    apiKey: process.env.PARALLEL_API_KEY,
-  },
-  webFetch: {
-    apiKey: process.env.PARALLEL_API_KEY,
-    model: anthropic('claude-haiku-4'),
   },
 });
 ```
@@ -641,7 +664,13 @@ Creates a set of agent tools bound to a sandbox instance.
 
 - `createTaskTool(config)` - Spawn sub-agents for complex tasks
 - `createTodoWriteTool(state, config?, onUpdate?)` - Track task progress
-- `createExitPlanModeTool(config?, onPlanSubmit?)` - Exit planning mode
+
+### Optional Tools (also available via config)
+
+- `createAskUserTool(onQuestion?)` - Ask user for clarification
+- `createEnterPlanModeTool(state)` - Enter planning/exploration mode
+- `createExitPlanModeTool(state, onPlanSubmit?)` - Exit planning mode with a plan
+- `createSkillTool(skills)` - Execute loaded skills
 
 ### Utilities
 
