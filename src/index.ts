@@ -1,5 +1,8 @@
 // Main exports
 
+// Re-export UIMessageStreamWriter from AI SDK for convenience
+export type { UIMessageStreamWriter } from "ai";
+
 // Middleware
 export { anthropicPromptCacheMiddleware } from "./middleware";
 export type {
@@ -52,6 +55,7 @@ export type {
   SkillOutput,
   SkillToolConfig,
   // Task tool
+  SubagentEventData,
   SubagentStepEvent,
   SubagentTypeConfig,
   TaskError,

@@ -122,7 +122,7 @@ await sandbox.destroy();
 
 ## Sub-agents with Task Tool
 
-The Task tool spawns new `generateText` calls for complex subtasks:
+The Task tool spawns new agents for complex subtasks:
 
 ```typescript
 import { createTaskTool } from "bashkit";
@@ -156,6 +156,40 @@ The parent agent calls Task like any other tool:
   subagent_type: "research"
 }}
 ```
+
+### Streaming Sub-agent Activity to UI
+
+Pass a `streamWriter` to stream real-time sub-agent activity:
+
+```typescript
+import { createUIMessageStream } from "ai";
+
+const stream = createUIMessageStream({
+  execute: async ({ writer }) => {
+    const taskTool = createTaskTool({
+      model,
+      tools: sandboxTools,
+      streamWriter: writer, // Enable real-time streaming
+      subagentTypes: { ... },
+    });
+
+    const result = streamText({
+      model,
+      tools: { Task: taskTool },
+      ...
+    });
+
+    writer.merge(result.toUIMessageStream());
+  },
+});
+```
+
+When `streamWriter` is provided:
+- Uses `streamText` internally (instead of `generateText`)
+- Emits `data-subagent` events: `start`, `tool-call`, `done`, `complete`
+- Events appear in `message.parts` as `{ type: "data-subagent", data: SubagentEventData }`
+
+**Note:** TaskOutput does NOT include messages (to avoid context bloat). The UI accesses the full conversation via the streamed `complete` event.
 
 ## Prompt Caching
 

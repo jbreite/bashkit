@@ -1,9 +1,12 @@
 import {
   generateText,
+  streamText,
+  type ModelMessage,
   type LanguageModel,
   type PrepareStepFunction,
   type StepResult,
   type StopCondition,
+  type UIMessageStreamWriter,
   stepCountIs,
   type Tool,
   type ToolSet,
@@ -18,8 +21,9 @@ export interface TaskOutput {
     input_tokens: number;
     output_tokens: number;
   };
-  total_cost_usd?: number;
   duration_ms?: number;
+  subagent?: string;
+  description?: string;
 }
 
 export interface TaskError {
@@ -45,6 +49,21 @@ export interface SubagentStepEvent {
   step: StepResult<ToolSet>;
 }
 
+/** Data format for streamed subagent events (appears in message.parts as type: "data-subagent") */
+export interface SubagentEventData {
+  event: "start" | "tool-call" | "done" | "complete";
+  subagent: string;
+  description: string;
+  toolName?: string;
+  args?: Record<string, unknown>;
+  messages?: ModelMessage[]; // Only present on "complete" event
+}
+
+let eventCounter = 0;
+function generateEventId(): string {
+  return `subagent-${Date.now()}-${++eventCounter}`;
+}
+
 export interface SubagentTypeConfig {
   /** Model to use for this subagent type */
   model?: LanguageModel;
@@ -67,14 +86,12 @@ export interface TaskToolConfig {
   tools: ToolSet;
   /** Configuration for each subagent type */
   subagentTypes?: Record<string, SubagentTypeConfig>;
-  /** Cost per input token for usage tracking */
-  costPerInputToken?: number;
-  /** Cost per output token for usage tracking */
-  costPerOutputToken?: number;
   /** Default stop condition for subagents (default: stepCountIs(15)) */
   defaultStopWhen?: StopCondition<ToolSet>;
   /** Default callback for each step any subagent takes */
   defaultOnStepFinish?: (event: SubagentStepEvent) => void | Promise<void>;
+  /** Optional stream writer for real-time subagent activity (uses streamText instead of generateText) */
+  streamWriter?: UIMessageStreamWriter;
 }
 
 function filterTools(allTools: ToolSet, allowedTools?: string[]): ToolSet {
@@ -94,10 +111,9 @@ export function createTaskTool(config: TaskToolConfig): Tool {
     model: defaultModel,
     tools: allTools,
     subagentTypes = {},
-    costPerInputToken = 0.000003, // Default Claude Sonnet pricing
-    costPerOutputToken = 0.000015,
     defaultStopWhen,
     defaultOnStepFinish,
+    streamWriter,
   } = config;
 
   return tool({
@@ -119,15 +135,110 @@ export function createTaskTool(config: TaskToolConfig): Tool {
         const tools = filterTools(allTools, typeConfig.tools);
         const systemPrompt = typeConfig.systemPrompt;
 
-        // Spawn the sub-agent with loop control
-        const result = await generateText({
+        // Common options for both generateText and streamText
+        const commonOptions = {
           model,
           tools,
           system: systemPrompt,
           prompt,
-          // Loop control
           stopWhen: typeConfig.stopWhen ?? defaultStopWhen ?? stepCountIs(15),
           prepareStep: typeConfig.prepareStep,
+        };
+
+        // Use streamText if streamWriter is provided, otherwise generateText
+        if (streamWriter) {
+          // Emit start event
+          const startId = generateEventId();
+          streamWriter.write({
+            type: "data-subagent",
+            id: startId,
+            data: {
+              event: "start",
+              subagent: subagent_type,
+              description,
+            } satisfies SubagentEventData,
+          });
+
+          const result = streamText({
+            ...commonOptions,
+            onStepFinish: async (step) => {
+              // Stream tool calls
+              if (step.toolCalls?.length) {
+                for (const tc of step.toolCalls) {
+                  const eventId = generateEventId();
+                  streamWriter.write({
+                    type: "data-subagent",
+                    id: eventId,
+                    data: {
+                      event: "tool-call",
+                      subagent: subagent_type,
+                      description,
+                      toolName: tc.toolName,
+                      args: tc.input as Record<string, unknown>,
+                    } satisfies SubagentEventData,
+                  });
+                }
+              }
+              // Call subagent-specific callback
+              await typeConfig.onStepFinish?.(step);
+              // Call default callback with subagent context
+              await defaultOnStepFinish?.({
+                subagentType: subagent_type,
+                description,
+                step,
+              });
+            },
+          });
+
+          // Wait for stream to complete
+          const text = await result.text;
+          const usage = await result.usage;
+          const response = await result.response;
+
+          // Emit done event
+          streamWriter.write({
+            type: "data-subagent",
+            id: generateEventId(),
+            data: {
+              event: "done",
+              subagent: subagent_type,
+              description,
+            } satisfies SubagentEventData,
+          });
+
+          // Emit complete event with full messages for UI access
+          streamWriter.write({
+            type: "data-subagent",
+            id: generateEventId(),
+            data: {
+              event: "complete",
+              subagent: subagent_type,
+              description,
+              messages: response.messages,
+            } satisfies SubagentEventData,
+          });
+
+          const durationMs = Math.round(performance.now() - startTime);
+
+          return {
+            result: text,
+            usage:
+              usage.inputTokens !== undefined &&
+              usage.outputTokens !== undefined
+                ? {
+                    input_tokens: usage.inputTokens,
+                    output_tokens: usage.outputTokens,
+                  }
+                : undefined,
+            duration_ms: durationMs,
+            subagent: subagent_type,
+            description,
+          };
+        }
+
+        // Default: use generateText (no streaming)
+        const result = await generateText({
+          ...commonOptions,
           onStepFinish: async (step) => {
             // Call subagent-specific callback
             await typeConfig.onStepFinish?.(step);
@@ -142,7 +253,7 @@ export function createTaskTool(config: TaskToolConfig): Tool {
 
         const durationMs = Math.round(performance.now() - startTime);
 
-        // Calculate usage and cost
+        // Format usage
         const usage =
           result.usage.inputTokens !== undefined &&
           result.usage.outputTokens !== undefined
@@ -152,23 +263,18 @@ export function createTaskTool(config: TaskToolConfig): Tool {
               }
             : undefined;
 
-        let totalCostUsd: number | undefined;
-        if (usage) {
-          totalCostUsd =
-            usage.input_tokens * costPerInputToken +
-            usage.output_tokens * costPerOutputToken;
-        }
-
         return {
           result: result.text,
           usage,
-          total_cost_usd: totalCostUsd,
           duration_ms: durationMs,
+          subagent: subagent_type,
+          description,
         };
       } catch (error) {
-        return {
-          error: error instanceof Error ? error.message : "Unknown error",
-        };
+        const errorMessage =
+          error instanceof Error ? error.message : "Unknown error";
+
+        return { error: errorMessage };
       }
     },
   });

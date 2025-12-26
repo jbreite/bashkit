@@ -162,6 +162,7 @@ export { createSkillTool } from "./skill";
 
 // --- Task Tool ---
 export type {
+  SubagentEventData,
   SubagentStepEvent,
   SubagentTypeConfig,
   TaskError,

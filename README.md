@@ -219,7 +219,7 @@ const { tools, planModeState } = createAgentTools(sandbox, {
 
 ## Sub-agents with Task Tool
 
-The Task tool spawns new `generateText` calls for complex subtasks:
+The Task tool spawns new agents for complex subtasks:
 
 ```typescript
 import { createTaskTool } from 'bashkit';
@@ -253,6 +253,46 @@ The parent agent calls Task like any other tool:
   subagent_type: "research"
 }}
 ```
+
+### Streaming Sub-agent Activity to UI
+
+Pass a `streamWriter` to stream real-time sub-agent activity to the UI:
+
+```typescript
+import { createUIMessageStream } from 'ai';
+
+const stream = createUIMessageStream({
+  execute: async ({ writer }) => {
+    const taskTool = createTaskTool({
+      model,
+      tools: sandboxTools,
+      streamWriter: writer, // Enable real-time streaming
+      subagentTypes: { ... },
+    });
+
+    // Use with streamText
+    const result = streamText({
+      model,
+      tools: { Task: taskTool },
+      ...
+    });
+
+    writer.merge(result.toUIMessageStream());
+  },
+});
+```
+
+When `streamWriter` is provided:
+- Uses `streamText` internally (instead of `generateText`)
+- Emits `data-subagent` events to the UI stream:
+  - `start` - Sub-agent begins work
+  - `tool-call` - Each tool the sub-agent uses (with args)
+  - `done` - Sub-agent finished
+  - `complete` - Full messages array for UI access
+
+These appear in `message.parts` on the client as `{ type: "data-subagent", data: SubagentEventData }`.
+
+**Important:** The TaskOutput returned to the lead agent does NOT include messages (to avoid context bloat). The UI accesses the full conversation via the streamed `complete` event.
 
 ## Context Management
 
