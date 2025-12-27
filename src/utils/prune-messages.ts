@@ -67,7 +67,7 @@ export function estimateMessagesTokens(messages: ModelMessage[]): number {
  */
 function findLastNUserMessageIndices(
   messages: ModelMessage[],
-  n: number
+  n: number,
 ): Set<number> {
   const indices = new Set<number>();
   let count = 0;
@@ -88,7 +88,7 @@ function findLastNUserMessageIndices(
  */
 function findProtectedIndices(
   messages: ModelMessage[],
-  protectLastN: number
+  protectLastN: number,
 ): Set<number> {
   const userIndices = findLastNUserMessageIndices(messages, protectLastN);
   const protected_ = new Set<number>();
@@ -169,7 +169,7 @@ function pruneToolMessage(message: ModelMessage): ModelMessage {
  */
 export function pruneMessagesByTokens(
   messages: ModelMessage[],
-  config?: PruneMessagesConfig
+  config?: PruneMessagesConfig,
 ): ModelMessage[] {
   const { targetTokens, minSavingsThreshold, protectLastNUserMessages } = {
     ...DEFAULT_CONFIG,
@@ -187,7 +187,7 @@ export function pruneMessagesByTokens(
   // Find which messages to protect
   const protectedIndices = findProtectedIndices(
     messages,
-    protectLastNUserMessages
+    protectLastNUserMessages,
   );
 
   // Clone and prune messages from oldest to newest

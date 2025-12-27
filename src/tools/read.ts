@@ -33,10 +33,22 @@ const readInputSchema = z.object({
 
 type ReadInput = z.infer<typeof readInputSchema>;
 
+const READ_DESCRIPTION = `Reads a file from the local filesystem. You can access any file directly by using this tool.
+Assume this tool is able to read all files on the machine. If the User provides a path to a file assume that path is valid. It is okay to read a file that does not exist; an error will be returned.
+
+Usage:
+- The file_path parameter must be an absolute path, not a relative path
+- By default, it reads up to 500 lines starting from the beginning of the file
+- You can optionally specify a line offset and limit (especially handy for long files)
+- Results are returned with line numbers starting at 1
+- This tool can only read text files, not binary files (images, PDFs, etc.)
+- This tool can only read files, not directories. To read a directory, use an ls command via the Bash tool.
+- It is always better to speculatively read multiple potentially useful files in parallel
+- If you read a file that exists but has empty contents you will receive a warning in place of file contents`;
+
 export function createReadTool(sandbox: Sandbox, config?: ToolConfig) {
   return tool({
-    description:
-      "Read the contents of a file or list directory entries. For text files, returns numbered lines with total line count. For directories, returns file/folder names. Use this instead of `cat`, `head`, or `tail` commands.",
+    description: READ_DESCRIPTION,
     inputSchema: zodSchema(readInputSchema),
     execute: async ({
       file_path,

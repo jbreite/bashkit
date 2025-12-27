@@ -42,6 +42,27 @@ const taskInputSchema = z.object({
 
 type TaskInput = z.infer<typeof taskInputSchema>;
 
+const TASK_DESCRIPTION = `Launch a new agent to handle complex, multi-step tasks autonomously.
+
+The Task tool launches specialized agents (subprocesses) that autonomously handle complex tasks. Each agent type has specific capabilities and tools available to it.
+
+When using the Task tool, you must specify a subagent_type parameter to select which agent type to use.
+
+**When NOT to use the Task tool:**
+- If you want to read a specific file path, use the Read or Glob tool instead, to find the match more quickly
+- If you are searching for a specific class definition like "class Foo", use the Glob tool instead, to find the match more quickly
+- If you are searching for code within a specific file or set of 2-3 files, use the Read tool instead, to find the match more quickly
+- Other tasks that are not related to the available agent types
+
+**Usage notes:**
+- Always include a short description (3-5 words) summarizing what the agent will do
+- Launch multiple agents concurrently whenever possible, to maximize performance; to do that, use a single message with multiple tool uses
+- When the agent is done, it will return a single message back to you. The result returned by the agent is not visible to the user. To show the user the result, you should send a text message back to the user with a concise summary of the result.
+- Provide clear, detailed prompts so the agent can work autonomously and return exactly the information you need.
+- The agent's outputs should generally be trusted
+- Clearly tell the agent whether you expect it to write code or just to do research (search, file reads, web fetches, etc.), since it is not aware of the user's intent
+- If the agent description mentions that it should be used proactively, then you should try your best to use it without the user having to ask for it first. Use your judgement.`;
+
 /** Event emitted for each step a subagent takes */
 export interface SubagentStepEvent {
   subagentType: string;
@@ -117,8 +138,7 @@ export function createTaskTool(config: TaskToolConfig): Tool {
   } = config;
 
   return tool({
-    description:
-      "Launches a new agent to handle complex, multi-step tasks autonomously. Use this for tasks that require multiple steps, research, or specialized expertise.",
+    description: TASK_DESCRIPTION,
     inputSchema: zodSchema(taskInputSchema),
     execute: async ({
       description,

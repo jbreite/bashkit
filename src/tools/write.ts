@@ -20,10 +20,22 @@ const writeInputSchema = z.object({
 
 type WriteInput = z.infer<typeof writeInputSchema>;
 
+const WRITE_DESCRIPTION = `Writes content to a file on the filesystem.
+
+**Important guidelines:**
+- This tool will overwrite existing files at the provided path
+- If modifying an existing file, you MUST use the Read tool first to read the file's contents
+- ALWAYS prefer editing existing files over creating new ones
+- NEVER proactively create documentation files (*.md) or README files unless explicitly requested
+- The file_path must be an absolute path, not relative
+
+**When to use Write vs Edit:**
+- Use Write for creating new files or completely replacing file contents
+- Use Edit for making targeted changes to existing files (preferred for modifications)`;
+
 export function createWriteTool(sandbox: Sandbox, config?: ToolConfig) {
   return tool({
-    description:
-      "Write content to a file. Creates the file if it does not exist, overwrites if it does.",
+    description: WRITE_DESCRIPTION,
     inputSchema: zodSchema(writeInputSchema),
     execute: async ({
       file_path,

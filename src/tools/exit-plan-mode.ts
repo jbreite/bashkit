@@ -17,13 +17,34 @@ const exitPlanModeInputSchema = z.object({
 
 type ExitPlanModeInput = z.infer<typeof exitPlanModeInputSchema>;
 
+const EXIT_PLAN_MODE_DESCRIPTION = `Use this tool when you are in plan mode and have finished planning and are ready for user approval.
+
+## How This Tool Works
+- Pass your completed plan as a parameter
+- This tool signals that you're done planning and ready for the user to review
+- The user will see your plan and can approve or request changes
+
+## When to Use This Tool
+IMPORTANT: Only use this tool when the task requires planning implementation steps. For research tasks where you're gathering information, searching files, or understanding the codebase - do NOT use this tool.
+
+## Handling Ambiguity in Plans
+Before using this tool, ensure your plan is clear and unambiguous. If there are multiple valid approaches or unclear requirements:
+1. Ask the user to clarify (use AskUser tool if available)
+2. Ask about specific implementation choices (e.g., architectural patterns, which library to use)
+3. Clarify any assumptions that could affect the implementation
+4. Only proceed with ExitPlanMode after resolving ambiguities
+
+## Examples
+1. "Search for and understand the implementation of X" - Do NOT use this tool (research task)
+2. "Help me implement feature Y" - Use this tool after planning the implementation steps
+3. "Add user authentication" - If unsure about approach (OAuth vs JWT), clarify first, then use this tool`;
+
 export function createExitPlanModeTool(
   config?: ToolConfig,
   onPlanSubmit?: (plan: string) => Promise<boolean> | boolean,
 ) {
   return tool({
-    description:
-      "Exits planning mode and prompts the user to approve the plan. Use this when you have finished planning and want user confirmation before proceeding.",
+    description: EXIT_PLAN_MODE_DESCRIPTION,
     inputSchema: zodSchema(exitPlanModeInputSchema),
     execute: async ({
       plan,

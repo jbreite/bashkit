@@ -30,12 +30,28 @@ export interface WebFetchToolConfig {
 
 const RETRYABLE_CODES = [408, 429, 500, 502, 503];
 
+const WEB_FETCH_DESCRIPTION = `
+- Fetches content from a specified URL and processes it using an AI model
+- Takes a URL and a prompt as input
+- Fetches the URL content and extracts text
+- Processes the content with the prompt using the configured model
+- Returns the model's response about the content
+- Use this tool when you need to retrieve and analyze web content
+
+Usage notes:
+  - The URL must be a fully-formed valid URL
+  - HTTP URLs will be automatically upgraded to HTTPS
+  - The prompt should describe what information you want to extract from the page
+  - This tool is read-only and does not modify any files
+  - Results may be summarized if the content is very large
+  - When a URL redirects to a different host, the tool will inform you and provide the redirect URL. You should then make a new WebFetch request with the redirect URL to fetch the content.
+`;
+
 export function createWebFetchTool(config: WebFetchToolConfig) {
   const { apiKey, model } = config;
 
   return tool({
-    description:
-      "Fetches content from a URL and processes it with an AI model. Use this to analyze web pages, extract information, or summarize content.",
+    description: WEB_FETCH_DESCRIPTION,
     inputSchema: zodSchema(webFetchInputSchema),
     execute: async (
       input: WebFetchInput,

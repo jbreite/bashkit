@@ -42,14 +42,46 @@ export interface TodoState {
   todos: TodoItem[];
 }
 
+const TODO_WRITE_DESCRIPTION = `Use this tool to create and manage a structured task list for tracking progress. This helps organize complex tasks and gives the user visibility into your work.
+
+**When to use this tool proactively:**
+1. Complex multi-step tasks - When a task requires 3 or more distinct steps
+2. Non-trivial tasks - Tasks requiring careful planning or multiple operations
+3. User explicitly requests a todo list
+4. User provides multiple tasks - Numbered lists or comma-separated items
+5. After receiving new instructions - Immediately capture requirements as todos
+6. When starting work - Mark task as in_progress BEFORE beginning
+7. After completing - Mark as completed and add any follow-up tasks discovered
+
+**When NOT to use:**
+1. Single, straightforward tasks
+2. Trivial tasks with no organizational benefit
+3. Tasks completable in less than 3 trivial steps
+4. Purely conversational or informational requests
+
+**Task states:**
+- pending: Not yet started
+- in_progress: Currently working on (limit to ONE at a time)
+- completed: Finished successfully
+
+**Task format (both required):**
+- content: Imperative form ("Run tests", "Analyze data")
+- activeForm: Present continuous form ("Running tests", "Analyzing data")
+
+**Task management rules:**
+- Update status in real-time as you work
+- Mark complete IMMEDIATELY after finishing (don't batch)
+- Keep exactly ONE task in_progress at any time
+- ONLY mark completed when FULLY accomplished
+- If blocked/errors, keep in_progress and create new task for the blocker`;
+
 export function createTodoWriteTool(
   state: TodoState,
   config?: ToolConfig,
   onUpdate?: (todos: TodoItem[]) => void,
 ) {
   return tool({
-    description:
-      "Creates and manages a structured task list for tracking progress. Use this to plan complex tasks and track completion.",
+    description: TODO_WRITE_DESCRIPTION,
     inputSchema: zodSchema(todoWriteInputSchema),
     execute: async ({
       todos,

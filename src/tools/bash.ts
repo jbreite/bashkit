@@ -35,15 +35,40 @@ const bashInputSchema = z.object({
 
 type BashInput = z.infer<typeof bashInputSchema>;
 
-const BASH_DESCRIPTION = `Executes bash commands in a persistent shell session with optional timeout and background execution.
+const BASH_DESCRIPTION = `Executes a bash command in a persistent shell session with optional timeout.
 
-**Important guidelines:**
-- Always quote file paths containing spaces with double quotes (e.g., cd "/path/with spaces")
-- Avoid using search commands like \`find\` and \`grep\` - use the Glob and Grep tools instead
-- Avoid using \`cat\`, \`head\`, \`tail\` - use the Read tool instead
-- When issuing multiple commands, use \`;\` or \`&&\` to separate them (not newlines)
-- If output exceeds 30000 characters, it will be truncated
-- Default timeout is 2 minutes; maximum is 10 minutes`;
+IMPORTANT: For file operations (reading, writing, editing, searching, finding files) - use the specialized tools instead of bash commands.
+
+Before executing the command, please follow these steps:
+
+1. Directory Verification:
+   - If the command will create new directories or files, first use \`ls\` to verify the parent directory exists and is the correct location
+   - For example, before running "mkdir foo/bar", first use \`ls foo\` to check that "foo" exists
+
+2. Command Execution:
+   - Always quote file paths that contain spaces with double quotes (e.g., cd "/path/with spaces")
+   - Examples of proper quoting:
+     - cd "/Users/name/My Documents" (correct)
+     - cd /Users/name/My Documents (incorrect - will fail)
+   - After ensuring proper quoting, execute the command
+
+Usage notes:
+  - The command argument is required
+  - You can specify an optional timeout in milliseconds (max 600000ms / 10 minutes). Default is 120000ms (2 minutes).
+  - It is very helpful if you write a clear, concise description of what this command does in 5-10 words
+  - If the output exceeds 30000 characters, output will be truncated
+  - Avoid using \`find\`, \`grep\`, \`cat\`, \`head\`, \`tail\`, \`sed\`, \`awk\`, or \`echo\` commands. Instead, use dedicated tools:
+    - File search: Use Glob (NOT find or ls)
+    - Content search: Use Grep (NOT grep or rg)
+    - Read files: Use Read (NOT cat/head/tail)
+    - Edit files: Use Edit (NOT sed/awk)
+    - Write files: Use Write (NOT echo >/cat <<EOF)
+  - When issuing multiple commands:
+    - If commands are independent, make multiple Bash tool calls in parallel
+    - If commands depend on each other, use '&&' to chain them (e.g., \`git add . && git commit -m "message"\`)
+    - Use ';' only when you need sequential execution but don't care if earlier commands fail
+    - DO NOT use newlines to separate commands
+  - Try to maintain your current working directory by using absolute paths and avoiding \`cd\``;
 
 export function createBashTool(sandbox: Sandbox, config?: ToolConfig) {
   const maxOutputLength = config?.maxOutputLength ?? 30000;

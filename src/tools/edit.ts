@@ -29,9 +29,27 @@ const editInputSchema = z.object({
 
 type EditInput = z.infer<typeof editInputSchema>;
 
+const EDIT_DESCRIPTION = `Performs exact string replacements in files.
+
+**Important guidelines:**
+- You MUST use the Read tool first before editing any file
+- Preserve exact indentation (tabs/spaces) when replacing text
+- The old_string must be unique in the file, or the edit will fail
+- If old_string appears multiple times, either provide more context to make it unique, or use replace_all=true
+
+**Parameters:**
+- old_string: The exact text to find and replace (must match exactly, including whitespace)
+- new_string: The replacement text (must be different from old_string)
+- replace_all: Set to true to replace all occurrences (useful for renaming variables)
+
+**When to use:**
+- Making targeted changes to existing files
+- Renaming variables or functions (with replace_all=true)
+- Updating specific sections`;
+
 export function createEditTool(sandbox: Sandbox, config?: ToolConfig) {
   return tool({
-    description: "Performs exact string replacements in files.",
+    description: EDIT_DESCRIPTION,
     inputSchema: zodSchema(editInputSchema),
     execute: async ({
       file_path,

@@ -41,12 +41,32 @@ export interface WebSearchToolConfig {
 
 const RETRYABLE_CODES = [408, 429, 500, 502, 503];
 
+const WEB_SEARCH_DESCRIPTION = `Searches the web and returns results with links. Use this for accessing up-to-date information beyond your knowledge cutoff.
+
+**Capabilities:**
+- Provides current information for recent events and data
+- Returns results formatted with titles, URLs, and snippets
+- Supports domain filtering to include or block specific websites
+
+**CRITICAL REQUIREMENT - You MUST follow this:**
+After answering using search results, you MUST include a "Sources:" section listing relevant URLs as markdown hyperlinks:
+
+Sources:
+- [Source Title 1](https://example.com/1)
+- [Source Title 2](https://example.com/2)
+
+**Important - Use the correct year:**
+When searching for recent information, documentation, or current events, use the current year in your query (e.g., "React documentation 2025" not "2024").
+
+**Domain filtering:**
+- allowed_domains: Only include results from these domains
+- blocked_domains: Never include results from these domains`;
+
 export function createWebSearchTool(config: WebSearchToolConfig) {
   const { apiKey } = config;
 
   return tool({
-    description:
-      "Searches the web and returns formatted results. Use this to find current information, documentation, articles, and more.",
+    description: WEB_SEARCH_DESCRIPTION,
     inputSchema: zodSchema(webSearchInputSchema),
     execute: async (
       input: WebSearchInput,

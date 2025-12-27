@@ -27,10 +27,18 @@ const globInputSchema = z.object({
 
 type GlobInput = z.infer<typeof globInputSchema>;
 
+const GLOB_DESCRIPTION = `
+- Fast file pattern matching tool that works with any codebase size
+- Supports glob patterns like "**/*.js" or "src/**/*.ts"
+- Returns matching file paths sorted by modification time
+- Use this tool when you need to find files by name patterns
+- When you are doing an open ended search that may require multiple rounds of globbing and grepping, use the Task tool instead
+- It is always better to speculatively perform multiple searches in parallel if they are potentially useful
+`;
+
 export function createGlobTool(sandbox: Sandbox, config?: ToolConfig) {
   return tool({
-    description:
-      "Search for files matching a glob pattern. Returns file paths sorted by modification time. Use this instead of `find` command.",
+    description: GLOB_DESCRIPTION,
     inputSchema: zodSchema(globInputSchema),
     execute: async ({
       pattern,

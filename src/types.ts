@@ -9,6 +9,11 @@ export type ToolConfig = {
   blockedCommands?: string[];
 };
 
+export type GrepToolConfig = ToolConfig & {
+  /** Use ripgrep (rg) instead of grep. Requires ripgrep to be installed. Default: false */
+  useRipgrep?: boolean;
+};
+
 export type WebSearchConfig = {
   apiKey: string;
 };
@@ -40,7 +45,7 @@ export type AgentConfig = {
     Write?: ToolConfig;
     Edit?: ToolConfig;
     Glob?: ToolConfig;
-    Grep?: ToolConfig;
+    Grep?: GrepToolConfig;
   };
   /** Include AskUser tool for user clarification */
   askUser?: AskUserConfig;
