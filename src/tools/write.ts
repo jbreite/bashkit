@@ -37,6 +37,10 @@ export function createWriteTool(sandbox: Sandbox, config?: ToolConfig) {
   return tool({
     description: WRITE_DESCRIPTION,
     inputSchema: zodSchema(writeInputSchema),
+    // Pass SDK options explicitly for proper type inference
+    strict: config?.strict,
+    needsApproval: config?.needsApproval,
+    providerOptions: config?.providerOptions,
     execute: async ({
       file_path,
       content,

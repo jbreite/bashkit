@@ -1,1 +1,4 @@
-export { anthropicPromptCacheMiddleware } from "./anthropic-cache";
+export {
+  anthropicPromptCacheMiddleware,
+  anthropicPromptCacheMiddlewareV2,
+} from "./anthropic-cache";

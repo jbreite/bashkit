@@ -51,6 +51,10 @@ export function createEditTool(sandbox: Sandbox, config?: ToolConfig) {
   return tool({
     description: EDIT_DESCRIPTION,
     inputSchema: zodSchema(editInputSchema),
+    // Pass SDK options explicitly for proper type inference
+    strict: config?.strict,
+    needsApproval: config?.needsApproval,
+    providerOptions: config?.providerOptions,
     execute: async ({
       file_path,
       old_string,

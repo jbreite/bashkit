@@ -1,6 +1,5 @@
 import { tool, zodSchema } from "ai";
 import { z } from "zod";
-import type { ToolConfig } from "../types";
 
 export interface TodoItem {
   content: string;
@@ -77,7 +76,6 @@ const TODO_WRITE_DESCRIPTION = `Use this tool to create and manage a structured 
 
 export function createTodoWriteTool(
   state: TodoState,
-  config?: ToolConfig,
   onUpdate?: (todos: TodoItem[]) => void,
 ) {
   return tool({

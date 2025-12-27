@@ -4,7 +4,10 @@
 export type { UIMessageStreamWriter } from "ai";
 
 // Middleware
-export { anthropicPromptCacheMiddleware } from "./middleware";
+export {
+  anthropicPromptCacheMiddleware,
+  anthropicPromptCacheMiddlewareV2,
+} from "./middleware";
 export type {
   E2BSandboxConfig,
   LocalSandboxConfig,
@@ -69,11 +72,9 @@ export type {
   // Web tools
   WebFetchError,
   WebFetchOutput,
-  WebFetchToolConfig,
   WebSearchError,
   WebSearchOutput,
   WebSearchResult,
-  WebSearchToolConfig,
   WriteError,
   WriteOutput,
 } from "./tools";

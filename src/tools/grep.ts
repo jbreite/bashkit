@@ -134,6 +134,9 @@ export function createGrepTool(sandbox: Sandbox, config?: GrepToolConfig) {
   return tool({
     description: GREP_DESCRIPTION,
     inputSchema: zodSchema(grepInputSchema),
+    strict: config?.strict,
+    needsApproval: config?.needsApproval,
+    providerOptions: config?.providerOptions,
     execute: async (input: GrepInput): Promise<GrepOutput> => {
       const {
         pattern,

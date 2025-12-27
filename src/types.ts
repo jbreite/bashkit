@@ -1,13 +1,28 @@
-import type { LanguageModel } from "ai";
+import type { LanguageModel, Tool } from "ai";
 import type { SkillMetadata } from "./skills/types";
 
+/**
+ * SDK tool options picked from the Tool type.
+ * This automatically adapts to the user's installed AI SDK version.
+ * - v5 users get v5 options (if any)
+ * - v6 users get v6 options (needsApproval, strict, etc.)
+ */
+export type SDKToolOptions = Partial<
+  Pick<Tool<unknown, unknown>, "strict" | "needsApproval" | "providerOptions">
+>;
+
+/**
+ * Configuration for sandbox-based tools.
+ * Extends AI SDK tool options for version-appropriate type safety.
+ */
 export type ToolConfig = {
+  // Sandbox-specific options
   timeout?: number;
   maxFileSize?: number;
   maxOutputLength?: number;
   allowedPaths?: string[];
   blockedCommands?: string[];
-};
+} & SDKToolOptions;
 
 export type GrepToolConfig = ToolConfig & {
   /** Use ripgrep (rg) instead of grep. Requires ripgrep to be installed. Default: false */
@@ -16,12 +31,12 @@ export type GrepToolConfig = ToolConfig & {
 
 export type WebSearchConfig = {
   apiKey: string;
-};
+} & SDKToolOptions;
 
 export type WebFetchConfig = {
   apiKey: string;
   model: LanguageModel;
-};
+} & SDKToolOptions;
 
 export type AskUserConfig = {
   /** Callback to handle questions and return answers */

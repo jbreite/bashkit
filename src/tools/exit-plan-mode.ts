@@ -1,6 +1,5 @@
 import { tool, zodSchema } from "ai";
 import { z } from "zod";
-import type { ToolConfig } from "../types";
 
 export interface ExitPlanModeOutput {
   message: string;
@@ -40,7 +39,6 @@ Before using this tool, ensure your plan is clear and unambiguous. If there are 
 3. "Add user authentication" - If unsure about approach (OAuth vs JWT), clarify first, then use this tool`;
 
 export function createExitPlanModeTool(
-  config?: ToolConfig,
   onPlanSubmit?: (plan: string) => Promise<boolean> | boolean,
 ) {
   return tool({

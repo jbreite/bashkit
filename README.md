@@ -342,7 +342,10 @@ Enable Anthropic prompt caching to reduce costs on repeated prefixes:
 
 ```typescript
 import { wrapLanguageModel } from 'ai';
+// AI SDK v6+
 import { anthropicPromptCacheMiddleware } from 'bashkit';
+// AI SDK v5
+// import { anthropicPromptCacheMiddlewareV2 } from 'bashkit';
 
 const model = wrapLanguageModel({
   model: anthropic('claude-sonnet-4-5'),
@@ -731,7 +734,8 @@ Creates a set of agent tools bound to a sandbox instance.
 
 ### Middleware
 
-- `anthropicPromptCacheMiddleware` - Enable prompt caching for Anthropic models
+- `anthropicPromptCacheMiddleware` - Enable prompt caching for Anthropic models (AI SDK v6+)
+- `anthropicPromptCacheMiddlewareV2` - Enable prompt caching for Anthropic models (AI SDK v5)
 
 ## Future Roadmap
 
