@@ -6,9 +6,11 @@ import type { SkillMetadata } from "./skills/types";
  * This automatically adapts to the user's installed AI SDK version.
  * - v5 users get v5 options (if any)
  * - v6 users get v6 options (needsApproval, strict, etc.)
+ *
+ * Uses `any` for input/output to allow typed needsApproval functions.
  */
 export type SDKToolOptions = Partial<
-  Pick<Tool<unknown, unknown>, "strict" | "needsApproval" | "providerOptions">
+  Pick<Tool<any, any>, "strict" | "needsApproval" | "providerOptions">
 >;
 
 /**

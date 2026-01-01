@@ -1,7 +1,17 @@
 // Main exports
 
-// Re-export UIMessageStreamWriter from AI SDK for convenience
-export type { UIMessageStreamWriter } from "ai";
+// Re-export commonly used AI SDK types for convenience
+// This allows consumers to import everything from bashkit without
+// needing to also import from "ai" for types used in return values
+export type {
+  UIMessageStreamWriter,
+  StreamTextResult,
+  Tool,
+  ToolSet,
+  LanguageModel,
+  LanguageModelMiddleware,
+  Output,
+} from "ai";
 
 // Middleware
 export {

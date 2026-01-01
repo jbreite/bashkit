@@ -2,8 +2,8 @@ import type {
   LanguageModelV2Message,
   LanguageModelV2Middleware,
   LanguageModelV3Message,
-  LanguageModelV3Middleware,
 } from "@ai-sdk/provider";
+import type { LanguageModelMiddleware } from "ai";
 
 type Message = LanguageModelV2Message | LanguageModelV3Message;
 
@@ -79,7 +79,7 @@ export const anthropicPromptCacheMiddlewareV2: LanguageModelV2Middleware = {
  * });
  * ```
  */
-export const anthropicPromptCacheMiddleware: LanguageModelV3Middleware = {
+export const anthropicPromptCacheMiddleware: LanguageModelMiddleware = {
   specificationVersion: "v3",
   transformParams: async ({ params }) => applyCacheMarkers(params),
 };
