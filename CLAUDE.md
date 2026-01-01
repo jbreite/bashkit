@@ -195,15 +195,17 @@ User → Vercel AI SDK → Tool (Bash/Read/Write/etc.)
 ### Build Commands
 
 ```bash
+# IMPORTANT: Always run typecheck BEFORE build when making changes
+bun run typecheck
+
 # Build everything (JS bundle + TypeScript declarations)
 bun run build
-
-# Type checking only
-tsc --noEmit
 
 # Install dependencies
 bun install
 ```
+
+**Workflow**: Always run `bun run typecheck` first to catch type errors before building. The build command does not fail on type errors during the JS bundling step.
 
 **Build Process**:
 1. Bun bundles TypeScript to ESM JavaScript (`dist/index.js`)

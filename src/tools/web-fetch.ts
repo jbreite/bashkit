@@ -1,7 +1,8 @@
-import type { LanguageModel } from "ai";
 import { generateText, tool, zodSchema } from "ai";
 import Parallel from "parallel-web";
 import { z } from "zod";
+import type { WebFetchConfig } from "../types";
+import { RETRYABLE_STATUS_CODES } from "../utils/http-constants";
 
 export interface WebFetchOutput {
   response: string;
@@ -23,13 +24,6 @@ const webFetchInputSchema = z.object({
 
 type WebFetchInput = z.infer<typeof webFetchInputSchema>;
 
-export interface WebFetchToolConfig {
-  apiKey: string;
-  model: LanguageModel;
-}
-
-const RETRYABLE_CODES = [408, 429, 500, 502, 503];
-
 const WEB_FETCH_DESCRIPTION = `
 - Fetches content from a specified URL and processes it using an AI model
 - Takes a URL and a prompt as input
@@ -47,12 +41,15 @@ Usage notes:
   - When a URL redirects to a different host, the tool will inform you and provide the redirect URL. You should then make a new WebFetch request with the redirect URL to fetch the content.
 `;
 
-export function createWebFetchTool(config: WebFetchToolConfig) {
-  const { apiKey, model } = config;
+export function createWebFetchTool(config: WebFetchConfig) {
+  const { apiKey, model, strict, needsApproval, providerOptions } = config;
 
   return tool({
     description: WEB_FETCH_DESCRIPTION,
     inputSchema: zodSchema(webFetchInputSchema),
+    strict,
+    needsApproval,
+    providerOptions,
     execute: async (
       input: WebFetchInput,
     ): Promise<WebFetchOutput | WebFetchError> => {
@@ -117,7 +114,7 @@ export function createWebFetchTool(config: WebFetchToolConfig) {
           return {
             error: message,
             status_code: statusCode,
-            retryable: RETRYABLE_CODES.includes(statusCode),
+            retryable: RETRYABLE_STATUS_CODES.includes(statusCode),
           };
         }
 

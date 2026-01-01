@@ -179,18 +179,13 @@ export type {
 } from "./todo-write";
 // State/workflow tool factories (not sandbox-based)
 export { createTodoWriteTool } from "./todo-write";
-export type {
-  WebFetchError,
-  WebFetchOutput,
-  WebFetchToolConfig,
-} from "./web-fetch";
+export type { WebFetchError, WebFetchOutput } from "./web-fetch";
 export { createWebFetchTool } from "./web-fetch";
 // Web tool types
 export type {
   WebSearchError,
   WebSearchOutput,
   WebSearchResult,
-  WebSearchToolConfig,
 } from "./web-search";
 // Web tool factories (require parallel-web peer dependency)
 export { createWebSearchTool } from "./web-search";

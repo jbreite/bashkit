@@ -38,6 +38,18 @@ const taskInputSchema = z.object({
   subagent_type: z
     .string()
     .describe("The type of specialized agent to use for this task"),
+  system_prompt: z
+    .string()
+    .optional()
+    .describe(
+      "Optional custom system prompt for this agent. If provided, overrides the default system prompt for the subagent type. Use this to create dynamic, specialized agents on the fly."
+    ),
+  tools: z
+    .array(z.string())
+    .optional()
+    .describe(
+      "Optional list of tool names this agent can use (e.g., ['Read', 'Grep', 'WebSearch']). If provided, overrides the default tools for the subagent type. Use this to restrict or expand the agent's capabilities."
+    ),
 });
 
 type TaskInput = z.infer<typeof taskInputSchema>;
@@ -46,7 +58,9 @@ const TASK_DESCRIPTION = `Launch a new agent to handle complex, multi-step tasks
 
 The Task tool launches specialized agents (subprocesses) that autonomously handle complex tasks. Each agent type has specific capabilities and tools available to it.
 
-When using the Task tool, you must specify a subagent_type parameter to select which agent type to use.
+**Subagent types:**
+- Use predefined subagent_type values for common task patterns
+- For dynamic agents: provide custom system_prompt and/or tools to create a specialized agent on the fly
 
 **When NOT to use the Task tool:**
 - If you want to read a specific file path, use the Read or Glob tool instead, to find the match more quickly
@@ -127,7 +141,9 @@ function filterTools(allTools: ToolSet, allowedTools?: string[]): ToolSet {
   return filtered;
 }
 
-export function createTaskTool(config: TaskToolConfig): Tool {
+export function createTaskTool(
+  config: TaskToolConfig
+): Tool<TaskInput, TaskOutput | TaskError> {
   const {
     model: defaultModel,
     tools: allTools,
@@ -144,6 +160,8 @@ export function createTaskTool(config: TaskToolConfig): Tool {
       description,
       prompt,
       subagent_type,
+      system_prompt,
+      tools: customTools,
     }: TaskInput): Promise<TaskOutput | TaskError> => {
       const startTime = performance.now();
 
@@ -152,8 +170,10 @@ export function createTaskTool(config: TaskToolConfig): Tool {
         const typeConfig = subagentTypes[subagent_type] || {};
 
         const model = typeConfig.model || defaultModel;
-        const tools = filterTools(allTools, typeConfig.tools);
-        const systemPrompt = typeConfig.systemPrompt;
+        // Custom tools override the type's default tools
+        const tools = filterTools(allTools, customTools ?? typeConfig.tools);
+        // Custom system_prompt overrides the type's default
+        const systemPrompt = system_prompt ?? typeConfig.systemPrompt;
 
         // Common options for both generateText and streamText
         const commonOptions = {

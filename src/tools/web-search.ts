@@ -1,6 +1,8 @@
 import { tool, zodSchema } from "ai";
 import Parallel from "parallel-web";
 import { z } from "zod";
+import type { WebSearchConfig } from "../types";
+import { RETRYABLE_STATUS_CODES } from "../utils/http-constants";
 
 export interface WebSearchResult {
   title: string;
@@ -35,12 +37,6 @@ const webSearchInputSchema = z.object({
 
 type WebSearchInput = z.infer<typeof webSearchInputSchema>;
 
-export interface WebSearchToolConfig {
-  apiKey: string;
-}
-
-const RETRYABLE_CODES = [408, 429, 500, 502, 503];
-
 const WEB_SEARCH_DESCRIPTION = `Searches the web and returns results with links. Use this for accessing up-to-date information beyond your knowledge cutoff.
 
 **Capabilities:**
@@ -62,12 +58,15 @@ When searching for recent information, documentation, or current events, use the
 - allowed_domains: Only include results from these domains
 - blocked_domains: Never include results from these domains`;
 
-export function createWebSearchTool(config: WebSearchToolConfig) {
-  const { apiKey } = config;
+export function createWebSearchTool(config: WebSearchConfig) {
+  const { apiKey, strict, needsApproval, providerOptions } = config;
 
   return tool({
     description: WEB_SEARCH_DESCRIPTION,
     inputSchema: zodSchema(webSearchInputSchema),
+    strict,
+    needsApproval,
+    providerOptions,
     execute: async (
       input: WebSearchInput,
     ): Promise<WebSearchOutput | WebSearchError> => {
@@ -120,7 +119,7 @@ export function createWebSearchTool(config: WebSearchToolConfig) {
           return {
             error: message,
             status_code: statusCode,
-            retryable: RETRYABLE_CODES.includes(statusCode),
+            retryable: RETRYABLE_STATUS_CODES.includes(statusCode),
           };
         }
 

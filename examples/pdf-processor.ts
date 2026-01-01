@@ -117,6 +117,7 @@ ${skillsToXml(skills)}
 - Explain what you're doing at each step`;
 
   // 7. Wrap model with prompt caching
+  // Note: Use anthropicPromptCacheMiddlewareV2 for AI SDK v5
   const model = wrapLanguageModel({
     model: anthropic("claude-sonnet-4-5-20250929"),
     middleware: anthropicPromptCacheMiddleware,

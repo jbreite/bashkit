@@ -1,4 +1,4 @@
-import type { ToolCallOptions } from "ai";
+import type { ToolExecutionOptions } from "ai";
 import { createAgentTools, createLocalSandbox } from "../src";
 
 // Helper for direct tool execution in tests
@@ -6,7 +6,7 @@ async function execute(
   // biome-ignore lint/suspicious/noExplicitAny: <explanation test right now>
   tool: { execute?: (...args: any[]) => any },
   input: unknown,
-  options: ToolCallOptions,
+  options: ToolExecutionOptions,
 ) {
   if (!tool.execute) throw new Error("Tool has no execute function");
   return tool.execute(input, options);

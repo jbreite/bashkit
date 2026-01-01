@@ -40,6 +40,10 @@ export function createGlobTool(sandbox: Sandbox, config?: ToolConfig) {
   return tool({
     description: GLOB_DESCRIPTION,
     inputSchema: zodSchema(globInputSchema),
+    // Pass SDK options explicitly for proper type inference
+    strict: config?.strict,
+    needsApproval: config?.needsApproval,
+    providerOptions: config?.providerOptions,
     execute: async ({
       pattern,
       path,

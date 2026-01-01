@@ -77,6 +77,10 @@ export function createBashTool(sandbox: Sandbox, config?: ToolConfig) {
   return tool({
     description: BASH_DESCRIPTION,
     inputSchema: zodSchema(bashInputSchema),
+    // Pass SDK options explicitly for proper type inference
+    strict: config?.strict,
+    needsApproval: config?.needsApproval,
+    providerOptions: config?.providerOptions,
     execute: async ({
       command,
       timeout,
