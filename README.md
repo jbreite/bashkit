@@ -217,6 +217,34 @@ const { tools, planModeState } = createAgentTools(sandbox, {
 - `allowedPaths` (string[]): Restrict file operations to specific paths
 - `blockedCommands` (string[]): Block commands containing these strings (Bash)
 
+#### AI SDK Tool Options (v6+)
+
+All tools support AI SDK v6 tool options:
+
+```typescript
+const { tools } = createAgentTools(sandbox, {
+  tools: {
+    Bash: {
+      timeout: 30000,
+      // AI SDK v6 options
+      needsApproval: true, // Require user approval before execution
+      strict: true, // Strict schema validation
+      providerOptions: { /* provider-specific options */ },
+    },
+    Write: {
+      // Dynamic approval based on input
+      needsApproval: async ({ file_path }) => {
+        return file_path.includes('package.json');
+      },
+    },
+  },
+});
+```
+
+- `needsApproval` (boolean | function): Require user approval before tool execution
+- `strict` (boolean): Enable strict schema validation
+- `providerOptions` (object): Provider-specific tool options
+
 ## Sub-agents with Task Tool
 
 The Task tool spawns new agents for complex subtasks:
@@ -253,6 +281,26 @@ The parent agent calls Task like any other tool:
   subagent_type: "research"
 }}
 ```
+
+### Dynamic Agents
+
+You can create custom agents on the fly by passing `system_prompt` and/or `tools` directly, without predefined subagent types:
+
+```typescript
+// Agent creates a specialized agent dynamically:
+{ tool: "Task", args: {
+  description: "Analyze security vulnerabilities",
+  prompt: "Review the auth code for security issues",
+  subagent_type: "custom",
+  system_prompt: "You are a security expert. Focus on OWASP top 10 vulnerabilities.",
+  tools: ["Read", "Grep", "Glob"]
+}}
+```
+
+This is useful when:
+- The parent agent needs to create specialized agents based on context
+- You want agents to delegate with custom instructions
+- Predefined subagent types don't fit the task
 
 ### Streaming Sub-agent Activity to UI
 
