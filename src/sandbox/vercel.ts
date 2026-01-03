@@ -4,6 +4,8 @@ import type { ExecOptions, ExecResult, Sandbox } from "./interface";
 export interface VercelSandboxConfig {
   runtime?: "node22" | "python3.13";
   resources?: { vcpus: number };
+  /** Existing sandbox ID to reconnect to instead of creating new */
+  sandboxId?: string;
   timeout?: number;
   cwd?: string;
   teamId?: string;
@@ -13,6 +15,7 @@ export interface VercelSandboxConfig {
 
 export function createVercelSandbox(config: VercelSandboxConfig = {}): Sandbox {
   let sandbox: VercelSandboxSDK | null = null;
+  let sandboxId: string | undefined = config.sandboxId;
   const workingDirectory = config.cwd || "/vercel/sandbox";
   const resolvedConfig = {
     runtime: config.runtime ?? "node22",
@@ -36,7 +39,17 @@ export function createVercelSandbox(config: VercelSandboxConfig = {}): Sandbox {
       });
     }
 
-    sandbox = await VercelSandboxSDK.create(createOptions);
+    if (config.sandboxId) {
+      // Reconnect to existing sandbox
+      sandbox = await VercelSandboxSDK.get({ sandboxId: config.sandboxId });
+    } else {
+      // Create new sandbox
+      sandbox = await VercelSandboxSDK.create(createOptions);
+    }
+
+    // Get sandbox ID from the SDK
+    sandboxId = sandbox.sandboxId;
+
     return sandbox;
   };
 
@@ -104,6 +117,10 @@ export function createVercelSandbox(config: VercelSandboxConfig = {}): Sandbox {
 
   return {
     exec,
+
+    get id() {
+      return sandboxId;
+    },
 
     async readFile(path: string): Promise<string> {
       const sbx = await ensureSandbox();
