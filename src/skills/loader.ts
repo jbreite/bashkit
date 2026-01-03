@@ -1,3 +1,6 @@
+import { readdir, readFile } from "node:fs/promises";
+import { basename, dirname, join } from "node:path";
+import type { SkillBundle } from "./fetch";
 import type { SkillMetadata } from "./types";
 
 /**
@@ -144,4 +147,73 @@ function parseYaml(yaml: string): Record<string, unknown> {
   }
 
   return result;
+}
+
+/**
+ * Loads all files from a local skill directory as a SkillBundle.
+ * Recursively reads all files, preserving directory structure.
+ *
+ * @param skillDir - Absolute path to skill directory (containing SKILL.md)
+ * @returns SkillBundle with all files
+ *
+ * @example
+ * ```typescript
+ * const bundle = await loadSkillBundle('/path/to/.skills/pdf-processing');
+ * // bundle.files = {
+ * //   'SKILL.md': '---\nname: pdf-processing\n...',
+ * //   'templates/report.md': '# Report Template...',
+ * //   'scripts/extract.sh': '#!/bin/bash...',
+ * // }
+ * ```
+ */
+export async function loadSkillBundle(skillDir: string): Promise<SkillBundle> {
+  const files: Record<string, string> = {};
+  const name = basename(skillDir);
+
+  async function readDirRecursive(dir: string, prefix = "") {
+    const entries = await readdir(dir, { withFileTypes: true });
+
+    for (const entry of entries) {
+      const relativePath = prefix ? `${prefix}/${entry.name}` : entry.name;
+      const fullPath = join(dir, entry.name);
+
+      if (entry.isDirectory()) {
+        await readDirRecursive(fullPath, relativePath);
+      } else {
+        files[relativePath] = await readFile(fullPath, "utf-8");
+      }
+    }
+  }
+
+  await readDirRecursive(skillDir);
+  return { name, files };
+}
+
+/**
+ * Loads multiple discovered skills as bundles.
+ * Takes the output of discoverSkills() and loads all files for each skill.
+ *
+ * @param skills - Array of skill metadata from discoverSkills()
+ * @returns Record mapping skill names to their bundles
+ *
+ * @example
+ * ```typescript
+ * const discovered = await discoverSkills();
+ * const bundles = await loadSkillBundles(discovered);
+ *
+ * // Use with setupAgentEnvironment
+ * await setupAgentEnvironment(sandbox, { skills: bundles });
+ * ```
+ */
+export async function loadSkillBundles(
+  skills: SkillMetadata[],
+): Promise<Record<string, SkillBundle>> {
+  const bundles: Record<string, SkillBundle> = {};
+
+  for (const skill of skills) {
+    const skillDir = dirname(skill.path);
+    bundles[skill.name] = await loadSkillBundle(skillDir);
+  }
+
+  return bundles;
 }

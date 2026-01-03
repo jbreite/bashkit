@@ -151,6 +151,8 @@ export {
   discoverSkills,
   fetchSkill,
   fetchSkills,
+  loadSkillBundle,
+  loadSkillBundles,
   parseSkillMetadata,
   skillsToXml,
 } from "./skills";

@@ -42,13 +42,13 @@ const taskInputSchema = z.object({
     .string()
     .optional()
     .describe(
-      "Optional custom system prompt for this agent. If provided, overrides the default system prompt for the subagent type. Use this to create dynamic, specialized agents on the fly."
+      "Optional custom system prompt for this agent. If provided, overrides the default system prompt for the subagent type. Use this to create dynamic, specialized agents on the fly.",
     ),
   tools: z
     .array(z.string())
     .optional()
     .describe(
-      "Optional list of tool names this agent can use (e.g., ['Read', 'Grep', 'WebSearch']). If provided, overrides the default tools for the subagent type. Use this to restrict or expand the agent's capabilities."
+      "Optional list of tool names this agent can use (e.g., ['Read', 'Grep', 'WebSearch']). If provided, overrides the default tools for the subagent type. Use this to restrict or expand the agent's capabilities.",
     ),
 });
 
@@ -142,7 +142,7 @@ function filterTools(allTools: ToolSet, allowedTools?: string[]): ToolSet {
 }
 
 export function createTaskTool(
-  config: TaskToolConfig
+  config: TaskToolConfig,
 ): Tool<TaskInput, TaskOutput | TaskError> {
   const {
     model: defaultModel,

@@ -5,5 +5,9 @@ export type { SkillBundle } from "./fetch";
 // Re-export functions
 export { discoverSkills } from "./discovery";
 export { fetchSkill, fetchSkills } from "./fetch";
-export { parseSkillMetadata } from "./loader";
+export {
+  parseSkillMetadata,
+  loadSkillBundle,
+  loadSkillBundles,
+} from "./loader";
 export { skillsToXml } from "./xml";
