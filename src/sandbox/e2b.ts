@@ -3,6 +3,8 @@ import type { ExecOptions, ExecResult, Sandbox } from "./interface";
 
 export interface E2BSandboxConfig {
   apiKey?: string;
+  /** Existing sandbox ID to reconnect to instead of creating new */
+  sandboxId?: string;
   template?: string;
   timeout?: number;
   cwd?: string;
@@ -11,17 +13,25 @@ export interface E2BSandboxConfig {
 
 export function createE2BSandbox(config: E2BSandboxConfig = {}): Sandbox {
   let sandbox: E2BSandboxSDK | null = null;
+  let sandboxId: string | undefined = config.sandboxId;
   const workingDirectory = config.cwd || "/home/user";
   const timeout = config.timeout ?? 300000; // 5 minutes default
 
   const ensureSandbox = async (): Promise<E2BSandboxSDK> => {
     if (sandbox) return sandbox;
 
-    sandbox = await E2BSandboxSDK.create({
-      apiKey: config.apiKey,
-      timeoutMs: timeout,
-      metadata: config.metadata,
-    });
+    if (config.sandboxId) {
+      // Reconnect to existing sandbox
+      sandbox = await E2BSandboxSDK.connect(config.sandboxId);
+    } else {
+      // Create new sandbox
+      sandbox = await E2BSandboxSDK.create({
+        apiKey: config.apiKey,
+        timeoutMs: timeout,
+        metadata: config.metadata,
+      });
+      sandboxId = sandbox.sandboxId;
+    }
 
     return sandbox;
   };
@@ -83,6 +93,10 @@ export function createE2BSandbox(config: E2BSandboxConfig = {}): Sandbox {
 
   return {
     exec,
+
+    get id() {
+      return sandboxId;
+    },
 
     async readFile(path: string): Promise<string> {
       // Use cat command instead of files.read() due to SDK issues

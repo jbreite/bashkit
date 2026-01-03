@@ -20,4 +20,12 @@ export interface Sandbox {
   fileExists(path: string): Promise<boolean>;
   isDirectory(path: string): Promise<boolean>;
   destroy(): Promise<void>;
+
+  /**
+   * Sandbox ID for reconnection (cloud providers only).
+   * - For new sandboxes: available after first operation
+   * - For reconnected sandboxes: available immediately
+   * - For local sandboxes: always undefined
+   */
+  readonly id?: string;
 }
