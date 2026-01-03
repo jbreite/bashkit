@@ -1,6 +1,8 @@
 import type { ToolSet } from "ai";
+import type { CacheStore } from "../cache/types";
+import { cached, LRUCacheStore } from "../cache";
 import type { Sandbox } from "../sandbox/interface";
-import type { AgentConfig } from "../types";
+import type { AgentConfig, CacheConfig } from "../types";
 import { DEFAULT_CONFIG } from "../types";
 import { createAskUserTool } from "./ask-user";
 import { createBashTool } from "./bash";
@@ -14,6 +16,98 @@ import { createSkillTool } from "./skill";
 import { createWebFetchTool } from "./web-fetch";
 import { createWebSearchTool } from "./web-search";
 import { createWriteTool } from "./write";
+
+/** Tools that are cached by default when cache: true */
+const DEFAULT_CACHEABLE = [
+  "Read",
+  "Glob",
+  "Grep",
+  "WebFetch",
+  "WebSearch",
+] as const;
+
+/**
+ * Resolves cache configuration into store, ttl, debug flag, callbacks, and enabled tools.
+ */
+function resolveCache(config?: CacheConfig): {
+  store: CacheStore | null;
+  ttl: number;
+  debug: boolean;
+  onHit?: (toolName: string, key: string) => void;
+  onMiss?: (toolName: string, key: string) => void;
+  keyGenerator?: (toolName: string, params: unknown) => string;
+  enabled: Set<string>;
+} {
+  if (!config) {
+    return { store: null, ttl: 0, debug: false, enabled: new Set() };
+  }
+
+  if (config === true) {
+    return {
+      store: new LRUCacheStore(),
+      ttl: 5 * 60 * 1000,
+      debug: false,
+      enabled: new Set(DEFAULT_CACHEABLE),
+    };
+  }
+
+  // Check if it's a CacheStore (has required methods as functions)
+  if (
+    typeof config === "object" &&
+    typeof (config as CacheStore).get === "function" &&
+    typeof (config as CacheStore).set === "function" &&
+    typeof (config as CacheStore).delete === "function" &&
+    typeof (config as CacheStore).clear === "function"
+  ) {
+    return {
+      store: config as CacheStore,
+      ttl: 5 * 60 * 1000,
+      debug: false,
+      enabled: new Set(DEFAULT_CACHEABLE),
+    };
+  }
+
+  // Object config with per-tool settings
+  const enabled = new Set<string>();
+
+  // Start with defaults
+  for (const tool of DEFAULT_CACHEABLE) {
+    if ((config as Record<string, unknown>)[tool] !== false) {
+      enabled.add(tool);
+    }
+  }
+
+  // Add any explicitly enabled tools (including non-defaults like Bash)
+  for (const [key, value] of Object.entries(config)) {
+    if (
+      ["store", "ttl", "debug", "onHit", "onMiss", "keyGenerator"].includes(key)
+    )
+      continue;
+    if (value === true) enabled.add(key);
+    if (value === false) enabled.delete(key);
+  }
+
+  type ConfigObj = {
+    store?: CacheStore;
+    ttl?: number;
+    debug?: boolean;
+    onHit?: (toolName: string, key: string) => void;
+    onMiss?: (toolName: string, key: string) => void;
+    keyGenerator?: (toolName: string, params: unknown) => string;
+  };
+
+  const cfg = config as ConfigObj;
+
+  return {
+    store: cfg.store ?? new LRUCacheStore(),
+    ttl: cfg.ttl ?? 5 * 60 * 1000,
+    debug: cfg.debug ?? false,
+    onHit: cfg.onHit,
+    onMiss: cfg.onMiss,
+    keyGenerator: cfg.keyGenerator,
+    enabled,
+  };
+}
 
 /**
  * Result from createAgentTools including tools and optional shared state.
@@ -108,6 +202,24 @@ export function createAgentTools(
   }
   if (config?.webFetch) {
     tools.WebFetch = createWebFetchTool(config.webFetch);
+  }
+
+  // Apply caching if configured
+  const cacheConfig = resolveCache(config?.cache);
+  if (cacheConfig.store) {
+    for (const [name, tool] of Object.entries(tools)) {
+      if (cacheConfig.enabled.has(name)) {
+        // Type assertion needed because cached() adds methods that ToolSet allows
+        (tools as Record<string, unknown>)[name] = cached(tool, name, {
+          store: cacheConfig.store,
+          ttl: cacheConfig.ttl,
+          debug: cacheConfig.debug,
+          onHit: cacheConfig.onHit,
+          onMiss: cacheConfig.onMiss,
+          keyGenerator: cacheConfig.keyGenerator,
+        });
+      }
+    }
   }
 
   return { tools, planModeState };

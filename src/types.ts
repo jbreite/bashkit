@@ -1,4 +1,5 @@
 import type { LanguageModel, Tool } from "ai";
+import type { CacheStore } from "./cache/types";
 import type { SkillMetadata } from "./skills/types";
 
 /**
@@ -55,6 +56,50 @@ export type SkillConfig = {
   ) => void | Promise<void>;
 };
 
+/**
+ * Cache configuration for tool result caching.
+ *
+ * @example
+ * ```typescript
+ * // Enable with defaults (LRU cache, 5min TTL, safe tools only)
+ * cache: true
+ *
+ * // Custom cache store
+ * cache: myRedisStore
+ *
+ * // Per-tool control
+ * cache: { Read: true, Glob: true, Bash: false }
+ *
+ * // Full options
+ * cache: { store: myStore, ttl: 600000, debug: true, Read: true }
+ * ```
+ */
+export type CacheConfig =
+  | boolean // true = LRU with defaults (safe tools only)
+  | CacheStore // custom store for all default tools
+  | {
+      /** Custom cache store (default: LRUCacheStore) */
+      store?: CacheStore;
+      /** TTL in milliseconds (default: 5 minutes) */
+      ttl?: number;
+      /** Enable debug logging for cache hits/misses */
+      debug?: boolean;
+      /** Callback when cache hit occurs */
+      onHit?: (toolName: string, key: string) => void;
+      /** Callback when cache miss occurs */
+      onMiss?: (toolName: string, key: string) => void;
+      /** Custom key generator for cache keys */
+      keyGenerator?: (toolName: string, params: unknown) => string;
+      /** Per-tool overrides - any tool name can be enabled/disabled */
+      [toolName: string]:
+        | boolean
+        | CacheStore
+        | number
+        | ((toolName: string, key: string) => void)
+        | ((toolName: string, params: unknown) => string)
+        | undefined;
+    };
+
 export type AgentConfig = {
   tools?: {
     Bash?: ToolConfig;
@@ -74,6 +119,8 @@ export type AgentConfig = {
   webSearch?: WebSearchConfig;
   /** Include WebFetch tool with this config */
   webFetch?: WebFetchConfig;
+  /** Enable tool result caching */
+  cache?: CacheConfig;
   defaultTimeout?: number;
   workingDirectory?: string;
 };

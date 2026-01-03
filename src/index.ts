@@ -110,12 +110,25 @@ export {
 export type {
   AgentConfig,
   AskUserConfig,
+  CacheConfig,
   SkillConfig,
   ToolConfig,
   WebFetchConfig,
   WebSearchConfig,
 } from "./types";
 export { DEFAULT_CONFIG } from "./types";
+
+// Cache utilities
+export type {
+  CachedTool,
+  CacheEntry,
+  CacheOptions,
+  CacheStats,
+  CacheStore,
+  RedisCacheStoreOptions,
+  RedisClient,
+} from "./cache";
+export { cached, createRedisCacheStore, LRUCacheStore } from "./cache";
 export type {
   CompactConversationConfig,
   CompactConversationResult,
