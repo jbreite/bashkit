@@ -76,6 +76,11 @@ src/
 │   ├── task.ts          # Sub-agent spawning
 │   ├── todo-write.ts    # Task list management
 │   └── index.ts         # Tool factory orchestration
+├── cache/           # Tool result caching
+│   ├── types.ts     # CacheStore interface & types
+│   ├── lru.ts       # LRU cache implementation
+│   ├── cached.ts    # cached() tool wrapper function
+│   └── index.ts     # Barrel exports
 ├── middleware/      # Vercel AI SDK middleware
 │   └── anthropic-cache.ts  # Prompt caching for Claude
 ├── utils/           # Utility functions
@@ -84,7 +89,7 @@ src/
 └── index.ts         # Main exports (barrel file)
 ```
 
-**Total**: 23 TypeScript files, ~2,177 lines of code
+**Total**: 27 TypeScript files
 
 ### Key Design Patterns
 
@@ -138,6 +143,25 @@ const bashInputSchema = z.object({
 });
 ```
 
+#### 6. Tool Result Caching
+Optional caching for tool execution results:
+```typescript
+// Enable with defaults (LRU, 5min TTL)
+const { tools } = createAgentTools(sandbox, { cache: true });
+
+// Per-tool control
+const { tools } = createAgentTools(sandbox, {
+  cache: { Read: true, Glob: true, Grep: false }
+});
+
+// Standalone wrapper
+import { cached } from 'bashkit';
+const cachedTool = cached(myTool, 'MyTool', { ttl: 60000 });
+```
+
+**Default cached tools**: Read, Glob, Grep, WebFetch, WebSearch
+**Not cached by default**: Bash, Write, Edit (side effects)
+
 ### Component Interactions
 
 ```
@@ -175,6 +199,12 @@ User → Vercel AI SDK → Tool (Bash/Read/Write/etc.)
 **Middleware**
 - Implementations: `/src/middleware/*.ts`
 - Prompt caching: `/src/middleware/anthropic-cache.ts`
+
+**Caching**
+- Cache types: `/src/cache/types.ts`
+- LRU implementation: `/src/cache/lru.ts`
+- Tool wrapper: `/src/cache/cached.ts`
+- Barrel exports: `/src/cache/index.ts`
 
 **Utilities**
 - Message handling: `/src/utils/prune-messages.ts`
@@ -671,6 +701,29 @@ if (config?.webSearch) {
 
 ### Performance Considerations
 
+**Tool Result Caching**:
+```typescript
+// Enable caching for read-only tools
+const { tools } = createAgentTools(sandbox, { cache: true });
+
+// Custom TTL and per-tool control
+const { tools } = createAgentTools(sandbox, {
+  cache: {
+    ttl: 10 * 60 * 1000,  // 10 minutes
+    debug: true,          // Log cache hits/misses
+    Read: true,
+    Glob: true,
+    WebFetch: false,      // Disable for this tool
+  }
+});
+
+// Check cache stats
+const readTool = tools.Read as CachedTool;
+console.log(readTool.getStats());
+// { hits: 5, misses: 2, hitRate: 0.71, size: 2 }
+```
+Returns cached results for identical tool calls. Default TTL: 5 minutes.
+
 **Prompt Caching**:
 ```typescript
 import { anthropicPromptCacheMiddleware } from 'bashkit';
@@ -754,5 +807,5 @@ const { tools } = createAgentTools(sandbox, {
 
 ---
 
-*Last Updated*: 2025-12-03
+*Last Updated*: 2026-01-02
 *For*: Claude Code and AI coding assistants

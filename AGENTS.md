@@ -484,3 +484,111 @@ const { tools } = createAgentTools(sandbox, {
 });
 ```
 
+## Tool Result Caching
+
+Cache tool execution results to avoid redundant operations:
+
+```typescript
+import { createAgentTools, LocalSandbox } from "bashkit";
+
+const sandbox = new LocalSandbox("/tmp/workspace");
+
+// Enable caching with defaults (LRU, 5min TTL)
+const { tools } = createAgentTools(sandbox, { cache: true });
+
+// Or customize caching behavior
+const { tools } = createAgentTools(sandbox, {
+  cache: {
+    ttl: 10 * 60 * 1000,  // 10 minutes
+    debug: true,          // Log cache hits/misses
+    Read: true,           // Enable for Read
+    Glob: true,           // Enable for Glob
+    Grep: false,          // Disable for Grep
+  },
+});
+```
+
+**Default cached tools:** Read, Glob, Grep, WebFetch, WebSearch
+
+**Not cached by default:** Bash, Write, Edit (have side effects)
+
+### Cache Callbacks
+
+Track cache performance with callbacks:
+
+```typescript
+const { tools } = createAgentTools(sandbox, {
+  cache: {
+    onHit: (toolName, key) => {
+      metrics.increment(`cache.hit.${toolName}`);
+    },
+    onMiss: (toolName, key) => {
+      metrics.increment(`cache.miss.${toolName}`);
+    },
+  },
+});
+```
+
+### Cache Stats
+
+Cached tools have additional methods:
+
+```typescript
+import type { CachedTool } from "bashkit";
+
+const readTool = tools.Read as CachedTool;
+
+// Check cache performance (async for Redis compatibility)
+console.log(await readTool.getStats());
+// { hits: 5, misses: 2, hitRate: 0.71, size: 2 }
+
+// Clear cache
+await readTool.clearCache();        // Clear all
+await readTool.clearCache("key");   // Clear specific entry
+```
+
+### Redis Cache Store
+
+Use your existing Redis client with the helper:
+
+```typescript
+import { createRedisCacheStore, createAgentTools } from "bashkit";
+
+const store = createRedisCacheStore(myRedisClient);
+const { tools } = createAgentTools(sandbox, { cache: store });
+```
+
+Works with `redis`, `ioredis`, or any client with `get`, `set`, `del`, `keys` methods. TTL is handled by the wrapper for consistent behavior across all cache backends.
+
+### Custom Cache Store
+
+For other backends, implement the `CacheStore` interface:
+
+```typescript
+import type { CacheStore } from "bashkit";
+
+const myStore: CacheStore = {
+  get(key) { /* return CacheEntry or undefined */ },
+  set(key, entry) { /* store entry */ },
+  delete(key) { /* remove entry */ },
+  clear() { /* remove all entries */ },
+  size() { /* optional: return count */ },
+};
+
+const { tools } = createAgentTools(sandbox, { cache: myStore });
+```
+
+### Standalone Caching
+
+Wrap individual tools with caching:
+
+```typescript
+import { cached, LRUCacheStore } from "bashkit";
+
+const cachedTool = cached(myTool, "MyTool", {
+  ttl: 60000,       // 1 minute
+  debug: true,      // Log cache activity
+  store: new LRUCacheStore(500),  // Max 500 entries
+});
+```
+

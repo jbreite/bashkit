@@ -384,6 +384,101 @@ if (contextNeedsCompaction(status)) {
 }
 ```
 
+## Tool Result Caching
+
+Cache tool execution results to avoid repeated expensive operations:
+
+```typescript
+const { tools } = createAgentTools(sandbox, {
+  // Enable caching with defaults (LRU, 5min TTL)
+  cache: true,
+});
+```
+
+### Cache Configuration Options
+
+```typescript
+const { tools } = createAgentTools(sandbox, {
+  cache: {
+    // Custom TTL (default: 5 minutes)
+    ttl: 10 * 60 * 1000,
+
+    // Enable debug logging
+    debug: true,
+
+    // Per-tool control (defaults: Read, Glob, Grep, WebFetch, WebSearch)
+    Read: true,
+    Glob: true,
+    Grep: false,  // Disable for this tool
+
+    // Enable caching for tools not cached by default
+    Bash: true,  // Use with caution - has side effects
+  },
+});
+```
+
+### Default Cached Tools
+
+By default, these read-only tools are cached when `cache: true`:
+- `Read` - File reading
+- `Glob` - File pattern matching
+- `Grep` - Content searching
+- `WebFetch` - URL fetching
+- `WebSearch` - Web searches
+
+Tools with side effects (`Bash`, `Write`, `Edit`) are NOT cached by default but can be enabled.
+
+### Custom Cache Store
+
+Implement your own cache backend (e.g., Redis):
+
+```typescript
+import type { CacheStore } from 'bashkit';
+
+const redisStore: CacheStore = {
+  async get(key) {
+    const data = await redis.get(key);
+    return data ? JSON.parse(data) : undefined;
+  },
+  async set(key, entry) {
+    await redis.set(key, JSON.stringify(entry));
+  },
+  async delete(key) {
+    await redis.del(key);
+  },
+  async clear() {
+    await redis.flushdb();
+  },
+  size() {
+    return redis.dbsize();
+  },
+};
+
+const { tools } = createAgentTools(sandbox, {
+  cache: redisStore,
+});
+```
+
+### Standalone Cached Wrapper
+
+Wrap individual tools with caching:
+
+```typescript
+import { cached, LRUCacheStore } from 'bashkit';
+
+const cachedTool = cached(myTool, 'MyTool', {
+  ttl: 5 * 60 * 1000,
+  debug: true,
+});
+
+// Check cache stats
+console.log(await cachedTool.getStats());
+// { hits: 5, misses: 2, hitRate: 0.71, size: 2 }
+
+// Clear cache
+await cachedTool.clearCache();
+```
+
 ## Prompt Caching
 
 Enable Anthropic prompt caching to reduce costs on repeated prefixes:
