@@ -148,6 +148,15 @@ const sandbox = createVercelSandbox({
   runtime: 'node22',
   resources: { vcpus: 2 },
 });
+
+// After first operation, get the sandbox ID for persistence
+await sandbox.exec('echo hello');
+console.log(sandbox.id); // Sandbox ID for reconnection
+
+// Later: reconnect to the same sandbox
+const reconnected = createVercelSandbox({
+  sandboxId: 'existing-sandbox-id',
+});
 ```
 
 ### E2BSandbox
@@ -158,7 +167,17 @@ Runs in E2B's cloud sandboxes. Requires `@e2b/code-interpreter` peer dependency.
 import { createE2BSandbox } from 'bashkit';
 
 const sandbox = createE2BSandbox({
-  // E2B config
+  apiKey: process.env.E2B_API_KEY,
+});
+
+// After first operation, get the sandbox ID for persistence
+await sandbox.exec('echo hello');
+console.log(sandbox.id); // "sbx_abc123..."
+
+// Later: reconnect to the same sandbox
+const reconnected = createE2BSandbox({
+  apiKey: process.env.E2B_API_KEY,
+  sandboxId: 'sbx_abc123...', // Reconnect to existing sandbox
 });
 ```
 
@@ -764,8 +783,13 @@ interface Sandbox {
   readDir(path: string): Promise<string[]>;
   fileExists(path: string): Promise<boolean>;
   destroy(): Promise<void>;
+
+  // Optional: Sandbox ID for reconnection (cloud providers only)
+  readonly id?: string;
 }
 ```
+
+The `id` property is available on cloud sandboxes (E2B, Vercel) after the first operation. Use it to persist the sandbox ID and reconnect later.
 
 ### Custom Sandbox Example
 

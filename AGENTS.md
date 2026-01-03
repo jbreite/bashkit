@@ -21,9 +21,9 @@ bun add bashkit ai @ai-sdk/anthropic
 Runs commands directly on the local machine. Use for development/testing only.
 
 ```typescript
-import { createAgentTools, LocalSandbox } from "bashkit";
+import { createAgentTools, createLocalSandbox } from "bashkit";
 
-const sandbox = new LocalSandbox("/tmp/workspace");
+const sandbox = createLocalSandbox({ cwd: "/tmp/workspace" });
 const { tools } = createAgentTools(sandbox);
 ```
 
@@ -32,9 +32,9 @@ const { tools } = createAgentTools(sandbox);
 Runs in isolated Firecracker microVMs on Vercel's infrastructure.
 
 ```typescript
-import { createAgentTools, VercelSandbox } from "bashkit";
+import { createAgentTools, createVercelSandbox } from "bashkit";
 
-const sandbox = new VercelSandbox({
+const sandbox = createVercelSandbox({
   runtime: "node22",
   resources: { vcpus: 2 },
 });
@@ -43,6 +43,49 @@ const { tools } = createAgentTools(sandbox);
 // Don't forget to cleanup
 await sandbox.destroy();
 ```
+
+### E2BSandbox (Production)
+
+Runs in E2B's cloud sandboxes. Requires `@e2b/code-interpreter` peer dependency.
+
+```typescript
+import { createAgentTools, createE2BSandbox } from "bashkit";
+
+const sandbox = createE2BSandbox({
+  apiKey: process.env.E2B_API_KEY,
+});
+const { tools } = createAgentTools(sandbox);
+
+await sandbox.destroy();
+```
+
+### Sandbox Reconnection (Cloud Sandboxes)
+
+Cloud sandboxes (E2B, Vercel) support reconnection via the `id` property and `sandboxId` config:
+
+```typescript
+// Create a new sandbox
+const sandbox = createE2BSandbox({ apiKey: process.env.E2B_API_KEY });
+
+// After first operation, the sandbox ID is available
+await sandbox.exec("echo hello");
+const sandboxId = sandbox.id; // "sbx_abc123..."
+
+// Store sandboxId in your database (e.g., chat metadata)
+await db.chat.update({ where: { id: chatId }, data: { sandboxId } });
+
+// Later: reconnect to the same sandbox
+const savedId = chat.sandboxId;
+const reconnected = createE2BSandbox({
+  apiKey: process.env.E2B_API_KEY,
+  sandboxId: savedId, // Reconnects instead of creating new
+});
+```
+
+This is useful for:
+- Reusing sandboxes across multiple requests in the same conversation
+- Persisting sandbox state between server restarts
+- Reducing sandbox creation overhead
 
 ## Available Tools
 
@@ -89,11 +132,11 @@ import { generateText, wrapLanguageModel, stepCountIs } from "ai";
 import { anthropic } from "@ai-sdk/anthropic";
 import {
   createAgentTools,
-  LocalSandbox,
+  createLocalSandbox,
   anthropicPromptCacheMiddleware,
 } from "bashkit";
 
-const sandbox = new LocalSandbox("/tmp/workspace");
+const sandbox = createLocalSandbox({ cwd: "/tmp/workspace" });
 const { tools } = createAgentTools(sandbox);
 
 // Wrap model with prompt caching (recommended)
@@ -311,12 +354,12 @@ const skills = await discoverSkills();
 ### Using Skills with Agents
 
 ```typescript
-import { discoverSkills, skillsToXml, createAgentTools, LocalSandbox } from "bashkit";
+import { discoverSkills, skillsToXml, createAgentTools, createLocalSandbox } from "bashkit";
 import { generateText, stepCountIs } from "ai";
 import { anthropic } from "@ai-sdk/anthropic";
 
 const skills = await discoverSkills();
-const sandbox = new LocalSandbox("/tmp/workspace");
+const sandbox = createLocalSandbox({ cwd: "/tmp/workspace" });
 const { tools } = createAgentTools(sandbox);
 
 const result = await generateText({
@@ -421,13 +464,13 @@ import {
   createAgentTools,
   createTaskTool,
   createTodoWriteTool,
-  LocalSandbox,
+  createLocalSandbox,
   anthropicPromptCacheMiddleware,
   type TodoState,
 } from "bashkit";
 
 // 1. Create sandbox
-const sandbox = new LocalSandbox("/tmp/workspace");
+const sandbox = createLocalSandbox({ cwd: "/tmp/workspace" });
 
 // 2. Create sandbox tools
 const { tools: sandboxTools } = createAgentTools(sandbox);
@@ -489,9 +532,9 @@ const { tools } = createAgentTools(sandbox, {
 Cache tool execution results to avoid redundant operations:
 
 ```typescript
-import { createAgentTools, LocalSandbox } from "bashkit";
+import { createAgentTools, createLocalSandbox } from "bashkit";
 
-const sandbox = new LocalSandbox("/tmp/workspace");
+const sandbox = createLocalSandbox({ cwd: "/tmp/workspace" });
 
 // Enable caching with defaults (LRU, 5min TTL)
 const { tools } = createAgentTools(sandbox, { cache: true });
