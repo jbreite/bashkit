@@ -1,4 +1,4 @@
-import { Sandbox as VercelSandboxSDK } from "@vercel/sandbox";
+import type { Sandbox as VercelSandboxType } from "@vercel/sandbox";
 import type { ExecOptions, ExecResult, Sandbox } from "./interface";
 
 export interface VercelSandboxConfig {
@@ -14,7 +14,7 @@ export interface VercelSandboxConfig {
 }
 
 export function createVercelSandbox(config: VercelSandboxConfig = {}): Sandbox {
-  let sandbox: VercelSandboxSDK | null = null;
+  let sandbox: VercelSandboxType | null = null;
   let sandboxId: string | undefined = config.sandboxId;
   const workingDirectory = config.cwd || "/vercel/sandbox";
   const resolvedConfig = {
@@ -23,8 +23,19 @@ export function createVercelSandbox(config: VercelSandboxConfig = {}): Sandbox {
     timeout: config.timeout ?? 300000, // 5 minutes default
   } as const;
 
-  const ensureSandbox = async (): Promise<VercelSandboxSDK> => {
+  const ensureSandbox = async (): Promise<VercelSandboxType> => {
     if (sandbox) return sandbox;
+
+    // Dynamic import - only loads when actually needed
+    let VercelSandboxSDK: typeof import("@vercel/sandbox").Sandbox;
+    try {
+      const module = await import("@vercel/sandbox");
+      VercelSandboxSDK = module.Sandbox;
+    } catch {
+      throw new Error(
+        "VercelSandbox requires @vercel/sandbox. Install with: npm install @vercel/sandbox",
+      );
+    }
 
     const createOptions: Parameters<typeof VercelSandboxSDK.create>[0] = {
       runtime: resolvedConfig.runtime,

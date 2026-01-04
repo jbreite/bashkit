@@ -291,7 +291,7 @@ export type {
 } from "./todo-write";
 // State/workflow tool factories (not sandbox-based)
 export { createTodoWriteTool } from "./todo-write";
-export type { WebFetchError, WebFetchOutput } from "./web-fetch";
+export type { ExtractResult, WebFetchError, WebFetchOutput } from "./web-fetch";
 export { createWebFetchTool } from "./web-fetch";
 // Web tool types
 export type {

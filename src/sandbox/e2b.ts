@@ -1,4 +1,4 @@
-import { Sandbox as E2BSandboxSDK } from "@e2b/code-interpreter";
+import type { Sandbox as E2BSandboxType } from "@e2b/code-interpreter";
 import type { ExecOptions, ExecResult, Sandbox } from "./interface";
 
 export interface E2BSandboxConfig {
@@ -12,13 +12,24 @@ export interface E2BSandboxConfig {
 }
 
 export function createE2BSandbox(config: E2BSandboxConfig = {}): Sandbox {
-  let sandbox: E2BSandboxSDK | null = null;
+  let sandbox: E2BSandboxType | null = null;
   let sandboxId: string | undefined = config.sandboxId;
   const workingDirectory = config.cwd || "/home/user";
   const timeout = config.timeout ?? 300000; // 5 minutes default
 
-  const ensureSandbox = async (): Promise<E2BSandboxSDK> => {
+  const ensureSandbox = async (): Promise<E2BSandboxType> => {
     if (sandbox) return sandbox;
+
+    // Dynamic import - only loads when actually needed
+    let E2BSandboxSDK: typeof import("@e2b/code-interpreter").Sandbox;
+    try {
+      const module = await import("@e2b/code-interpreter");
+      E2BSandboxSDK = module.Sandbox;
+    } catch {
+      throw new Error(
+        "E2BSandbox requires @e2b/code-interpreter. Install with: npm install @e2b/code-interpreter",
+      );
+    }
 
     if (config.sandboxId) {
       // Reconnect to existing sandbox
