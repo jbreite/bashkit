@@ -1,7 +1,6 @@
 import { generateText, tool, zodSchema } from "ai";
-import Parallel from "parallel-web";
 import { z } from "zod";
-import type { WebFetchConfig } from "../types";
+import type { WebFetchConfig, WebFetchProvider } from "../types";
 import { RETRYABLE_STATUS_CODES } from "../utils/http-constants";
 
 export interface WebFetchOutput {
@@ -15,6 +14,78 @@ export interface WebFetchError {
   error: string;
   status_code?: number;
   retryable?: boolean;
+}
+
+/**
+ * Result from a web fetch provider's extract operation.
+ * New providers should return this shape.
+ */
+interface ExtractResult {
+  content: string;
+  finalUrl?: string;
+}
+
+/**
+ * Fetch content using the Parallel provider.
+ * Dynamic import ensures parallel-web is only loaded when used.
+ */
+async function fetchWithParallel(
+  url: string,
+  apiKey: string,
+): Promise<ExtractResult> {
+  const { default: Parallel } = await import("parallel-web");
+  const client = new Parallel({ apiKey });
+
+  const extract = await client.beta.extract({
+    urls: [url],
+    excerpts: true,
+    full_content: true,
+  });
+
+  if (!extract.results || extract.results.length === 0) {
+    throw new Error("No content extracted from URL");
+  }
+
+  const result = extract.results[0] as {
+    url?: string;
+    full_content?: string;
+    excerpts?: string[];
+  };
+
+  const content = result.full_content || result.excerpts?.join("\n\n") || "";
+
+  if (!content) {
+    throw new Error("No content available from URL");
+  }
+
+  return {
+    content,
+    finalUrl: result.url,
+  };
+}
+
+/**
+ * Fetch content using the configured provider.
+ * Add new providers here as cases in the switch statement.
+ */
+async function fetchContent(
+  url: string,
+  apiKey: string,
+  provider: WebFetchProvider,
+): Promise<ExtractResult> {
+  switch (provider) {
+    case "parallel":
+      return fetchWithParallel(url, apiKey);
+    // Add new providers here:
+    // case "firecrawl":
+    //   return fetchWithFirecrawl(url, apiKey);
+    // case "jina":
+    //   return fetchWithJina(url, apiKey);
+    default: {
+      const _exhaustive: never = provider;
+      throw new Error(`Unknown provider: ${_exhaustive}`);
+    }
+  }
 }
 
 const webFetchInputSchema = z.object({
@@ -42,7 +113,14 @@ Usage notes:
 `;
 
 export function createWebFetchTool(config: WebFetchConfig) {
-  const { apiKey, model, strict, needsApproval, providerOptions } = config;
+  const {
+    provider = "parallel",
+    apiKey,
+    model,
+    strict,
+    needsApproval,
+    providerOptions,
+  } = config;
 
   return tool({
     description: WEB_FETCH_DESCRIPTION,
@@ -56,43 +134,7 @@ export function createWebFetchTool(config: WebFetchConfig) {
       const { url, prompt } = input;
 
       try {
-        const client = new Parallel({ apiKey });
-
-        // Extract content from the URL
-        const extract = await client.beta.extract({
-          urls: [url],
-          excerpts: true,
-          full_content: true,
-        });
-
-        if (!extract.results || extract.results.length === 0) {
-          return {
-            error: "No content extracted from URL",
-            status_code: 404,
-            retryable: false,
-          };
-        }
-
-        const extractedResult = extract.results[0] as {
-          url?: string;
-          title?: string;
-          full_content?: string;
-          excerpts?: string[];
-        };
-
-        // Get the content - prefer full_content, fallback to excerpts
-        const content =
-          extractedResult.full_content ||
-          extractedResult.excerpts?.join("\n\n") ||
-          "";
-
-        if (!content) {
-          return {
-            error: "No content available from URL",
-            status_code: 404,
-            retryable: false,
-          };
-        }
+        const { content, finalUrl } = await fetchContent(url, apiKey, provider);
 
         // Process content with the model
         const result = await generateText({
@@ -103,10 +145,10 @@ export function createWebFetchTool(config: WebFetchConfig) {
         return {
           response: result.text,
           url,
-          final_url: extractedResult.url || url,
+          final_url: finalUrl || url,
         };
       } catch (error) {
-        // Handle Parallel API errors
+        // Handle provider API errors
         if (error && typeof error === "object" && "status" in error) {
           const statusCode = (error as { status: number }).status;
           const message =

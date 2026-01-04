@@ -32,11 +32,29 @@ export type GrepToolConfig = ToolConfig & {
   useRipgrep?: boolean;
 };
 
+/**
+ * Supported web search providers.
+ * Currently only 'parallel' is implemented.
+ * Add new providers here as union types (e.g., 'parallel' | 'serper' | 'tavily')
+ */
+export type WebSearchProvider = "parallel";
+
+/**
+ * Supported web fetch providers.
+ * Currently only 'parallel' is implemented.
+ * Add new providers here as union types (e.g., 'parallel' | 'firecrawl' | 'jina')
+ */
+export type WebFetchProvider = "parallel";
+
 export type WebSearchConfig = {
+  /** Provider to use for web search. Default: 'parallel' */
+  provider?: WebSearchProvider;
   apiKey: string;
 } & SDKToolOptions;
 
 export type WebFetchConfig = {
+  /** Provider to use for web fetching. Default: 'parallel' */
+  provider?: WebFetchProvider;
   apiKey: string;
   model: LanguageModel;
 } & SDKToolOptions;

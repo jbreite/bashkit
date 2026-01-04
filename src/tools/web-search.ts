@@ -1,7 +1,6 @@
 import { tool, zodSchema } from "ai";
-import Parallel from "parallel-web";
 import { z } from "zod";
-import type { WebSearchConfig } from "../types";
+import type { WebSearchConfig, WebSearchProvider } from "../types";
 import { RETRYABLE_STATUS_CODES } from "../utils/http-constants";
 
 export interface WebSearchResult {
@@ -21,6 +20,82 @@ export interface WebSearchError {
   error: string;
   status_code?: number;
   retryable?: boolean;
+}
+
+/**
+ * Options for search providers.
+ */
+interface SearchOptions {
+  query: string;
+  allowedDomains?: string[];
+  blockedDomains?: string[];
+}
+
+/**
+ * Search using the Parallel provider.
+ * Dynamic import ensures parallel-web is only loaded when used.
+ */
+async function searchWithParallel(
+  apiKey: string,
+  options: SearchOptions,
+): Promise<WebSearchResult[]> {
+  const { default: Parallel } = await import("parallel-web");
+  const client = new Parallel({ apiKey });
+
+  // Build source policy if domain filters provided
+  const sourcePolicy:
+    | { include_domains?: string[]; exclude_domains?: string[] }
+    | undefined =
+    options.allowedDomains || options.blockedDomains
+      ? {
+          ...(options.allowedDomains && {
+            include_domains: options.allowedDomains,
+          }),
+          ...(options.blockedDomains && {
+            exclude_domains: options.blockedDomains,
+          }),
+        }
+      : undefined;
+
+  const search = await client.beta.search({
+    mode: "agentic",
+    objective: options.query,
+    max_results: 10,
+    ...(sourcePolicy && { source_policy: sourcePolicy }),
+  });
+
+  return (search.results || []).map((result) => ({
+    title: result.title ?? "",
+    url: result.url ?? "",
+    snippet: result.excerpts?.join("\n") ?? "",
+    metadata: result.publish_date
+      ? { publish_date: result.publish_date }
+      : undefined,
+  }));
+}
+
+/**
+ * Search using the configured provider.
+ * Add new providers here as cases in the switch statement.
+ */
+async function searchContent(
+  apiKey: string,
+  provider: WebSearchProvider,
+  options: SearchOptions,
+): Promise<WebSearchResult[]> {
+  switch (provider) {
+    case "parallel":
+      return searchWithParallel(apiKey, options);
+    // Add new providers here:
+    // case "serper":
+    //   return searchWithSerper(apiKey, options);
+    // case "tavily":
+    //   return searchWithTavily(apiKey, options);
+    default: {
+      const _exhaustive: never = provider;
+      throw new Error(`Unknown provider: ${_exhaustive}`);
+    }
+  }
 }
 
 const webSearchInputSchema = z.object({
@@ -59,7 +134,13 @@ When searching for recent information, documentation, or current events, use the
 - blocked_domains: Never include results from these domains`;
 
 export function createWebSearchTool(config: WebSearchConfig) {
-  const { apiKey, strict, needsApproval, providerOptions } = config;
+  const {
+    provider = "parallel",
+    apiKey,
+    strict,
+    needsApproval,
+    providerOptions,
+  } = config;
 
   return tool({
     description: WEB_SEARCH_DESCRIPTION,
@@ -73,37 +154,11 @@ export function createWebSearchTool(config: WebSearchConfig) {
       const { query, allowed_domains, blocked_domains } = input;
 
       try {
-        const client = new Parallel({ apiKey });
-
-        // Build source policy if domain filters provided
-        const sourcePolicy:
-          | { include_domains?: string[]; exclude_domains?: string[] }
-          | undefined =
-          allowed_domains || blocked_domains
-            ? {
-                ...(allowed_domains && { include_domains: allowed_domains }),
-                ...(blocked_domains && { exclude_domains: blocked_domains }),
-              }
-            : undefined;
-
-        const search = await client.beta.search({
-          mode: "agentic",
-          objective: query,
-          max_results: 10,
-          ...(sourcePolicy && { source_policy: sourcePolicy }),
+        const results = await searchContent(apiKey, provider, {
+          query,
+          allowedDomains: allowed_domains,
+          blockedDomains: blocked_domains,
         });
-
-        // Transform Parallel response to WebSearchOutput
-        const results: WebSearchResult[] = (search.results || []).map(
-          (result) => ({
-            title: result.title ?? "",
-            url: result.url ?? "",
-            snippet: result.excerpts?.join("\n") ?? "",
-            metadata: result.publish_date
-              ? { publish_date: result.publish_date }
-              : undefined,
-          }),
-        );
 
         return {
           results,
@@ -111,7 +166,7 @@ export function createWebSearchTool(config: WebSearchConfig) {
           query,
         };
       } catch (error) {
-        // Handle Parallel API errors
+        // Handle provider API errors
         if (error && typeof error === "object" && "status" in error) {
           const statusCode = (error as { status: number }).status;
           const message =
