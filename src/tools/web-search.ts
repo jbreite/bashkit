@@ -31,6 +31,22 @@ interface SearchOptions {
   blockedDomains?: string[];
 }
 
+// Module cache for parallel-web to avoid repeated dynamic imports
+let parallelModule: typeof import("parallel-web") | null = null;
+
+async function getParallelModule() {
+  if (!parallelModule) {
+    try {
+      parallelModule = await import("parallel-web");
+    } catch {
+      throw new Error(
+        "WebSearch requires parallel-web. Install with: npm install parallel-web",
+      );
+    }
+  }
+  return parallelModule;
+}
+
 /**
  * Search using the Parallel provider.
  * Dynamic import ensures parallel-web is only loaded when used.
@@ -39,7 +55,7 @@ async function searchWithParallel(
   apiKey: string,
   options: SearchOptions,
 ): Promise<WebSearchResult[]> {
-  const { default: Parallel } = await import("parallel-web");
+  const { default: Parallel } = await getParallelModule();
   const client = new Parallel({ apiKey });
 
   // Build source policy if domain filters provided

@@ -20,9 +20,25 @@ export interface WebFetchError {
  * Result from a web fetch provider's extract operation.
  * New providers should return this shape.
  */
-interface ExtractResult {
+export interface ExtractResult {
   content: string;
   finalUrl?: string;
+}
+
+// Module cache for parallel-web to avoid repeated dynamic imports
+let parallelModule: typeof import("parallel-web") | null = null;
+
+async function getParallelModule() {
+  if (!parallelModule) {
+    try {
+      parallelModule = await import("parallel-web");
+    } catch {
+      throw new Error(
+        "WebFetch requires parallel-web. Install with: npm install parallel-web",
+      );
+    }
+  }
+  return parallelModule;
 }
 
 /**
@@ -33,7 +49,7 @@ async function fetchWithParallel(
   url: string,
   apiKey: string,
 ): Promise<ExtractResult> {
-  const { default: Parallel } = await import("parallel-web");
+  const { default: Parallel } = await getParallelModule();
   const client = new Parallel({ apiKey });
 
   const extract = await client.beta.extract({

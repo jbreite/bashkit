@@ -27,7 +27,15 @@ export function createVercelSandbox(config: VercelSandboxConfig = {}): Sandbox {
     if (sandbox) return sandbox;
 
     // Dynamic import - only loads when actually needed
-    const { Sandbox: VercelSandboxSDK } = await import("@vercel/sandbox");
+    let VercelSandboxSDK: typeof import("@vercel/sandbox").Sandbox;
+    try {
+      const module = await import("@vercel/sandbox");
+      VercelSandboxSDK = module.Sandbox;
+    } catch {
+      throw new Error(
+        "VercelSandbox requires @vercel/sandbox. Install with: npm install @vercel/sandbox",
+      );
+    }
 
     const createOptions: Parameters<typeof VercelSandboxSDK.create>[0] = {
       runtime: resolvedConfig.runtime,

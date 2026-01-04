@@ -21,7 +21,15 @@ export function createE2BSandbox(config: E2BSandboxConfig = {}): Sandbox {
     if (sandbox) return sandbox;
 
     // Dynamic import - only loads when actually needed
-    const { Sandbox: E2BSandboxSDK } = await import("@e2b/code-interpreter");
+    let E2BSandboxSDK: typeof import("@e2b/code-interpreter").Sandbox;
+    try {
+      const module = await import("@e2b/code-interpreter");
+      E2BSandboxSDK = module.Sandbox;
+    } catch {
+      throw new Error(
+        "E2BSandbox requires @e2b/code-interpreter. Install with: npm install @e2b/code-interpreter",
+      );
+    }
 
     if (config.sandboxId) {
       // Reconnect to existing sandbox
