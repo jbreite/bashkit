@@ -1,6 +1,6 @@
 {
   "name": "bashkit",
-  "version": "0.2.3",
+  "version": "0.2.4",
   "description": "Agentic coding tools for the Vercel AI SDK",
   "type": "module",
   "main": "./dist/index.js",
@@ -22,7 +22,7 @@
   "scripts": {
     "dev": "bun run src/index.ts",
     "build": "bun run build:js && bun run build:cli && bun run build:types",
-    "build:js": "bun build src/index.ts --outdir dist --target node --format esm --external ai --external zod --external @ai-sdk/* --external @vercel/sandbox --external @e2b/code-interpreter --external parallel-web",
+    "build:js": "bun build src/index.ts --outdir dist --target node --format esm --external ai --external zod --external @ai-sdk/* --external @vercel/sandbox --external @e2b/code-interpreter --external parallel-web --external @vscode/ripgrep",
     "build:cli": "bun build src/cli/init.ts --outdir dist/cli --target node --format esm --external @clack/prompts && chmod +x dist/cli/init.js",
     "build:types": "tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit",
@@ -51,7 +51,8 @@
     "url": "https://github.com/jbreite/bashkit"
   },
   "dependencies": {
-    "@clack/prompts": "^0.7.0"
+    "@clack/prompts": "^0.7.0",
+    "@vscode/ripgrep": "^1.17.0"
   },
   "devDependencies": {
     "@ai-sdk/anthropic": "^3.0.1",

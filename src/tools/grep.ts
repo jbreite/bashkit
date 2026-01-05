@@ -1,5 +1,6 @@
 import { tool, zodSchema } from "ai";
 import { z } from "zod";
+import { rgPath } from "@vscode/ripgrep";
 import type { Sandbox } from "../sandbox/interface";
 import type { GrepToolConfig } from "../types";
 
@@ -99,17 +100,17 @@ const grepInputSchema = z.object({
     .boolean()
     .optional()
     .describe(
-      "Enable multiline mode where patterns can span lines (requires ripgrep). Default: false.",
+      "Enable multiline mode where patterns can span lines. Default: false.",
     ),
 });
 
 type GrepInput = z.infer<typeof grepInputSchema>;
 
-const GREP_DESCRIPTION = `A powerful content search tool with regex support. Use this instead of running grep commands directly.
+const GREP_DESCRIPTION = `A powerful content search tool built on ripgrep with regex support.
 
 **Usage:**
 - ALWAYS use Grep for search tasks. NEVER invoke \`grep\` or \`rg\` as a Bash command.
-- Supports regex syntax (e.g., "log.*Error", "function\\s+\\w+")
+- Supports full regex syntax (e.g., "log.*Error", "function\\s+\\w+")
 - Filter files with glob parameter (e.g., "*.js", "**/*.tsx") or type parameter (e.g., "js", "py", "rust")
 
 **Output modes:**
@@ -124,13 +125,41 @@ const GREP_DESCRIPTION = `A powerful content search tool with regex support. Use
 
 **Pagination:**
 - Use offset to skip results (useful for pagination)
-- Use head_limit to limit total results returned
+- Use head_limit to limit total results returned`;
 
-**Note:** Set useRipgrep: true in config for better performance and multiline support (requires ripgrep installed).`;
+// Ripgrep JSON output types
+interface RgMessage {
+  type: "begin" | "match" | "end" | "context" | "summary";
+  data: RgMatchData | RgContextData | RgBeginData | RgEndData | RgSummaryData;
+}
+
+interface RgMatchData {
+  path: { text: string };
+  lines: { text: string };
+  line_number: number;
+  submatches: Array<{ match: { text: string }; start: number; end: number }>;
+}
+
+interface RgContextData {
+  path: { text: string };
+  lines: { text: string };
+  line_number: number;
+}
+
+interface RgBeginData {
+  path: { text: string };
+}
+
+interface RgEndData {
+  path: { text: string };
+  stats: { matches: number };
+}
+
+interface RgSummaryData {
+  stats: { matches: number };
+}
 
 export function createGrepTool(sandbox: Sandbox, config?: GrepToolConfig) {
-  const useRipgrep = config?.useRipgrep ?? false;
-
   return tool({
     description: GREP_DESCRIPTION,
     inputSchema: zodSchema(grepInputSchema),
@@ -145,7 +174,6 @@ export function createGrepTool(sandbox: Sandbox, config?: GrepToolConfig) {
         type,
         output_mode = "files_with_matches",
         "-i": caseInsensitive,
-        "-n": showLineNumbers = true,
         "-B": beforeContext,
         "-A": afterContext,
         "-C": context,
@@ -166,111 +194,29 @@ export function createGrepTool(sandbox: Sandbox, config?: GrepToolConfig) {
         }
       }
 
-      // Multiline only supported with ripgrep
-      if (multiline && !useRipgrep) {
-        return {
-          error:
-            "Multiline mode requires ripgrep. Set useRipgrep: true in config.",
-        };
-      }
-
       try {
-        // Build pagination suffix
-        let paginationSuffix = "";
-        if (offset > 0) {
-          paginationSuffix += ` | tail -n +${offset + 1}`;
-        }
-        if (head_limit && head_limit > 0) {
-          paginationSuffix += ` | head -${head_limit}`;
-        }
-
-        let cmd: string;
-
-        if (useRipgrep) {
-          // Use ripgrep
-          cmd = buildRipgrepCommand({
-            pattern,
-            searchPath,
-            output_mode,
-            caseInsensitive,
-            showLineNumbers,
-            beforeContext,
-            afterContext,
-            context,
-            glob,
-            type,
-            multiline,
-            paginationSuffix,
-          });
-        } else {
-          // Use standard grep
-          cmd = buildGrepCommand({
-            pattern,
-            searchPath,
-            output_mode,
-            caseInsensitive,
-            showLineNumbers,
-            beforeContext,
-            afterContext,
-            context,
-            glob,
-            type,
-            paginationSuffix,
-          });
-        }
+        const cmd = buildRipgrepCommand({
+          pattern,
+          searchPath,
+          output_mode,
+          caseInsensitive,
+          beforeContext,
+          afterContext,
+          context,
+          glob,
+          type,
+          multiline,
+        });
 
         const result = await sandbox.exec(cmd, { timeout: config?.timeout });
 
         // Parse output based on mode
         if (output_mode === "files_with_matches") {
-          const files = result.stdout.split("\n").filter(Boolean);
-          return {
-            files,
-            count: files.length,
-          };
+          return parseFilesOutput(result.stdout);
         } else if (output_mode === "count") {
-          const lines = result.stdout.split("\n").filter(Boolean);
-          const counts = lines.map((line) => {
-            const lastColon = line.lastIndexOf(":");
-            return {
-              file: line.slice(0, lastColon),
-              count: parseInt(line.slice(lastColon + 1), 10),
-            };
-          });
-          const total = counts.reduce((sum, c) => sum + c.count, 0);
-          return {
-            counts,
-            total,
-          };
+          return parseCountOutput(result.stdout);
         } else {
-          // content mode
-          if (!result.stdout.trim()) {
-            return {
-              matches: [],
-              total_matches: 0,
-            };
-          }
-
-          const lines = result.stdout.split("\n").filter(Boolean);
-          const matches: GrepMatch[] = [];
-
-          for (const line of lines) {
-            // Match file:line:content or file-line-content (context lines use -)
-            const colonMatch = line.match(/^(.+?):(\d+)[:|-](.*)$/);
-            if (colonMatch) {
-              const [, file, lineNum, content] = colonMatch;
-              matches.push({
-                file,
-                line_number: parseInt(lineNum, 10),
-                line: content,
-              });
-            }
-          }
-
-          return {
-            matches,
-            total_matches: matches.length,
-          };
+          return parseContentOutput(result.stdout, head_limit, offset);
         }
       } catch (error) {
         return {
@@ -281,29 +227,25 @@ export function createGrepTool(sandbox: Sandbox, config?: GrepToolConfig) {
   });
 }
 
-// Helper to build ripgrep command
 function buildRipgrepCommand(opts: {
   pattern: string;
   searchPath: string;
   output_mode: string;
   caseInsensitive?: boolean;
-  showLineNumbers?: boolean;
   beforeContext?: number;
   afterContext?: number;
   context?: number;
   glob?: string;
   type?: string;
   multiline?: boolean;
-  paginationSuffix: string;
 }): string {
-  const flags: string[] = [];
+  const flags: string[] = ["--json"]; // Always use JSON output for reliable parsing
 
   if (opts.caseInsensitive) flags.push("-i");
   if (opts.multiline) flags.push("-U", "--multiline-dotall");
 
   // Context flags (only for content mode)
   if (opts.output_mode === "content") {
-    if (opts.showLineNumbers) flags.push("-n");
     if (opts.context) {
       flags.push(`-C ${opts.context}`);
     } else {
@@ -312,61 +254,197 @@ function buildRipgrepCommand(opts: {
     }
   }
 
-  // File filtering using ripgrep syntax
+  // File filtering
   if (opts.glob) flags.push(`-g "${opts.glob}"`);
   if (opts.type) flags.push(`-t ${opts.type}`);
 
   const flagStr = flags.join(" ");
 
-  if (opts.output_mode === "files_with_matches") {
-    return `rg -l ${flagStr} "${opts.pattern}" ${opts.searchPath} 2>/dev/null${opts.paginationSuffix}`;
-  } else if (opts.output_mode === "count") {
-    return `rg -c ${flagStr} "${opts.pattern}" ${opts.searchPath} 2>/dev/null${opts.paginationSuffix}`;
-  } else {
-    return `rg ${flagStr} "${opts.pattern}" ${opts.searchPath} 2>/dev/null${opts.paginationSuffix}`;
-  }
+  // Use the bundled ripgrep binary path
+  return `${rgPath} ${flagStr} "${opts.pattern}" ${opts.searchPath} 2>/dev/null`;
 }
 
-// Helper to build standard grep command
-function buildGrepCommand(opts: {
-  pattern: string;
-  searchPath: string;
-  output_mode: string;
-  caseInsensitive?: boolean;
-  showLineNumbers?: boolean;
-  beforeContext?: number;
-  afterContext?: number;
-  context?: number;
-  glob?: string;
-  type?: string;
-  paginationSuffix: string;
-}): string {
-  const flags: string[] = ["-r"]; // recursive
+function parseFilesOutput(stdout: string): GrepFilesOutput {
+  const files = new Set<string>();
 
-  if (opts.caseInsensitive) flags.push("-i");
-
-  // Context flags (only for content mode)
-  if (opts.output_mode === "content") {
-    if (opts.showLineNumbers) flags.push("-n");
-    if (opts.context) {
-      flags.push(`-C ${opts.context}`);
-    } else {
-      if (opts.beforeContext) flags.push(`-B ${opts.beforeContext}`);
-      if (opts.afterContext) flags.push(`-A ${opts.afterContext}`);
+  for (const line of stdout.split("\n").filter(Boolean)) {
+    try {
+      const msg: RgMessage = JSON.parse(line);
+      if (msg.type === "begin") {
+        const data = msg.data as RgBeginData;
+        files.add(data.path.text);
+      }
+    } catch {
+      // Skip non-JSON lines
     }
   }
 
-  // File filtering using grep syntax
-  if (opts.glob) flags.push(`--include="${opts.glob}"`);
-  if (opts.type) flags.push(`--include="*.${opts.type}"`);
+  return {
+    files: Array.from(files),
+    count: files.size,
+  };
+}
 
-  const flagStr = flags.join(" ");
+function parseCountOutput(stdout: string): GrepCountOutput {
+  const counts: Map<string, number> = new Map();
 
-  if (opts.output_mode === "files_with_matches") {
-    return `grep -l ${flagStr} "${opts.pattern}" ${opts.searchPath} 2>/dev/null${opts.paginationSuffix}`;
-  } else if (opts.output_mode === "count") {
-    return `grep -c ${flagStr} "${opts.pattern}" ${opts.searchPath} 2>/dev/null | grep -v ':0$'${opts.paginationSuffix}`;
-  } else {
-    return `grep ${flagStr} "${opts.pattern}" ${opts.searchPath} 2>/dev/null${opts.paginationSuffix}`;
+  for (const line of stdout.split("\n").filter(Boolean)) {
+    try {
+      const msg: RgMessage = JSON.parse(line);
+      if (msg.type === "end") {
+        const data = msg.data as RgEndData;
+        counts.set(data.path.text, data.stats.matches);
+      }
+    } catch {
+      // Skip non-JSON lines
+    }
   }
+
+  const countsArray = Array.from(counts.entries()).map(([file, count]) => ({
+    file,
+    count,
+  }));
+  const total = countsArray.reduce((sum, c) => sum + c.count, 0);
+
+  return {
+    counts: countsArray,
+    total,
+  };
+}
+
+interface ContextLine {
+  line_number: number;
+  text: string;
+}
+
+interface ParsedMatch {
+  file: string;
+  line_number: number;
+  line: string;
+  before_context: string[];
+  after_context: string[];
+}
+
+function parseContentOutput(
+  stdout: string,
+  head_limit?: number,
+  offset: number = 0,
+): GrepContentOutput {
+  // Parse all messages, grouped by file, preserving context line numbers
+  const fileData: Map<
+    string,
+    {
+      matches: Array<{ line_number: number; text: string }>;
+      contexts: ContextLine[];
+    }
+  > = new Map();
+
+  for (const line of stdout.split("\n").filter(Boolean)) {
+    try {
+      const msg: RgMessage = JSON.parse(line);
+      if (msg.type === "begin") {
+        const data = msg.data as RgBeginData;
+        fileData.set(data.path.text, { matches: [], contexts: [] });
+      } else if (msg.type === "context") {
+        const data = msg.data as RgContextData;
+        const fd = fileData.get(data.path.text);
+        if (fd) {
+          fd.contexts.push({
+            line_number: data.line_number,
+            text: data.lines.text.replace(/\n$/, ""),
+          });
+        }
+      } else if (msg.type === "match") {
+        const data = msg.data as RgMatchData;
+        const fd = fileData.get(data.path.text);
+        if (fd) {
+          fd.matches.push({
+            line_number: data.line_number,
+            text: data.lines.text.replace(/\n$/, ""),
+          });
+        }
+      }
+    } catch {
+      // Skip non-JSON lines
+    }
+  }
+
+  // Process each file to assign context lines to matches based on line numbers
+  const allMatches: ParsedMatch[] = [];
+
+  for (const [file, { matches, contexts }] of fileData) {
+    // Sort matches and contexts by line number
+    matches.sort((a, b) => a.line_number - b.line_number);
+    contexts.sort((a, b) => a.line_number - b.line_number);
+
+    // Assign each context line to exactly one match based on proximity
+    // This prevents double-assignment when matches are close together
+    const matchContexts: Map<number, { before: string[]; after: string[] }> =
+      new Map();
+    for (const match of matches) {
+      matchContexts.set(match.line_number, { before: [], after: [] });
+    }
+
+    for (const ctx of contexts) {
+      // Find which match this context line belongs to
+      let bestMatch: { line_number: number; text: string } | null = null;
+      let bestDistance = Infinity;
+      let isBefore = false;
+
+      for (const match of matches) {
+        const distance = Math.abs(ctx.line_number - match.line_number);
+        if (distance < bestDistance) {
+          bestDistance = distance;
+          bestMatch = match;
+          isBefore = ctx.line_number < match.line_number;
+        }
+      }
+
+      if (bestMatch) {
+        const mc = matchContexts.get(bestMatch.line_number);
+        if (mc) {
+          if (isBefore) {
+            mc.before.push(ctx.text);
+          } else {
+            mc.after.push(ctx.text);
+          }
+        }
+      }
+    }
+
+    // Build the parsed matches
+    for (const match of matches) {
+      const mc = matchContexts.get(match.line_number);
+      allMatches.push({
+        file,
+        line_number: match.line_number,
+        line: match.text,
+        before_context: mc?.before ?? [],
+        after_context: mc?.after ?? [],
+      });
+    }
+  }
+
+  // Convert to output format, only including context if present
+  const grepMatches: GrepMatch[] = allMatches.map((m) => ({
+    file: m.file,
+    line_number: m.line_number,
+    line: m.line,
+    before_context: m.before_context.length > 0 ? m.before_context : undefined,
+    after_context: m.after_context.length > 0 ? m.after_context : undefined,
+  }));
+
+  // Apply pagination
+  let result = grepMatches;
+  if (offset > 0) {
+    result = result.slice(offset);
+  }
+  if (head_limit && head_limit > 0) {
+    result = result.slice(0, head_limit);
+  }
+
+  return {
+    matches: result,
+    total_matches: result.length,
+  };
 }
