@@ -27,10 +27,7 @@ export type ToolConfig = {
   blockedCommands?: string[];
 } & SDKToolOptions;
 
-export type GrepToolConfig = ToolConfig & {
-  /** Use ripgrep (rg) instead of grep. Requires ripgrep to be installed. Default: false */
-  useRipgrep?: boolean;
-};
+export type GrepToolConfig = ToolConfig;
 
 /**
  * Supported web search providers.
