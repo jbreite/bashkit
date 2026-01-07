@@ -69,7 +69,8 @@ import { anthropic } from '@ai-sdk/anthropic';
 import { streamText, stepCountIs } from 'ai';
 
 // Create a Vercel sandbox (isolated Firecracker microVM)
-const sandbox = createVercelSandbox({
+// Note: async - automatically sets up ripgrep for Grep tool
+const sandbox = await createVercelSandbox({
   runtime: 'node22',
   resources: { vcpus: 2 },
 });
@@ -144,17 +145,19 @@ Runs in isolated Firecracker microVMs on Vercel's infrastructure. **Use when you
 ```typescript
 import { createVercelSandbox } from 'bashkit';
 
-const sandbox = createVercelSandbox({
+// Async - automatically installs ripgrep for Grep tool
+const sandbox = await createVercelSandbox({
   runtime: 'node22',
   resources: { vcpus: 2 },
+  // ensureTools: true (default) - auto-setup ripgrep
+  // ensureTools: false - skip for faster startup if you don't need Grep
 });
 
-// After first operation, get the sandbox ID for persistence
-await sandbox.exec('echo hello');
+// Sandbox ID available immediately after creation
 console.log(sandbox.id); // Sandbox ID for reconnection
 
-// Later: reconnect to the same sandbox
-const reconnected = createVercelSandbox({
+// Later: reconnect to the same sandbox (fast - ripgrep already installed)
+const reconnected = await createVercelSandbox({
   sandboxId: 'existing-sandbox-id',
 });
 ```
@@ -166,16 +169,18 @@ Runs in E2B's cloud sandboxes. Requires `@e2b/code-interpreter` peer dependency.
 ```typescript
 import { createE2BSandbox } from 'bashkit';
 
-const sandbox = createE2BSandbox({
+// Async - automatically installs ripgrep for Grep tool
+const sandbox = await createE2BSandbox({
   apiKey: process.env.E2B_API_KEY,
+  // ensureTools: true (default) - auto-setup ripgrep
+  // ensureTools: false - skip for faster startup if you don't need Grep
 });
 
-// After first operation, get the sandbox ID for persistence
-await sandbox.exec('echo hello');
+// Sandbox ID available immediately after creation
 console.log(sandbox.id); // "sbx_abc123..."
 
-// Later: reconnect to the same sandbox
-const reconnected = createE2BSandbox({
+// Later: reconnect to the same sandbox (fast - ripgrep already installed)
+const reconnected = await createE2BSandbox({
   apiKey: process.env.E2B_API_KEY,
   sandboxId: 'sbx_abc123...', // Reconnect to existing sandbox
 });
@@ -782,14 +787,20 @@ interface Sandbox {
   writeFile(path: string, content: string): Promise<void>;
   readDir(path: string): Promise<string[]>;
   fileExists(path: string): Promise<boolean>;
+  isDirectory(path: string): Promise<boolean>;
   destroy(): Promise<void>;
 
   // Optional: Sandbox ID for reconnection (cloud providers only)
   readonly id?: string;
+
+  // Path to ripgrep binary (set by ensureSandboxTools)
+  rgPath?: string;
 }
 ```
 
-The `id` property is available on cloud sandboxes (E2B, Vercel) after the first operation. Use it to persist the sandbox ID and reconnect later.
+The `id` property is available on cloud sandboxes (E2B, Vercel) after creation. Use it to persist the sandbox ID and reconnect later.
+
+The `rgPath` property is set by `ensureSandboxTools()` (called automatically during sandbox creation). It points to the ripgrep binary for the Grep tool. Supports x86_64 and ARM64 architectures.
 
 ### Custom Sandbox Example
 
@@ -866,9 +877,10 @@ Creates a set of agent tools bound to a sandbox instance.
 
 ### Sandbox Factories
 
-- `createLocalSandbox(config?)` - Local execution sandbox
-- `createVercelSandbox(config?)` - Vercel Firecracker sandbox
-- `createE2BSandbox(config?)` - E2B cloud sandbox
+- `createLocalSandbox(config?)` - Local execution sandbox (sync)
+- `createVercelSandbox(config?)` - Vercel Firecracker sandbox (async, auto-installs ripgrep)
+- `createE2BSandbox(config?)` - E2B cloud sandbox (async, auto-installs ripgrep)
+- `ensureSandboxTools(sandbox)` - Manually setup tools (called automatically by default)
 
 ### Workflow Tools
 

@@ -28,4 +28,10 @@ export interface Sandbox {
    * - For local sandboxes: always undefined
    */
   readonly id?: string;
+
+  /**
+   * Path to ripgrep binary for this sandbox.
+   * Set by ensureSandboxTools() or defaults to bundled binary for local sandboxes.
+   */
+  rgPath?: string;
 }

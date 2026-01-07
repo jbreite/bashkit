@@ -1,6 +1,7 @@
 import type { Sandbox as E2BSandboxType } from "@e2b/code-interpreter";
 import type { ExecOptions, ExecResult, Sandbox } from "./interface";
 import { createLazySingleton } from "./lazy-singleton";
+import { ensureSandboxTools } from "./ensure-tools";
 
 export interface E2BSandboxConfig {
   apiKey?: string;
@@ -10,9 +11,16 @@ export interface E2BSandboxConfig {
   timeout?: number;
   cwd?: string;
   metadata?: Record<string, string>;
+  /**
+   * Ensure tools like ripgrep are available in the sandbox.
+   * Defaults to true. Set to false for faster startup if you don't need Grep.
+   */
+  ensureTools?: boolean;
 }
 
-export function createE2BSandbox(config: E2BSandboxConfig = {}): Sandbox {
+export async function createE2BSandbox(
+  config: E2BSandboxConfig = {},
+): Promise<Sandbox> {
   let sandboxId: string | undefined = config.sandboxId;
   const workingDirectory = config.cwd || "/home/user";
   const timeout = config.timeout ?? 300000; // 5 minutes default
@@ -102,11 +110,21 @@ export function createE2BSandbox(config: E2BSandboxConfig = {}): Sandbox {
     }
   };
 
-  return {
+  // rgPath is set by ensureSandboxTools() after sandbox creation
+  let rgPath: string | undefined;
+
+  const sandboxObj: Sandbox = {
     exec,
 
     get id() {
       return sandboxId;
+    },
+
+    get rgPath() {
+      return rgPath;
+    },
+    set rgPath(path: string | undefined) {
+      rgPath = path;
     },
 
     async readFile(path: string): Promise<string> {
@@ -151,4 +169,11 @@ export function createE2BSandbox(config: E2BSandboxConfig = {}): Sandbox {
       sandbox.reset();
     },
   };
+
+  // Auto-setup tools if requested (default true)
+  if (config.ensureTools !== false) {
+    await ensureSandboxTools(sandboxObj);
+  }
+
+  return sandboxObj;
 }

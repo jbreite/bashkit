@@ -1,6 +1,7 @@
 import type { Sandbox as VercelSandboxType } from "@vercel/sandbox";
 import type { ExecOptions, ExecResult, Sandbox } from "./interface";
 import { createLazySingleton } from "./lazy-singleton";
+import { ensureSandboxTools } from "./ensure-tools";
 
 export interface VercelSandboxConfig {
   runtime?: "node22" | "python3.13";
@@ -12,9 +13,16 @@ export interface VercelSandboxConfig {
   teamId?: string;
   projectId?: string;
   token?: string;
+  /**
+   * Ensure tools like ripgrep are available in the sandbox.
+   * Defaults to true. Set to false for faster startup if you don't need Grep.
+   */
+  ensureTools?: boolean;
 }
 
-export function createVercelSandbox(config: VercelSandboxConfig = {}): Sandbox {
+export async function createVercelSandbox(
+  config: VercelSandboxConfig = {},
+): Promise<Sandbox> {
   let sandboxId: string | undefined = config.sandboxId;
   const workingDirectory = config.cwd || "/vercel/sandbox";
   const resolvedConfig = {
@@ -126,11 +134,21 @@ export function createVercelSandbox(config: VercelSandboxConfig = {}): Sandbox {
     }
   };
 
-  return {
+  // rgPath is set by ensureSandboxTools() after sandbox creation
+  let rgPath: string | undefined;
+
+  const sandboxObj: Sandbox = {
     exec,
 
     get id() {
       return sandboxId;
+    },
+
+    get rgPath() {
+      return rgPath;
+    },
+    set rgPath(path: string | undefined) {
+      rgPath = path;
     },
 
     async readFile(path: string): Promise<string> {
@@ -186,4 +204,11 @@ export function createVercelSandbox(config: VercelSandboxConfig = {}): Sandbox {
       sandbox.reset();
     },
   };
+
+  // Auto-setup tools if requested (default true)
+  if (config.ensureTools !== false) {
+    await ensureSandboxTools(sandboxObj);
+  }
+
+  return sandboxObj;
 }
