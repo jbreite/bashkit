@@ -1,5 +1,5 @@
-import { rgPath as bundledRgPath } from "@vscode/ripgrep";
 import type { Sandbox } from "./interface";
+import { getBundledRgPath } from "./ripgrep";
 
 const RIPGREP_VERSION = "14.1.0";
 
@@ -32,12 +32,15 @@ const ARCH_MAP: Record<string, string> = {
  */
 export async function ensureSandboxTools(sandbox: Sandbox): Promise<void> {
   // Check if bundled ripgrep is accessible (local sandbox or bashkit installed in sandbox)
-  const bundledCheck = await sandbox.exec(
-    `test -x "${bundledRgPath}" && echo found`,
-  );
-  if (bundledCheck.stdout.includes("found")) {
-    sandbox.rgPath = bundledRgPath;
-    return;
+  const bundledRgPath = await getBundledRgPath();
+  if (bundledRgPath) {
+    const bundledCheck = await sandbox.exec(
+      `test -x "${bundledRgPath}" && echo found`,
+    );
+    if (bundledCheck.stdout.includes("found")) {
+      sandbox.rgPath = bundledRgPath;
+      return;
+    }
   }
 
   // Check if already installed to /tmp
