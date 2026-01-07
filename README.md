@@ -1,5 +1,7 @@
 # bashkit
 
+[![npm](https://img.shields.io/npm/v/bashkit)](https://www.npmjs.com/package/bashkit)
+
 Agentic coding tools for Vercel AI SDK. Give AI agents the ability to execute code, read/write files, and perform coding tasks in a sandboxed environment.
 
 ## Overview
