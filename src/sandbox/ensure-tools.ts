@@ -2,7 +2,13 @@ import { rgPath as bundledRgPath } from "@vscode/ripgrep";
 import type { Sandbox } from "./interface";
 
 const RIPGREP_VERSION = "14.1.0";
-const RIPGREP_URL = `https://github.com/BurntSushi/ripgrep/releases/download/${RIPGREP_VERSION}/ripgrep-${RIPGREP_VERSION}-x86_64-unknown-linux-musl.tar.gz`;
+
+// Map uname -m output to ripgrep release archive names
+const ARCH_MAP: Record<string, string> = {
+  x86_64: "x86_64-unknown-linux-musl",
+  aarch64: "aarch64-unknown-linux-gnu",
+  arm64: "aarch64-unknown-linux-gnu", // macOS reports arm64, Linux reports aarch64
+};
 
 /**
  * Ensures required tools (ripgrep) are available in the sandbox.
@@ -10,6 +16,8 @@ const RIPGREP_URL = `https://github.com/BurntSushi/ripgrep/releases/download/${R
  *
  * - For local sandboxes: verifies bundled binary exists
  * - For remote sandboxes: installs ripgrep to /tmp/rg if not present
+ *
+ * Supports x86_64 and ARM64 architectures.
  *
  * After calling, `sandbox.rgPath` will be set to the correct path.
  *
@@ -46,10 +54,24 @@ export async function ensureSandboxTools(sandbox: Sandbox): Promise<void> {
     return;
   }
 
+  // Detect architecture for correct binary
+  const archResult = await sandbox.exec("uname -m");
+  const arch = archResult.stdout.trim();
+  const ripgrepArch = ARCH_MAP[arch];
+
+  if (!ripgrepArch) {
+    throw new Error(
+      `Unsupported architecture: ${arch}. Supported: ${Object.keys(ARCH_MAP).join(", ")}`,
+    );
+  }
+
+  const ripgrepUrl = `https://github.com/BurntSushi/ripgrep/releases/download/${RIPGREP_VERSION}/ripgrep-${RIPGREP_VERSION}-${ripgrepArch}.tar.gz`;
+  const tarPath = `ripgrep-${RIPGREP_VERSION}-${ripgrepArch}/rg`;
+
   // Install ripgrep to /tmp
   const installResult = await sandbox.exec(`
-    curl -sL "${RIPGREP_URL}" |
-    tar xzf - -C /tmp --strip-components=1 ripgrep-${RIPGREP_VERSION}-x86_64-unknown-linux-musl/rg &&
+    curl -sL "${ripgrepUrl}" |
+    tar xzf - -C /tmp --strip-components=1 ${tarPath} &&
     chmod +x /tmp/rg
   `);
 
