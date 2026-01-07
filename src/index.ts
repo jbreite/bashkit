@@ -28,6 +28,7 @@ export {
   createE2BSandbox,
   createLocalSandbox,
   createVercelSandbox,
+  ensureSandboxTools,
 } from "./sandbox";
 
 // Sandbox interface

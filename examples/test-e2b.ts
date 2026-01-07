@@ -15,10 +15,12 @@ async function execute(
 async function main() {
   console.log("🧪 Testing E2B sandbox tools...\n");
 
-  const sandbox = createE2BSandbox({
+  // Creates sandbox and automatically ensures tools (ripgrep) are available
+  const sandbox = await createE2BSandbox({
     apiKey: process.env.E2B_API_KEY,
     cwd: "/home/user",
   });
+  console.log("✅ Sandbox ready with tools\n");
 
   const { tools } = createAgentTools(sandbox);
   const toolOptions = { toolCallId: "test", messages: [] };

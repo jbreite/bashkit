@@ -1,4 +1,5 @@
 import { existsSync, mkdirSync } from "node:fs";
+import { rgPath as bundledRgPath } from "@vscode/ripgrep";
 import type { ExecOptions, ExecResult, Sandbox } from "./interface";
 
 export interface LocalSandboxConfig {
@@ -62,6 +63,9 @@ export function createLocalSandbox(config: LocalSandboxConfig = {}): Sandbox {
 
   return {
     exec,
+
+    // Local sandbox uses bundled ripgrep directly
+    rgPath: bundledRgPath,
 
     async readFile(path: string): Promise<string> {
       const fullPath = path.startsWith("/")

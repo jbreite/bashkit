@@ -1,6 +1,5 @@
 import { tool, zodSchema } from "ai";
 import { z } from "zod";
-import { rgPath } from "@vscode/ripgrep";
 import type { Sandbox } from "../sandbox/interface";
 import type { GrepToolConfig } from "../types";
 
@@ -195,7 +194,16 @@ export function createGrepTool(sandbox: Sandbox, config?: GrepToolConfig) {
       }
 
       try {
+        // Use sandbox's ripgrep path (set by ensureSandboxTools or default for local)
+        if (!sandbox.rgPath) {
+          return {
+            error:
+              "Ripgrep not available. Call ensureSandboxTools(sandbox) before using Grep with remote sandboxes.",
+          };
+        }
+
         const cmd = buildRipgrepCommand({
+          rgPath: sandbox.rgPath,
           pattern,
           searchPath,
           output_mode,
@@ -228,6 +236,7 @@ export function createGrepTool(sandbox: Sandbox, config?: GrepToolConfig) {
 }
 
 function buildRipgrepCommand(opts: {
+  rgPath: string;
   pattern: string;
   searchPath: string;
   output_mode: string;
@@ -260,8 +269,7 @@ function buildRipgrepCommand(opts: {
 
   const flagStr = flags.join(" ");
 
-  // Use the bundled ripgrep binary path
-  return `${rgPath} ${flagStr} "${opts.pattern}" ${opts.searchPath} 2>/dev/null`;
+  return `${opts.rgPath} ${flagStr} "${opts.pattern}" ${opts.searchPath} 2>/dev/null`;
 }
 
 function parseFilesOutput(stdout: string): GrepFilesOutput {
