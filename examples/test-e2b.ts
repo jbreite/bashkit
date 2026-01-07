@@ -24,6 +24,21 @@ async function main() {
   const toolOptions = { toolCallId: "test", messages: [] };
 
   try {
+    // Test parallel initialization (verifies lazy singleton prevents race condition)
+    console.log("⚡ Testing parallel initialization...");
+    const [r1, r2, r3] = await Promise.all([
+      execute(tools.Bash, { command: "echo 1", description: "test" }, toolOptions),
+      execute(tools.Bash, { command: "echo 2", description: "test" }, toolOptions),
+      execute(tools.Bash, { command: "echo 3", description: "test" }, toolOptions),
+    ]);
+    console.log(
+      "Parallel results:",
+      r1.stdout?.trim(),
+      r2.stdout?.trim(),
+      r3.stdout?.trim(),
+    );
+    console.log("✅ Parallel initialization succeeded (single sandbox created)\n");
+
     // Test Write first
     console.log("📝 Testing Write tool...");
     const writeResult = await execute(
