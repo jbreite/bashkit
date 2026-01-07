@@ -1,5 +1,6 @@
 import type { Sandbox as VercelSandboxType } from "@vercel/sandbox";
 import type { ExecOptions, ExecResult, Sandbox } from "./interface";
+import { createLazySingleton } from "./lazy-singleton";
 
 export interface VercelSandboxConfig {
   runtime?: "node22" | "python3.13";
@@ -14,7 +15,6 @@ export interface VercelSandboxConfig {
 }
 
 export function createVercelSandbox(config: VercelSandboxConfig = {}): Sandbox {
-  let sandbox: VercelSandboxType | null = null;
   let sandboxId: string | undefined = config.sandboxId;
   const workingDirectory = config.cwd || "/vercel/sandbox";
   const resolvedConfig = {
@@ -23,9 +23,8 @@ export function createVercelSandbox(config: VercelSandboxConfig = {}): Sandbox {
     timeout: config.timeout ?? 300000, // 5 minutes default
   } as const;
 
-  const ensureSandbox = async (): Promise<VercelSandboxType> => {
-    if (sandbox) return sandbox;
-
+  // Lazy singleton prevents race condition with parallel tool calls
+  const sandbox = createLazySingleton(async () => {
     // Dynamic import - only loads when actually needed
     let VercelSandboxSDK: typeof import("@vercel/sandbox").Sandbox;
     try {
@@ -50,25 +49,26 @@ export function createVercelSandbox(config: VercelSandboxConfig = {}): Sandbox {
       });
     }
 
+    let sbx: VercelSandboxType;
     if (config.sandboxId) {
       // Reconnect to existing sandbox
-      sandbox = await VercelSandboxSDK.get({ sandboxId: config.sandboxId });
+      sbx = await VercelSandboxSDK.get({ sandboxId: config.sandboxId });
     } else {
       // Create new sandbox
-      sandbox = await VercelSandboxSDK.create(createOptions);
+      sbx = await VercelSandboxSDK.create(createOptions);
     }
 
     // Get sandbox ID from the SDK
-    sandboxId = sandbox.sandboxId;
+    sandboxId = sbx.sandboxId;
 
-    return sandbox;
-  };
+    return sbx;
+  });
 
   const exec = async (
     command: string,
     options?: ExecOptions,
   ): Promise<ExecResult> => {
-    const sbx = await ensureSandbox();
+    const sbx = await sandbox.get();
     const startTime = performance.now();
     let interrupted = false;
 
@@ -134,7 +134,7 @@ export function createVercelSandbox(config: VercelSandboxConfig = {}): Sandbox {
     },
 
     async readFile(path: string): Promise<string> {
-      const sbx = await ensureSandbox();
+      const sbx = await sandbox.get();
       const stream = await sbx.readFile({ path });
 
       if (!stream) {
@@ -149,7 +149,7 @@ export function createVercelSandbox(config: VercelSandboxConfig = {}): Sandbox {
     },
 
     async writeFile(path: string, content: string): Promise<void> {
-      const sbx = await ensureSandbox();
+      const sbx = await sandbox.get();
       await sbx.writeFiles([
         {
           path,
@@ -177,10 +177,13 @@ export function createVercelSandbox(config: VercelSandboxConfig = {}): Sandbox {
     },
 
     async destroy(): Promise<void> {
-      if (sandbox) {
-        await sandbox.stop();
-        sandbox = null;
+      try {
+        const sbx = await sandbox.get();
+        await sbx.stop();
+      } catch {
+        // Sandbox was never created, nothing to destroy
       }
+      sandbox.reset();
     },
   };
 }

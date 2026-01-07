@@ -1,5 +1,6 @@
 import type { Sandbox as E2BSandboxType } from "@e2b/code-interpreter";
 import type { ExecOptions, ExecResult, Sandbox } from "./interface";
+import { createLazySingleton } from "./lazy-singleton";
 
 export interface E2BSandboxConfig {
   apiKey?: string;
@@ -12,14 +13,12 @@ export interface E2BSandboxConfig {
 }
 
 export function createE2BSandbox(config: E2BSandboxConfig = {}): Sandbox {
-  let sandbox: E2BSandboxType | null = null;
   let sandboxId: string | undefined = config.sandboxId;
   const workingDirectory = config.cwd || "/home/user";
   const timeout = config.timeout ?? 300000; // 5 minutes default
 
-  const ensureSandbox = async (): Promise<E2BSandboxType> => {
-    if (sandbox) return sandbox;
-
+  // Lazy singleton prevents race condition with parallel tool calls
+  const sandbox = createLazySingleton(async () => {
     // Dynamic import - only loads when actually needed
     let E2BSandboxSDK: typeof import("@e2b/code-interpreter").Sandbox;
     try {
@@ -31,27 +30,28 @@ export function createE2BSandbox(config: E2BSandboxConfig = {}): Sandbox {
       );
     }
 
+    let sbx: E2BSandboxType;
     if (config.sandboxId) {
       // Reconnect to existing sandbox
-      sandbox = await E2BSandboxSDK.connect(config.sandboxId);
+      sbx = await E2BSandboxSDK.connect(config.sandboxId);
     } else {
       // Create new sandbox
-      sandbox = await E2BSandboxSDK.create({
+      sbx = await E2BSandboxSDK.create({
         apiKey: config.apiKey,
         timeoutMs: timeout,
         metadata: config.metadata,
       });
-      sandboxId = sandbox.sandboxId;
+      sandboxId = sbx.sandboxId;
     }
 
-    return sandbox;
-  };
+    return sbx;
+  });
 
   const exec = async (
     command: string,
     options?: ExecOptions,
   ): Promise<ExecResult> => {
-    const sbx = await ensureSandbox();
+    const sbx = await sandbox.get();
     const startTime = performance.now();
 
     try {
@@ -119,7 +119,7 @@ export function createE2BSandbox(config: E2BSandboxConfig = {}): Sandbox {
     },
 
     async writeFile(path: string, content: string): Promise<void> {
-      const sbx = await ensureSandbox();
+      const sbx = await sandbox.get();
       await sbx.files.write(path, content);
     },
 
@@ -142,10 +142,13 @@ export function createE2BSandbox(config: E2BSandboxConfig = {}): Sandbox {
     },
 
     async destroy(): Promise<void> {
-      if (sandbox) {
-        await sandbox.kill();
-        sandbox = null;
+      try {
+        const sbx = await sandbox.get();
+        await sbx.kill();
+      } catch {
+        // Sandbox was never created, nothing to destroy
       }
+      sandbox.reset();
     },
   };
 }
