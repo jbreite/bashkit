@@ -4,7 +4,7 @@
 
 **Tech Stack**: TypeScript • Bun • Vercel AI SDK • Zod
 **Inspired by**: Claude Code tools
-**Version**: 0.1.0
+**Version**: 0.3.0
 
 ---
 
@@ -60,10 +60,12 @@ BashKit provides a comprehensive toolkit for building AI coding agents using the
 ```
 src/
 ├── sandbox/         # Execution environment abstractions
-│   ├── interface.ts # Core Sandbox interface (7 methods)
+│   ├── interface.ts # Core Sandbox interface
 │   ├── local.ts     # Bun-based local development sandbox
-│   ├── vercel.ts    # Vercel Firecracker VM sandbox
-│   └── e2b.ts       # E2B code interpreter sandbox
+│   ├── vercel.ts    # Vercel Firecracker VM sandbox (async)
+│   ├── e2b.ts       # E2B code interpreter sandbox (async)
+│   ├── ensure-tools.ts  # Auto-setup ripgrep for remote sandboxes
+│   └── lazy-singleton.ts # Prevents race conditions in parallel init
 ├── tools/           # Tool implementations (10 tools)
 │   ├── bash.ts      # Shell command execution
 │   ├── read.ts      # File/directory reading
@@ -89,7 +91,7 @@ src/
 └── index.ts         # Main exports (barrel file)
 ```
 
-**Total**: 27 TypeScript files
+**Total**: 29 TypeScript files
 
 ### Key Design Patterns
 
@@ -111,7 +113,15 @@ interface Sandbox {
   fileExists(path: string): Promise<boolean>;
   isDirectory(path: string): Promise<boolean>;
   destroy(): Promise<void>;
+  readonly id?: string;  // Sandbox ID for reconnection (cloud only)
+  rgPath?: string;       // Path to ripgrep (set by ensureSandboxTools)
 }
+```
+
+**Note**: `createVercelSandbox()` and `createE2BSandbox()` are async and auto-setup ripgrep:
+```typescript
+const sandbox = await createE2BSandbox({ apiKey: '...' });
+// rgPath is already set, Grep tool works immediately
 ```
 
 #### 3. Tool Composition
@@ -191,6 +201,8 @@ User → Vercel AI SDK → Tool (Bash/Read/Write/etc.)
 - Interface definition: `/src/sandbox/interface.ts`
 - Local dev: `/src/sandbox/local.ts`
 - Production: `/src/sandbox/vercel.ts` or `/src/sandbox/e2b.ts`
+- Tool setup (ripgrep): `/src/sandbox/ensure-tools.ts`
+- Race condition prevention: `/src/sandbox/lazy-singleton.ts`
 
 **Configuration**
 - Type definitions: `/src/types.ts`
@@ -417,8 +429,30 @@ export function createYourSandbox(options?: { workingDirectory?: string }): Sand
 
     async destroy(): Promise<void> {
       // Cleanup resources
-    }
+    },
+
+    // For Grep tool support - set by ensureSandboxTools()
+    rgPath: undefined,
   };
+}
+```
+
+For remote sandboxes, make the factory async and call `ensureSandboxTools`:
+```typescript
+import { ensureSandboxTools } from './ensure-tools';
+
+export async function createYourSandbox(options?): Promise<Sandbox> {
+  let rgPath: string | undefined;
+
+  const sandbox: Sandbox = {
+    // ... methods ...
+    get rgPath() { return rgPath; },
+    set rgPath(p) { rgPath = p; },
+  };
+
+  // Auto-setup ripgrep (supports x86_64 and ARM64)
+  await ensureSandboxTools(sandbox);
+  return sandbox;
 }
 ```
 

@@ -34,9 +34,12 @@ Runs in isolated Firecracker microVMs on Vercel's infrastructure.
 ```typescript
 import { createAgentTools, createVercelSandbox } from "bashkit";
 
-const sandbox = createVercelSandbox({
+// Async - automatically installs ripgrep for Grep tool
+const sandbox = await createVercelSandbox({
   runtime: "node22",
   resources: { vcpus: 2 },
+  // ensureTools: true (default) - auto-setup ripgrep
+  // ensureTools: false - skip for faster startup if you don't need Grep
 });
 const { tools } = createAgentTools(sandbox);
 
@@ -51,8 +54,11 @@ Runs in E2B's cloud sandboxes. Requires `@e2b/code-interpreter` peer dependency.
 ```typescript
 import { createAgentTools, createE2BSandbox } from "bashkit";
 
-const sandbox = createE2BSandbox({
+// Async - automatically installs ripgrep for Grep tool
+const sandbox = await createE2BSandbox({
   apiKey: process.env.E2B_API_KEY,
+  // ensureTools: true (default) - auto-setup ripgrep
+  // ensureTools: false - skip for faster startup if you don't need Grep
 });
 const { tools } = createAgentTools(sandbox);
 
@@ -65,18 +71,17 @@ Cloud sandboxes (E2B, Vercel) support reconnection via the `id` property and `sa
 
 ```typescript
 // Create a new sandbox
-const sandbox = createE2BSandbox({ apiKey: process.env.E2B_API_KEY });
+const sandbox = await createE2BSandbox({ apiKey: process.env.E2B_API_KEY });
 
-// After first operation, the sandbox ID is available
-await sandbox.exec("echo hello");
+// Sandbox ID is available immediately after creation
 const sandboxId = sandbox.id; // "sbx_abc123..."
 
 // Store sandboxId in your database (e.g., chat metadata)
 await db.chat.update({ where: { id: chatId }, data: { sandboxId } });
 
-// Later: reconnect to the same sandbox
+// Later: reconnect to the same sandbox (fast - ripgrep already installed)
 const savedId = chat.sandboxId;
-const reconnected = createE2BSandbox({
+const reconnected = await createE2BSandbox({
   apiKey: process.env.E2B_API_KEY,
   sandboxId: savedId, // Reconnects instead of creating new
 });
@@ -442,7 +447,7 @@ const config = {
   },
 };
 
-const sandbox = createVercelSandbox({});
+const sandbox = await createVercelSandbox({});
 const { skills } = await setupAgentEnvironment(sandbox, config);
 
 // Use same config in prompt - stays in sync!
