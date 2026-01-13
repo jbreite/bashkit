@@ -1,6 +1,6 @@
 {
   "name": "bashkit",
-  "version": "0.3.1",
+  "version": "0.3.5",
   "description": "Agentic coding tools for the Vercel AI SDK",
   "type": "module",
   "main": "./dist/index.js",
@@ -9,6 +9,18 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
+    },
+    "./cloudflare": {
+      "types": "./dist/cloudflare/index.d.ts",
+      "import": "./dist/cloudflare/index.js"
+    },
+    "./durable": {
+      "types": "./dist/durable/index.d.ts",
+      "import": "./dist/durable/index.js"
+    },
+    "./react": {
+      "types": "./dist/react/index.d.ts",
+      "import": "./dist/react/index.js"
     }
   },
   "bin": {
@@ -21,8 +33,11 @@
   ],
   "scripts": {
     "dev": "bun run src/index.ts",
-    "build": "bun run build:js && bun run build:cli && bun run build:types",
+    "build": "bun run build:js && bun run build:cloudflare && bun run build:durable && bun run build:react && bun run build:cli && bun run build:types",
     "build:js": "bun build src/index.ts --outdir dist --target node --format esm --external ai --external zod --external @ai-sdk/* --external @vercel/sandbox --external @e2b/code-interpreter --external parallel-web --external @vscode/ripgrep",
+    "build:cloudflare": "bun build src/cloudflare/index.ts --outdir dist/cloudflare --target browser --format esm --external ai --external zod --external @ai-sdk/* --external @e2b/code-interpreter",
+    "build:durable": "bun build src/durable/index.ts --outdir dist/durable --target node --format esm --external ai --external zod --external @ai-sdk/* --external @vercel/sandbox --external @e2b/code-interpreter --external agents",
+    "build:react": "bun build src/react/index.ts --outdir dist/react --target browser --format esm --external react --external agents --external agents/*",
     "build:cli": "bun build src/cli/init.ts --outdir dist/cli --target node --format esm --external @clack/prompts && chmod +x dist/cli/init.js",
     "build:types": "tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit",
@@ -42,7 +57,11 @@
     "sandbox",
     "tools",
     "bash",
-    "code-execution"
+    "code-execution",
+    "durable-objects",
+    "cloudflare",
+    "websocket",
+    "real-time"
   ],
   "author": "jbreite",
   "license": "MIT",
@@ -61,6 +80,7 @@
     "@types/bun": "latest",
     "@types/node": "^24.10.0",
     "@vercel/sandbox": "^1.0.4",
+    "agents": "^0.0.83",
     "ai": "^6.0.0",
     "parallel-web": "^0.2.4",
     "typescript": "^5.9.3"
@@ -70,7 +90,9 @@
     "zod": "^4.1.8",
     "@vercel/sandbox": "^1.0.0",
     "@e2b/code-interpreter": "^1.0.0",
-    "parallel-web": "^0.2.4"
+    "parallel-web": "^0.2.4",
+    "react": ">=18.0.0",
+    "agents": "^0.0.83"
   },
   "peerDependenciesMeta": {
     "@vercel/sandbox": {
@@ -80,6 +102,12 @@
       "optional": true
     },
     "parallel-web": {
+      "optional": true
+    },
+    "react": {
+      "optional": true
+    },
+    "agents": {
       "optional": true
     }
   }

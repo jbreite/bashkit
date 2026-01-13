@@ -1,14 +1,16 @@
 import { existsSync, mkdirSync } from "node:fs";
 import type { ExecOptions, ExecResult, Sandbox } from "./interface";
-import { getBundledRgPathSync } from "./ripgrep";
+import { getBundledRgPath } from "./ripgrep";
 
 export interface LocalSandboxConfig {
   cwd?: string;
 }
 
-export function createLocalSandbox(config: LocalSandboxConfig = {}): Sandbox {
+export async function createLocalSandbox(
+  config: LocalSandboxConfig = {},
+): Promise<Sandbox> {
   const workingDirectory = config.cwd || "/tmp";
-  const rgPath = getBundledRgPathSync();
+  const rgPath = await getBundledRgPath();
 
   // Ensure the working directory exists
   if (!existsSync(workingDirectory)) {
