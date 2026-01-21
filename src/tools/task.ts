@@ -114,6 +114,8 @@ export interface SubagentTypeConfig {
   systemPrompt?: string;
   /** Tool names this subagent can use (filters from parent tools) */
   tools?: string[];
+  /** Additional tools only this subagent can use (merged with filtered tools) */
+  additionalTools?: ToolSet;
   /** Stop condition(s) for this subagent (default: stepCountIs(15)). Can be a single condition or array - stops when ANY condition is met. */
   stopWhen?: StopCondition<ToolSet> | StopCondition<ToolSet>[];
   /** Prepare step callback for dynamic control per step */
@@ -137,16 +139,30 @@ export interface TaskToolConfig {
   streamWriter?: UIMessageStreamWriter;
 }
 
-function filterTools(allTools: ToolSet, allowedTools?: string[]): ToolSet {
-  if (!allowedTools) return allTools;
-
-  const filtered: ToolSet = {};
-  for (const name of allowedTools) {
-    if (allTools[name]) {
-      filtered[name] = allTools[name];
+function filterTools(
+  allTools: ToolSet,
+  allowedTools?: string[],
+  additionalTools?: ToolSet,
+): ToolSet {
+  // Filter from parent tools if allowedTools specified
+  let result: ToolSet;
+  if (allowedTools) {
+    result = {};
+    for (const name of allowedTools) {
+      if (allTools[name]) {
+        result[name] = allTools[name];
+      }
     }
+  } else {
+    result = allTools;
   }
-  return filtered;
+
+  // Merge additional tools (agent-specific tools not in parent)
+  if (additionalTools) {
+    result = { ...result, ...additionalTools };
+  }
+
+  return result;
 }
 
 export function createTaskTool(
@@ -172,14 +188,15 @@ export function createTaskTool(
       tools: customTools,
     }: TaskInput): Promise<TaskOutput | TaskError> => {
       const startTime = performance.now();
+      const typeConfig = subagentTypes[subagent_type] || {};
       const debugId = isDebugEnabled()
         ? debugStart("task", {
             subagent_type,
             description,
-            tools:
-              customTools ??
-              subagentTypes[subagent_type]?.tools ??
-              Object.keys(allTools),
+            tools: [
+              ...(customTools ?? typeConfig.tools ?? Object.keys(allTools)),
+              ...Object.keys(typeConfig.additionalTools ?? {}),
+            ],
           })
         : "";
 
@@ -187,12 +204,13 @@ export function createTaskTool(
       if (debugId) pushParent(debugId);
 
       try {
-        // Get config for this subagent type
-        const typeConfig = subagentTypes[subagent_type] || {};
-
         const model = typeConfig.model || defaultModel;
-        // Custom tools override the type's default tools
-        const tools = filterTools(allTools, customTools ?? typeConfig.tools);
+        // Custom tools override the type's default tools, additionalTools are merged in
+        const tools = filterTools(
+          allTools,
+          customTools ?? typeConfig.tools,
+          typeConfig.additionalTools,
+        );
         // Custom system_prompt overrides the type's default
         const systemPrompt = system_prompt ?? typeConfig.systemPrompt;
 
