@@ -1,5 +1,11 @@
 import { tool, zodSchema } from "ai";
 import { z } from "zod";
+import {
+  debugEnd,
+  debugError,
+  debugStart,
+  isDebugEnabled,
+} from "../utils/debug";
 
 // Option for structured questions
 export interface QuestionOption {
@@ -168,12 +174,25 @@ export function createAskUserTool(
     execute: async (
       input: AskUserInput,
     ): Promise<AskUserOutput | AskUserError | AskUserAnswerOutput> => {
+      const startTime = performance.now();
+      const debugId = isDebugEnabled()
+        ? debugStart("ask-user", {
+            hasQuestion: !!input.question,
+            questionCount: input.questions?.length ?? 0,
+            question: input.question
+              ? input.question.length > 100
+                ? `${input.question.slice(0, 100)}...`
+                : input.question
+              : undefined,
+          })
+        : "";
+
       try {
         // Validate input - must have either question or questions
         if (!input.question && !input.questions) {
-          return {
-            error: "Either 'question' or 'questions' must be provided",
-          };
+          const error = "Either 'question' or 'questions' must be provided";
+          if (debugId) debugError(debugId, "ask-user", error);
+          return { error };
         }
 
         // Handle structured questions
@@ -185,6 +204,18 @@ export function createAskUserTool(
             // Return first answer as 'answer' for compatibility, plus all answers
             const firstKey = Object.keys(answers)[0];
             const firstAnswer = answers[firstKey];
+
+            const durationMs = Math.round(performance.now() - startTime);
+            if (debugId) {
+              debugEnd(debugId, "ask-user", {
+                summary: {
+                  type: "structured",
+                  answerCount: Object.keys(answers).length,
+                },
+                duration_ms: durationMs,
+              });
+            }
+
             return {
               answer: Array.isArray(firstAnswer)
                 ? firstAnswer.join(", ")
@@ -194,6 +225,13 @@ export function createAskUserTool(
           }
 
           // No handler - return awaiting state
+          const durationMs = Math.round(performance.now() - startTime);
+          if (debugId) {
+            debugEnd(debugId, "ask-user", {
+              summary: { type: "structured", awaiting: true },
+              duration_ms: durationMs,
+            });
+          }
           return {
             questions: input.questions,
             awaiting_response: true,
@@ -204,21 +242,39 @@ export function createAskUserTool(
         if (input.question) {
           if (normalizedConfig.onQuestion) {
             const answer = await normalizedConfig.onQuestion(input.question);
+
+            const durationMs = Math.round(performance.now() - startTime);
+            if (debugId) {
+              debugEnd(debugId, "ask-user", {
+                summary: { type: "simple", hasAnswer: true },
+                duration_ms: durationMs,
+              });
+            }
             return { answer };
           }
 
           // No handler - return awaiting state
+          const durationMs = Math.round(performance.now() - startTime);
+          if (debugId) {
+            debugEnd(debugId, "ask-user", {
+              summary: { type: "simple", awaiting: true },
+              duration_ms: durationMs,
+            });
+          }
           return {
             question: input.question,
             awaiting_response: true,
           };
         }
 
-        return { error: "No question provided" };
+        const error = "No question provided";
+        if (debugId) debugError(debugId, "ask-user", error);
+        return { error };
       } catch (error) {
-        return {
-          error: error instanceof Error ? error.message : "Unknown error",
-        };
+        const errorMessage =
+          error instanceof Error ? error.message : "Unknown error";
+        if (debugId) debugError(debugId, "ask-user", errorMessage);
+        return { error: errorMessage };
       }
     },
   });

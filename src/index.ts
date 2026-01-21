@@ -138,11 +138,13 @@ export type {
   ContextStatus,
   ContextStatusConfig,
   ContextStatusLevel,
+  DebugEvent,
   ModelContextLimit,
   PruneMessagesConfig,
 } from "./utils";
 // Utils
 export {
+  clearDebugLogs,
   compactConversation,
   contextNeedsAttention,
   contextNeedsCompaction,
@@ -151,8 +153,11 @@ export {
   estimateMessageTokens,
   estimateTokens,
   getContextStatus,
+  getDebugLogs,
+  isDebugEnabled,
   MODEL_CONTEXT_LIMITS,
   pruneMessagesByTokens,
+  reinitDebugMode,
 } from "./utils";
 
 // Skills (Agent Skills standard support)

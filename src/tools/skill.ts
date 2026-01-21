@@ -2,6 +2,12 @@ import { tool, zodSchema } from "ai";
 import { z } from "zod";
 import type { Sandbox } from "../sandbox/interface";
 import type { SkillMetadata } from "../skills/types";
+import {
+  debugEnd,
+  debugError,
+  debugStart,
+  isDebugEnabled,
+} from "../utils/debug";
 
 export interface SkillOutput {
   name: string;
@@ -63,27 +69,32 @@ export function createSkillTool(config: SkillToolConfig) {
     execute: async ({
       name,
     }: SkillInput): Promise<SkillOutput | SkillError> => {
+      const startTime = performance.now();
+      const debugId = isDebugEnabled()
+        ? debugStart("skill", { name, availableSkills: Object.keys(skills) })
+        : "";
+
       try {
         const skill = skills[name];
         if (!skill) {
           const available = Object.keys(skills);
           if (available.length === 0) {
-            return { error: "No skills are available." };
+            const error = "No skills are available.";
+            if (debugId) debugError(debugId, "skill", error);
+            return { error };
           }
-          return {
-            error: `Skill '${name}' not found. Available skills: ${available.join(
-              ", ",
-            )}`,
-          };
+          const error = `Skill '${name}' not found. Available skills: ${available.join(", ")}`;
+          if (debugId) debugError(debugId, "skill", error);
+          return { error };
         }
 
         // Load full skill content from SKILL.md
         let instructions: string;
 
         if (!sandbox) {
-          return {
-            error: `Cannot load skill '${name}': no sandbox provided to read ${skill.path}`,
-          };
+          const error = `Cannot load skill '${name}': no sandbox provided to read ${skill.path}`;
+          if (debugId) debugError(debugId, "skill", error);
+          return { error };
         }
 
         const content = await sandbox.readFile(skill.path);
@@ -101,6 +112,18 @@ export function createSkillTool(config: SkillToolConfig) {
           await onActivate(skill, instructions);
         }
 
+        const durationMs = Math.round(performance.now() - startTime);
+        if (debugId) {
+          debugEnd(debugId, "skill", {
+            summary: {
+              skillName: skill.name,
+              instructionLength: instructions.length,
+              hasAllowedTools: !!skill.allowedTools,
+            },
+            duration_ms: durationMs,
+          });
+        }
+
         return {
           name: skill.name,
           instructions,
@@ -112,9 +135,10 @@ export function createSkillTool(config: SkillToolConfig) {
             : `Skill '${name}' activated. Follow the instructions below.`,
         };
       } catch (error) {
-        return {
-          error: error instanceof Error ? error.message : "Unknown error",
-        };
+        const errorMessage =
+          error instanceof Error ? error.message : "Unknown error";
+        if (debugId) debugError(debugId, "skill", errorMessage);
+        return { error: errorMessage };
       }
     },
   });

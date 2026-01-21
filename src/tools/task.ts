@@ -14,6 +14,14 @@ import {
   zodSchema,
 } from "ai";
 import { z } from "zod";
+import {
+  debugEnd,
+  debugError,
+  debugStart,
+  isDebugEnabled,
+  popParent,
+  pushParent,
+} from "../utils/debug";
 
 export interface TaskOutput {
   result: string;
@@ -164,6 +172,19 @@ export function createTaskTool(
       tools: customTools,
     }: TaskInput): Promise<TaskOutput | TaskError> => {
       const startTime = performance.now();
+      const debugId = isDebugEnabled()
+        ? debugStart("task", {
+            subagent_type,
+            description,
+            tools:
+              customTools ??
+              subagentTypes[subagent_type]?.tools ??
+              Object.keys(allTools),
+          })
+        : "";
+
+      // Push this task as parent context for child tool calls
+      if (debugId) pushParent(debugId);
 
       try {
         // Get config for this subagent type
@@ -260,6 +281,21 @@ export function createTaskTool(
 
           const durationMs = Math.round(performance.now() - startTime);
 
+          // Pop parent context and emit debug end
+          if (debugId) {
+            popParent();
+            debugEnd(debugId, "task", {
+              summary: {
+                tokens: {
+                  input: usage.inputTokens,
+                  output: usage.outputTokens,
+                },
+                steps: response.messages?.length,
+              },
+              duration_ms: durationMs,
+            });
+          }
+
           return {
             result: text,
             usage:
@@ -303,6 +339,21 @@ export function createTaskTool(
               }
             : undefined;
 
+        // Pop parent context and emit debug end
+        if (debugId) {
+          popParent();
+          debugEnd(debugId, "task", {
+            summary: {
+              tokens: {
+                input: result.usage.inputTokens,
+                output: result.usage.outputTokens,
+              },
+              steps: result.steps?.length,
+            },
+            duration_ms: durationMs,
+          });
+        }
+
         return {
           result: result.text,
           usage,
@@ -313,6 +364,12 @@ export function createTaskTool(
       } catch (error) {
         const errorMessage =
           error instanceof Error ? error.message : "Unknown error";
+
+        // Pop parent context and emit debug error
+        if (debugId) {
+          popParent();
+          debugError(debugId, "task", errorMessage);
+        }
 
         return { error: errorMessage };
       }

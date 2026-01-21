@@ -2,6 +2,12 @@ import { tool, zodSchema } from "ai";
 import { z } from "zod";
 import type { Sandbox } from "../sandbox/interface";
 import type { ToolConfig } from "../types";
+import {
+  debugEnd,
+  debugError,
+  debugStart,
+  isDebugEnabled,
+} from "../utils/debug";
 
 export interface ReadTextOutput {
   type: "text";
@@ -59,25 +65,41 @@ export function createReadTool(sandbox: Sandbox, config?: ToolConfig) {
       offset,
       limit,
     }: ReadInput): Promise<ReadOutput> => {
+      const startTime = performance.now();
+      const debugId = isDebugEnabled()
+        ? debugStart("read", { file_path, offset, limit })
+        : "";
+
       // Check allowed paths
       if (config?.allowedPaths) {
         const isAllowed = config.allowedPaths.some((allowed) =>
           file_path.startsWith(allowed),
         );
         if (!isAllowed) {
-          return { error: `Path not allowed: ${file_path}` };
+          const error = `Path not allowed: ${file_path}`;
+          if (debugId) debugError(debugId, "read", error);
+          return { error };
         }
       }
 
       try {
         const exists = await sandbox.fileExists(file_path);
         if (!exists) {
-          return { error: `Path not found: ${file_path}` };
+          const error = `Path not found: ${file_path}`;
+          if (debugId) debugError(debugId, "read", error);
+          return { error };
         }
 
         const isDir = await sandbox.isDirectory(file_path);
         if (isDir) {
           const entries = await sandbox.readDir(file_path);
+          const durationMs = Math.round(performance.now() - startTime);
+          if (debugId) {
+            debugEnd(debugId, "read", {
+              summary: { type: "directory", count: entries.length },
+              duration_ms: durationMs,
+            });
+          }
           return {
             type: "directory",
             entries,
@@ -107,9 +129,9 @@ export function createReadTool(sandbox: Sandbox, config?: ToolConfig) {
             "dylib",
           ];
           if (binaryExtensions.includes(ext || "")) {
-            return {
-              error: `Cannot read binary file: ${file_path} (file exists, ${content.length} bytes). Use appropriate tools to process ${ext?.toUpperCase()} files (e.g., Python scripts for PDFs).`,
-            };
+            const error = `Cannot read binary file: ${file_path} (file exists, ${content.length} bytes). Use appropriate tools to process ${ext?.toUpperCase()} files (e.g., Python scripts for PDFs).`;
+            if (debugId) debugError(debugId, "read", error);
+            return { error };
           }
         }
 
@@ -119,9 +141,9 @@ export function createReadTool(sandbox: Sandbox, config?: ToolConfig) {
         // If file is large and no limit specified, require pagination
         const maxLinesWithoutLimit = config?.maxFileSize || 500;
         if (!limit && totalLines > maxLinesWithoutLimit) {
-          return {
-            error: `File is large (${totalLines} lines). Use 'offset' and 'limit' to read in chunks. Example: offset=1, limit=100 for first 100 lines.`,
-          };
+          const error = `File is large (${totalLines} lines). Use 'offset' and 'limit' to read in chunks. Example: offset=1, limit=100 for first 100 lines.`;
+          if (debugId) debugError(debugId, "read", error);
+          return { error };
         }
 
         // Apply offset and limit
@@ -134,6 +156,19 @@ export function createReadTool(sandbox: Sandbox, config?: ToolConfig) {
           content: line,
         }));
 
+        const durationMs = Math.round(performance.now() - startTime);
+        if (debugId) {
+          debugEnd(debugId, "read", {
+            summary: {
+              type: "text",
+              totalLines,
+              returnedLines: lines.length,
+              bytes: content.length,
+            },
+            duration_ms: durationMs,
+          });
+        }
+
         return {
           type: "text",
           content: selectedLines.join("\n"),
@@ -141,9 +176,10 @@ export function createReadTool(sandbox: Sandbox, config?: ToolConfig) {
           total_lines: totalLines,
         };
       } catch (error) {
-        return {
-          error: error instanceof Error ? error.message : "Unknown error",
-        };
+        const errorMessage =
+          error instanceof Error ? error.message : "Unknown error";
+        if (debugId) debugError(debugId, "read", errorMessage);
+        return { error: errorMessage };
       }
     },
   });

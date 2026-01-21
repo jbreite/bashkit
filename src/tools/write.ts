@@ -2,6 +2,12 @@ import { tool, zodSchema } from "ai";
 import { z } from "zod";
 import type { Sandbox } from "../sandbox/interface";
 import type { ToolConfig } from "../types";
+import {
+  debugEnd,
+  debugError,
+  debugStart,
+  isDebugEnabled,
+} from "../utils/debug";
 
 export interface WriteOutput {
   message: string;
@@ -45,12 +51,17 @@ export function createWriteTool(sandbox: Sandbox, config?: ToolConfig) {
       file_path,
       content,
     }: WriteInput): Promise<WriteOutput | WriteError> => {
-      // Check file size
+      const startTime = performance.now();
       const byteLength = Buffer.byteLength(content, "utf-8");
+      const debugId = isDebugEnabled()
+        ? debugStart("write", { file_path, contentLength: byteLength })
+        : "";
+
+      // Check file size
       if (config?.maxFileSize && byteLength > config.maxFileSize) {
-        return {
-          error: `File content exceeds maximum size of ${config.maxFileSize} bytes (got ${byteLength})`,
-        };
+        const error = `File content exceeds maximum size of ${config.maxFileSize} bytes (got ${byteLength})`;
+        if (debugId) debugError(debugId, "write", error);
+        return { error };
       }
 
       // Check allowed paths
@@ -59,21 +70,31 @@ export function createWriteTool(sandbox: Sandbox, config?: ToolConfig) {
           file_path.startsWith(allowed),
         );
         if (!isAllowed) {
-          return { error: `Path not allowed: ${file_path}` };
+          const error = `Path not allowed: ${file_path}`;
+          if (debugId) debugError(debugId, "write", error);
+          return { error };
         }
       }
 
       try {
         await sandbox.writeFile(file_path, content);
+        const durationMs = Math.round(performance.now() - startTime);
+        if (debugId) {
+          debugEnd(debugId, "write", {
+            summary: { bytes_written: byteLength },
+            duration_ms: durationMs,
+          });
+        }
         return {
           message: `Successfully wrote to ${file_path}`,
           bytes_written: byteLength,
           file_path,
         };
       } catch (error) {
-        return {
-          error: error instanceof Error ? error.message : "Unknown error",
-        };
+        const errorMessage =
+          error instanceof Error ? error.message : "Unknown error";
+        if (debugId) debugError(debugId, "write", errorMessage);
+        return { error: errorMessage };
       }
     },
   });

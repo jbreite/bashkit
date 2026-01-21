@@ -1,5 +1,11 @@
 import { tool, zodSchema } from "ai";
 import { z } from "zod";
+import {
+  debugEnd,
+  debugError,
+  debugStart,
+  isDebugEnabled,
+} from "../utils/debug";
 
 export interface TodoItem {
   content: string;
@@ -84,6 +90,16 @@ export function createTodoWriteTool(
     execute: async ({
       todos,
     }: TodoWriteInput): Promise<TodoWriteOutput | TodoWriteError> => {
+      const startTime = performance.now();
+      const debugId = isDebugEnabled()
+        ? debugStart("todo-write", {
+            todoCount: todos.length,
+            pending: todos.filter((t) => t.status === "pending").length,
+            in_progress: todos.filter((t) => t.status === "in_progress").length,
+            completed: todos.filter((t) => t.status === "completed").length,
+          })
+        : "";
+
       try {
         // Update the state
         state.todos = todos;
@@ -101,14 +117,23 @@ export function createTodoWriteTool(
           completed: todos.filter((t) => t.status === "completed").length,
         };
 
+        const durationMs = Math.round(performance.now() - startTime);
+        if (debugId) {
+          debugEnd(debugId, "todo-write", {
+            summary: stats,
+            duration_ms: durationMs,
+          });
+        }
+
         return {
           message: "Todo list updated successfully",
           stats,
         };
       } catch (error) {
-        return {
-          error: error instanceof Error ? error.message : "Unknown error",
-        };
+        const errorMessage =
+          error instanceof Error ? error.message : "Unknown error";
+        if (debugId) debugError(debugId, "todo-write", errorMessage);
+        return { error: errorMessage };
       }
     },
   });

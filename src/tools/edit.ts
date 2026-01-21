@@ -2,6 +2,12 @@ import { tool, zodSchema } from "ai";
 import { z } from "zod";
 import type { Sandbox } from "../sandbox/interface";
 import type { ToolConfig } from "../types";
+import {
+  debugEnd,
+  debugError,
+  debugStart,
+  isDebugEnabled,
+} from "../utils/debug";
 
 export interface EditOutput {
   message: string;
@@ -61,9 +67,23 @@ export function createEditTool(sandbox: Sandbox, config?: ToolConfig) {
       new_string,
       replace_all = false,
     }: EditInput): Promise<EditOutput | EditError> => {
+      const startTime = performance.now();
+      const debugId = isDebugEnabled()
+        ? debugStart("edit", {
+            file_path,
+            old_string:
+              old_string.length > 100
+                ? `${old_string.slice(0, 100)}...`
+                : old_string,
+            replace_all,
+          })
+        : "";
+
       // Validate old_string !== new_string
       if (old_string === new_string) {
-        return { error: "old_string and new_string must be different" };
+        const error = "old_string and new_string must be different";
+        if (debugId) debugError(debugId, "edit", error);
+        return { error };
       }
 
       // Check allowed paths
@@ -72,14 +92,18 @@ export function createEditTool(sandbox: Sandbox, config?: ToolConfig) {
           file_path.startsWith(allowed),
         );
         if (!isAllowed) {
-          return { error: `Path not allowed: ${file_path}` };
+          const error = `Path not allowed: ${file_path}`;
+          if (debugId) debugError(debugId, "edit", error);
+          return { error };
         }
       }
 
       try {
         const exists = await sandbox.fileExists(file_path);
         if (!exists) {
-          return { error: `File not found: ${file_path}` };
+          const error = `File not found: ${file_path}`;
+          if (debugId) debugError(debugId, "edit", error);
+          return { error };
         }
 
         const content = await sandbox.readFile(file_path);
@@ -87,14 +111,16 @@ export function createEditTool(sandbox: Sandbox, config?: ToolConfig) {
         // Count occurrences
         const occurrences = content.split(old_string).length - 1;
         if (occurrences === 0) {
-          return { error: `String not found in file: "${old_string}"` };
+          const error = `String not found in file: "${old_string}"`;
+          if (debugId) debugError(debugId, "edit", error);
+          return { error };
         }
 
         // If not replace_all, ensure string is unique
         if (!replace_all && occurrences > 1) {
-          return {
-            error: `String appears ${occurrences} times in file. Use replace_all=true to replace all, or provide a more unique string.`,
-          };
+          const error = `String appears ${occurrences} times in file. Use replace_all=true to replace all, or provide a more unique string.`;
+          if (debugId) debugError(debugId, "edit", error);
+          return { error };
         }
 
         // Perform replacement
@@ -111,15 +137,24 @@ export function createEditTool(sandbox: Sandbox, config?: ToolConfig) {
 
         await sandbox.writeFile(file_path, newContent);
 
+        const durationMs = Math.round(performance.now() - startTime);
+        if (debugId) {
+          debugEnd(debugId, "edit", {
+            summary: { replacements },
+            duration_ms: durationMs,
+          });
+        }
+
         return {
           message: `Successfully edited ${file_path}`,
           file_path,
           replacements,
         };
       } catch (error) {
-        return {
-          error: error instanceof Error ? error.message : "Unknown error",
-        };
+        const errorMessage =
+          error instanceof Error ? error.message : "Unknown error";
+        if (debugId) debugError(debugId, "edit", errorMessage);
+        return { error: errorMessage };
       }
     },
   });

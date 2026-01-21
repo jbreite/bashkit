@@ -1,5 +1,11 @@
 import { tool, zodSchema } from "ai";
 import { z } from "zod";
+import {
+  debugEnd,
+  debugError,
+  debugStart,
+  isDebugEnabled,
+} from "../utils/debug";
 
 export interface PlanModeState {
   isActive: boolean;
@@ -101,11 +107,16 @@ export function createEnterPlanModeTool(
     }: EnterPlanModeInput): Promise<
       EnterPlanModeOutput | EnterPlanModeError
     > => {
+      const startTime = performance.now();
+      const debugId = isDebugEnabled()
+        ? debugStart("enter-plan-mode", { reason })
+        : "";
+
       try {
         if (state.isActive) {
-          return {
-            error: "Already in planning mode. Use ExitPlanMode to exit.",
-          };
+          const error = "Already in planning mode. Use ExitPlanMode to exit.";
+          if (debugId) debugError(debugId, "enter-plan-mode", error);
+          return { error };
         }
 
         state.isActive = true;
@@ -116,14 +127,23 @@ export function createEnterPlanModeTool(
           await onEnter(reason);
         }
 
+        const durationMs = Math.round(performance.now() - startTime);
+        if (debugId) {
+          debugEnd(debugId, "enter-plan-mode", {
+            summary: { mode: "planning" },
+            duration_ms: durationMs,
+          });
+        }
+
         return {
           message: `Entered planning mode: ${reason}. Use Read, Grep, and Glob to explore. Call ExitPlanMode when ready with a plan.`,
           mode: "planning",
         };
       } catch (error) {
-        return {
-          error: error instanceof Error ? error.message : "Unknown error",
-        };
+        const errorMessage =
+          error instanceof Error ? error.message : "Unknown error";
+        if (debugId) debugError(debugId, "enter-plan-mode", errorMessage);
+        return { error: errorMessage };
       }
     },
   });
