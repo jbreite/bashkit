@@ -63,8 +63,15 @@ export function createGlobTool(sandbox: Sandbox, config?: ToolConfig) {
       try {
         // Use find with glob pattern via bash
         // -type f for files only, sorted by modification time
+        // Use -path for patterns with path separators, -name for simple filename patterns
+        const findFlag = pattern.includes("/") ? "-path" : "-name";
+        // For -path, prepend */ if pattern doesn't start with * to match from searchPath
+        const findPattern =
+          pattern.includes("/") && !pattern.startsWith("*")
+            ? `*/${pattern}`
+            : pattern;
         const result = await sandbox.exec(
-          `find ${searchPath} -type f -name "${pattern}" 2>/dev/null | head -1000`,
+          `find ${searchPath} -type f ${findFlag} "${findPattern}" 2>/dev/null | head -1000`,
           { timeout: config?.timeout },
         );
 

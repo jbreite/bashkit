@@ -106,8 +106,8 @@ export interface SubagentTypeConfig {
   systemPrompt?: string;
   /** Tool names this subagent can use (filters from parent tools) */
   tools?: string[];
-  /** Stop condition for this subagent (default: stepCountIs(15)) */
-  stopWhen?: StopCondition<ToolSet>;
+  /** Stop condition(s) for this subagent (default: stepCountIs(15)). Can be a single condition or array - stops when ANY condition is met. */
+  stopWhen?: StopCondition<ToolSet> | StopCondition<ToolSet>[];
   /** Prepare step callback for dynamic control per step */
   prepareStep?: PrepareStepFunction<ToolSet>;
   /** Callback for each step this subagent takes */
@@ -121,8 +121,8 @@ export interface TaskToolConfig {
   tools: ToolSet;
   /** Configuration for each subagent type */
   subagentTypes?: Record<string, SubagentTypeConfig>;
-  /** Default stop condition for subagents (default: stepCountIs(15)) */
-  defaultStopWhen?: StopCondition<ToolSet>;
+  /** Default stop condition(s) for subagents (default: stepCountIs(15)). Can be a single condition or array - stops when ANY condition is met. */
+  defaultStopWhen?: StopCondition<ToolSet> | StopCondition<ToolSet>[];
   /** Default callback for each step any subagent takes */
   defaultOnStepFinish?: (event: SubagentStepEvent) => void | Promise<void>;
   /** Optional stream writer for real-time subagent activity (uses streamText instead of generateText) */
