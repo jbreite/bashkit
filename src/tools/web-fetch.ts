@@ -1,6 +1,12 @@
 import { generateText, tool, zodSchema } from "ai";
 import { z } from "zod";
 import type { WebFetchConfig, WebFetchProvider } from "../types";
+import {
+  debugEnd,
+  debugError,
+  debugStart,
+  isDebugEnabled,
+} from "../utils/debug";
 import { RETRYABLE_STATUS_CODES } from "../utils/http-constants";
 
 export interface WebFetchOutput {
@@ -148,6 +154,13 @@ export function createWebFetchTool(config: WebFetchConfig) {
       input: WebFetchInput,
     ): Promise<WebFetchOutput | WebFetchError> => {
       const { url, prompt } = input;
+      const startTime = performance.now();
+      const debugId = isDebugEnabled()
+        ? debugStart("web-fetch", {
+            url,
+            prompt: prompt.length > 200 ? `${prompt.slice(0, 200)}...` : prompt,
+          })
+        : "";
 
       try {
         const { content, finalUrl } = await fetchContent(url, apiKey, provider);
@@ -157,6 +170,17 @@ export function createWebFetchTool(config: WebFetchConfig) {
           model,
           prompt: `${prompt}\n\nContent from ${url}:\n\n${content}`,
         });
+
+        const durationMs = Math.round(performance.now() - startTime);
+        if (debugId) {
+          debugEnd(debugId, "web-fetch", {
+            summary: {
+              contentLength: content.length,
+              responseLength: result.text.length,
+            },
+            duration_ms: durationMs,
+          });
+        }
 
         return {
           response: result.text,
@@ -169,6 +193,12 @@ export function createWebFetchTool(config: WebFetchConfig) {
           const statusCode = (error as { status: number }).status;
           const message =
             (error as { message?: string }).message || "API request failed";
+          if (debugId)
+            debugError(
+              debugId,
+              "web-fetch",
+              `${message} (status: ${statusCode})`,
+            );
           return {
             error: message,
             status_code: statusCode,
@@ -176,9 +206,10 @@ export function createWebFetchTool(config: WebFetchConfig) {
           };
         }
 
-        return {
-          error: error instanceof Error ? error.message : "Unknown error",
-        };
+        const errorMessage =
+          error instanceof Error ? error.message : "Unknown error";
+        if (debugId) debugError(debugId, "web-fetch", errorMessage);
+        return { error: errorMessage };
       }
     },
   });

@@ -1,6 +1,12 @@
 import { tool, zodSchema } from "ai";
 import { z } from "zod";
 import type { WebSearchConfig, WebSearchProvider } from "../types";
+import {
+  debugEnd,
+  debugError,
+  debugStart,
+  isDebugEnabled,
+} from "../utils/debug";
 import { RETRYABLE_STATUS_CODES } from "../utils/http-constants";
 
 export interface WebSearchResult {
@@ -168,6 +174,10 @@ export function createWebSearchTool(config: WebSearchConfig) {
       input: WebSearchInput,
     ): Promise<WebSearchOutput | WebSearchError> => {
       const { query, allowed_domains, blocked_domains } = input;
+      const startTime = performance.now();
+      const debugId = isDebugEnabled()
+        ? debugStart("web-search", { query, allowed_domains, blocked_domains })
+        : "";
 
       try {
         const results = await searchContent(apiKey, provider, {
@@ -175,6 +185,17 @@ export function createWebSearchTool(config: WebSearchConfig) {
           allowedDomains: allowed_domains,
           blockedDomains: blocked_domains,
         });
+
+        const durationMs = Math.round(performance.now() - startTime);
+        if (debugId) {
+          debugEnd(debugId, "web-search", {
+            summary: { resultCount: results.length },
+            output: results
+              .slice(0, 5)
+              .map((r) => ({ title: r.title, url: r.url })),
+            duration_ms: durationMs,
+          });
+        }
 
         return {
           results,
@@ -187,6 +208,12 @@ export function createWebSearchTool(config: WebSearchConfig) {
           const statusCode = (error as { status: number }).status;
           const message =
             (error as { message?: string }).message || "API request failed";
+          if (debugId)
+            debugError(
+              debugId,
+              "web-search",
+              `${message} (status: ${statusCode})`,
+            );
           return {
             error: message,
             status_code: statusCode,
@@ -194,9 +221,10 @@ export function createWebSearchTool(config: WebSearchConfig) {
           };
         }
 
-        return {
-          error: error instanceof Error ? error.message : "Unknown error",
-        };
+        const errorMessage =
+          error instanceof Error ? error.message : "Unknown error";
+        if (debugId) debugError(debugId, "web-search", errorMessage);
+        return { error: errorMessage };
       }
     },
   });

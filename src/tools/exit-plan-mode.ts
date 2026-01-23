@@ -1,5 +1,11 @@
 import { tool, zodSchema } from "ai";
 import { z } from "zod";
+import {
+  debugEnd,
+  debugError,
+  debugStart,
+  isDebugEnabled,
+} from "../utils/debug";
 
 export interface ExitPlanModeOutput {
   message: string;
@@ -47,12 +53,28 @@ export function createExitPlanModeTool(
     execute: async ({
       plan,
     }: ExitPlanModeInput): Promise<ExitPlanModeOutput | ExitPlanModeError> => {
+      const startTime = performance.now();
+      const debugId = isDebugEnabled()
+        ? debugStart("exit-plan-mode", {
+            planLength: plan.length,
+            planPreview: plan.length > 200 ? `${plan.slice(0, 200)}...` : plan,
+          })
+        : "";
+
       try {
         let approved: boolean | undefined;
 
         // If a callback is provided, use it to get approval
         if (onPlanSubmit) {
           approved = await onPlanSubmit(plan);
+        }
+
+        const durationMs = Math.round(performance.now() - startTime);
+        if (debugId) {
+          debugEnd(debugId, "exit-plan-mode", {
+            summary: { approved },
+            duration_ms: durationMs,
+          });
         }
 
         return {
@@ -62,9 +84,10 @@ export function createExitPlanModeTool(
           approved,
         };
       } catch (error) {
-        return {
-          error: error instanceof Error ? error.message : "Unknown error",
-        };
+        const errorMessage =
+          error instanceof Error ? error.message : "Unknown error";
+        if (debugId) debugError(debugId, "exit-plan-mode", errorMessage);
+        return { error: errorMessage };
       }
     },
   });

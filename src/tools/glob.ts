@@ -2,6 +2,12 @@ import { tool, zodSchema } from "ai";
 import { z } from "zod";
 import type { Sandbox } from "../sandbox/interface";
 import type { ToolConfig } from "../types";
+import {
+  debugEnd,
+  debugError,
+  debugStart,
+  isDebugEnabled,
+} from "../utils/debug";
 
 export interface GlobOutput {
   matches: string[];
@@ -49,6 +55,10 @@ export function createGlobTool(sandbox: Sandbox, config?: ToolConfig) {
       path,
     }: GlobInput): Promise<GlobOutput | GlobError> => {
       const searchPath = path || ".";
+      const startTime = performance.now();
+      const debugId = isDebugEnabled()
+        ? debugStart("glob", { pattern, path: searchPath })
+        : "";
 
       // Check allowed paths
       if (config?.allowedPaths) {
@@ -56,20 +66,31 @@ export function createGlobTool(sandbox: Sandbox, config?: ToolConfig) {
           searchPath.startsWith(allowed),
         );
         if (!isAllowed) {
-          return { error: `Path not allowed: ${searchPath}` };
+          const error = `Path not allowed: ${searchPath}`;
+          if (debugId) debugError(debugId, "glob", error);
+          return { error };
         }
       }
 
       try {
         // Use find with glob pattern via bash
         // -type f for files only, sorted by modification time
+        // Use -path for patterns with path separators, -name for simple filename patterns
+        const findFlag = pattern.includes("/") ? "-path" : "-name";
+        // For -path, prepend */ if pattern doesn't start with * to match from searchPath
+        const findPattern =
+          pattern.includes("/") && !pattern.startsWith("*")
+            ? `*/${pattern}`
+            : pattern;
         const result = await sandbox.exec(
-          `find ${searchPath} -type f -name "${pattern}" 2>/dev/null | head -1000`,
+          `find ${searchPath} -type f ${findFlag} "${findPattern}" 2>/dev/null | head -1000`,
           { timeout: config?.timeout },
         );
 
         if (result.exitCode !== 0 && result.stderr) {
-          return { error: result.stderr };
+          const error = result.stderr;
+          if (debugId) debugError(debugId, "glob", error);
+          return { error };
         }
 
         const matches = result.stdout
@@ -77,15 +98,25 @@ export function createGlobTool(sandbox: Sandbox, config?: ToolConfig) {
           .filter(Boolean)
           .map((p) => p.trim());
 
+        const durationMs = Math.round(performance.now() - startTime);
+        if (debugId) {
+          debugEnd(debugId, "glob", {
+            summary: { count: matches.length },
+            output: matches.slice(0, 10),
+            duration_ms: durationMs,
+          });
+        }
+
         return {
           matches,
           count: matches.length,
           search_path: searchPath,
         };
       } catch (error) {
-        return {
-          error: error instanceof Error ? error.message : "Unknown error",
-        };
+        const errorMessage =
+          error instanceof Error ? error.message : "Unknown error";
+        if (debugId) debugError(debugId, "glob", errorMessage);
+        return { error: errorMessage };
       }
     },
   });

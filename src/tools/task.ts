@@ -14,6 +14,14 @@ import {
   zodSchema,
 } from "ai";
 import { z } from "zod";
+import {
+  debugEnd,
+  debugError,
+  debugStart,
+  isDebugEnabled,
+  popParent,
+  pushParent,
+} from "../utils/debug";
 
 export interface TaskOutput {
   result: string;
@@ -106,8 +114,10 @@ export interface SubagentTypeConfig {
   systemPrompt?: string;
   /** Tool names this subagent can use (filters from parent tools) */
   tools?: string[];
-  /** Stop condition for this subagent (default: stepCountIs(15)) */
-  stopWhen?: StopCondition<ToolSet>;
+  /** Additional tools only this subagent can use (merged with filtered tools) */
+  additionalTools?: ToolSet;
+  /** Stop condition(s) for this subagent (default: stepCountIs(15)). Can be a single condition or array - stops when ANY condition is met. */
+  stopWhen?: StopCondition<ToolSet> | StopCondition<ToolSet>[];
   /** Prepare step callback for dynamic control per step */
   prepareStep?: PrepareStepFunction<ToolSet>;
   /** Callback for each step this subagent takes */
@@ -121,24 +131,38 @@ export interface TaskToolConfig {
   tools: ToolSet;
   /** Configuration for each subagent type */
   subagentTypes?: Record<string, SubagentTypeConfig>;
-  /** Default stop condition for subagents (default: stepCountIs(15)) */
-  defaultStopWhen?: StopCondition<ToolSet>;
+  /** Default stop condition(s) for subagents (default: stepCountIs(15)). Can be a single condition or array - stops when ANY condition is met. */
+  defaultStopWhen?: StopCondition<ToolSet> | StopCondition<ToolSet>[];
   /** Default callback for each step any subagent takes */
   defaultOnStepFinish?: (event: SubagentStepEvent) => void | Promise<void>;
   /** Optional stream writer for real-time subagent activity (uses streamText instead of generateText) */
   streamWriter?: UIMessageStreamWriter;
 }
 
-function filterTools(allTools: ToolSet, allowedTools?: string[]): ToolSet {
-  if (!allowedTools) return allTools;
-
-  const filtered: ToolSet = {};
-  for (const name of allowedTools) {
-    if (allTools[name]) {
-      filtered[name] = allTools[name];
+function filterTools(
+  allTools: ToolSet,
+  allowedTools?: string[],
+  additionalTools?: ToolSet,
+): ToolSet {
+  // Filter from parent tools if allowedTools specified
+  let result: ToolSet;
+  if (allowedTools) {
+    result = {};
+    for (const name of allowedTools) {
+      if (allTools[name]) {
+        result[name] = allTools[name];
+      }
     }
+  } else {
+    result = allTools;
   }
-  return filtered;
+
+  // Merge additional tools (agent-specific tools not in parent)
+  if (additionalTools) {
+    result = { ...result, ...additionalTools };
+  }
+
+  return result;
 }
 
 export function createTaskTool(
@@ -164,14 +188,29 @@ export function createTaskTool(
       tools: customTools,
     }: TaskInput): Promise<TaskOutput | TaskError> => {
       const startTime = performance.now();
+      const typeConfig = subagentTypes[subagent_type] || {};
+      const debugId = isDebugEnabled()
+        ? debugStart("task", {
+            subagent_type,
+            description,
+            tools: [
+              ...(customTools ?? typeConfig.tools ?? Object.keys(allTools)),
+              ...Object.keys(typeConfig.additionalTools ?? {}),
+            ],
+          })
+        : "";
+
+      // Push this task as parent context for child tool calls
+      if (debugId) pushParent(debugId);
 
       try {
-        // Get config for this subagent type
-        const typeConfig = subagentTypes[subagent_type] || {};
-
         const model = typeConfig.model || defaultModel;
-        // Custom tools override the type's default tools
-        const tools = filterTools(allTools, customTools ?? typeConfig.tools);
+        // Custom tools override the type's default tools, additionalTools are merged in
+        const tools = filterTools(
+          allTools,
+          customTools ?? typeConfig.tools,
+          typeConfig.additionalTools,
+        );
         // Custom system_prompt overrides the type's default
         const systemPrompt = system_prompt ?? typeConfig.systemPrompt;
 
@@ -260,6 +299,21 @@ export function createTaskTool(
 
           const durationMs = Math.round(performance.now() - startTime);
 
+          // Pop parent context and emit debug end
+          if (debugId) {
+            popParent();
+            debugEnd(debugId, "task", {
+              summary: {
+                tokens: {
+                  input: usage.inputTokens,
+                  output: usage.outputTokens,
+                },
+                steps: response.messages?.length,
+              },
+              duration_ms: durationMs,
+            });
+          }
+
           return {
             result: text,
             usage:
@@ -303,6 +357,21 @@ export function createTaskTool(
               }
             : undefined;
 
+        // Pop parent context and emit debug end
+        if (debugId) {
+          popParent();
+          debugEnd(debugId, "task", {
+            summary: {
+              tokens: {
+                input: result.usage.inputTokens,
+                output: result.usage.outputTokens,
+              },
+              steps: result.steps?.length,
+            },
+            duration_ms: durationMs,
+          });
+        }
+
         return {
           result: result.text,
           usage,
@@ -313,6 +382,12 @@ export function createTaskTool(
       } catch (error) {
         const errorMessage =
           error instanceof Error ? error.message : "Unknown error";
+
+        // Pop parent context and emit debug error
+        if (debugId) {
+          popParent();
+          debugError(debugId, "task", errorMessage);
+        }
 
         return { error: errorMessage };
       }

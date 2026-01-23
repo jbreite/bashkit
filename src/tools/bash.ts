@@ -2,6 +2,12 @@ import { tool, zodSchema } from "ai";
 import { z } from "zod";
 import type { Sandbox } from "../sandbox/interface";
 import type { ToolConfig } from "../types";
+import {
+  debugEnd,
+  debugError,
+  debugStart,
+  isDebugEnabled,
+} from "../utils/debug";
 
 export interface BashOutput {
   stdout: string;
@@ -87,13 +93,22 @@ export function createBashTool(sandbox: Sandbox, config?: ToolConfig) {
       description: _description,
       run_in_background: _run_in_background,
     }: BashInput): Promise<BashOutput | BashError> => {
+      const startTime = performance.now();
+      const debugId = isDebugEnabled()
+        ? debugStart("bash", {
+            command:
+              command.length > 200 ? `${command.slice(0, 200)}...` : command,
+            timeout,
+          })
+        : "";
+
       // Check for blocked commands
       if (config?.blockedCommands) {
         for (const blocked of config.blockedCommands) {
           if (command.includes(blocked)) {
-            return {
-              error: `Command blocked: contains '${blocked}'`,
-            };
+            const error = `Command blocked: contains '${blocked}'`;
+            if (debugId) debugError(debugId, "bash", error);
+            return { error };
           }
         }
       }
@@ -126,6 +141,20 @@ export function createBashTool(sandbox: Sandbox, config?: ToolConfig) {
             } chars omitted]`;
         }
 
+        const durationMs = Math.round(performance.now() - startTime);
+
+        if (debugId) {
+          debugEnd(debugId, "bash", {
+            summary: {
+              exitCode: result.exitCode,
+              stdoutLen: result.stdout.length,
+              stderrLen: result.stderr.length,
+              interrupted: result.interrupted,
+            },
+            duration_ms: durationMs,
+          });
+        }
+
         return {
           stdout,
           stderr,
@@ -134,9 +163,10 @@ export function createBashTool(sandbox: Sandbox, config?: ToolConfig) {
           duration_ms: result.durationMs,
         };
       } catch (error) {
-        return {
-          error: error instanceof Error ? error.message : "Unknown error",
-        };
+        const errorMessage =
+          error instanceof Error ? error.message : "Unknown error";
+        if (debugId) debugError(debugId, "bash", errorMessage);
+        return { error: errorMessage };
       }
     },
   });

@@ -2,6 +2,12 @@ import { tool, zodSchema } from "ai";
 import { z } from "zod";
 import type { Sandbox } from "../sandbox/interface";
 import type { GrepToolConfig } from "../types";
+import {
+  debugEnd,
+  debugError,
+  debugStart,
+  isDebugEnabled,
+} from "../utils/debug";
 
 export interface GrepMatch {
   file: string;
@@ -182,6 +188,18 @@ export function createGrepTool(sandbox: Sandbox, config?: GrepToolConfig) {
       } = input;
 
       const searchPath = path || ".";
+      const startTime = performance.now();
+      const debugId = isDebugEnabled()
+        ? debugStart("grep", {
+            pattern,
+            path: searchPath,
+            output_mode,
+            glob,
+            type,
+            caseInsensitive,
+            multiline,
+          })
+        : "";
 
       // Check allowed paths
       if (config?.allowedPaths) {
@@ -189,17 +207,19 @@ export function createGrepTool(sandbox: Sandbox, config?: GrepToolConfig) {
           searchPath.startsWith(allowed),
         );
         if (!isAllowed) {
-          return { error: `Path not allowed: ${searchPath}` };
+          const error = `Path not allowed: ${searchPath}`;
+          if (debugId) debugError(debugId, "grep", error);
+          return { error };
         }
       }
 
       try {
         // Use sandbox's ripgrep path (set by ensureSandboxTools or default for local)
         if (!sandbox.rgPath) {
-          return {
-            error:
-              "Ripgrep not available. Call ensureSandboxTools(sandbox) before using Grep with remote sandboxes.",
-          };
+          const error =
+            "Ripgrep not available. Call ensureSandboxTools(sandbox) before using Grep with remote sandboxes.";
+          if (debugId) debugError(debugId, "grep", error);
+          return { error };
         }
 
         const cmd = buildRipgrepCommand({
@@ -218,18 +238,50 @@ export function createGrepTool(sandbox: Sandbox, config?: GrepToolConfig) {
 
         const result = await sandbox.exec(cmd, { timeout: config?.timeout });
 
+        const durationMs = Math.round(performance.now() - startTime);
+
         // Parse output based on mode
+        let output: GrepOutput;
         if (output_mode === "files_with_matches") {
-          return parseFilesOutput(result.stdout);
+          output = parseFilesOutput(result.stdout);
+          if (debugId) {
+            debugEnd(debugId, "grep", {
+              summary: {
+                fileCount: (output as GrepFilesOutput).count,
+                exitCode: result.exitCode,
+              },
+              duration_ms: durationMs,
+            });
+          }
         } else if (output_mode === "count") {
-          return parseCountOutput(result.stdout);
+          output = parseCountOutput(result.stdout);
+          if (debugId) {
+            debugEnd(debugId, "grep", {
+              summary: {
+                total: (output as GrepCountOutput).total,
+                exitCode: result.exitCode,
+              },
+              duration_ms: durationMs,
+            });
+          }
         } else {
-          return parseContentOutput(result.stdout, head_limit, offset);
+          output = parseContentOutput(result.stdout, head_limit, offset);
+          if (debugId) {
+            debugEnd(debugId, "grep", {
+              summary: {
+                matchCount: (output as GrepContentOutput).total_matches,
+                exitCode: result.exitCode,
+              },
+              duration_ms: durationMs,
+            });
+          }
         }
+        return output;
       } catch (error) {
-        return {
-          error: error instanceof Error ? error.message : "Unknown error",
-        };
+        const errorMessage =
+          error instanceof Error ? error.message : "Unknown error";
+        if (debugId) debugError(debugId, "grep", errorMessage);
+        return { error: errorMessage };
       }
     },
   });

@@ -17,6 +17,13 @@ export {
   getContextStatus,
 } from "./context-status";
 export {
+  type DebugEvent,
+  clearDebugLogs,
+  getDebugLogs,
+  isDebugEnabled,
+  reinitDebugMode,
+} from "./debug";
+export {
   estimateMessagesTokens,
   estimateMessageTokens,
   estimateTokens,
