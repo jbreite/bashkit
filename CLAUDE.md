@@ -4,7 +4,7 @@
 
 **Tech Stack**: TypeScript • Bun • Vercel AI SDK • Zod
 **Inspired by**: Claude Code tools
-**Version**: 0.3.0
+**Version**: 0.4.0
 
 ---
 
@@ -148,12 +148,42 @@ Zod schemas define and validate all tool inputs:
 ```typescript
 const bashInputSchema = z.object({
   command: z.string(),
-  description: z.string(),
-  restart: z.boolean().optional()
+  description: z.string().nullable(),
+  timeout: z.number().nullable()
 });
 ```
 
-#### 6. Tool Result Caching
+#### 6. Nullable Types for AI Provider Compatibility
+
+All optional tool parameters use `.nullable()` instead of `.optional()` for OpenAI structured outputs compatibility.
+
+**Why `.nullable()` instead of `.optional()`:**
+- OpenAI structured outputs require all properties in the `required` array
+- `.optional()` removes properties from `required` (breaks OpenAI)
+- `.nullable()` keeps properties in `required` but allows `null` values
+- Works with both OpenAI and Anthropic models
+
+**Pattern for handling nullable values:**
+```typescript
+// Zod schema uses .nullable()
+const schema = z.object({
+  timeout: z.number().nullable(),
+  replace_all: z.boolean().nullable(),
+});
+
+// In execute function, use ?? for defaults
+// NOTE: Destructuring defaults (= value) only work with undefined, NOT null
+const { timeout, replace_all: rawReplaceAll } = input;
+const effectiveTimeout = timeout ?? 120000;
+const replaceAll = rawReplaceAll ?? false;
+```
+
+**Type conventions:**
+- Zod schemas: `.nullable()` → produces `T | null`
+- Exported interfaces: `T | null` (e.g., `description: string | null`)
+- Internal functions: `T | null` for parameters that accept nullable values
+
+#### 7. Tool Result Caching
 Optional caching for tool execution results:
 ```typescript
 // Enable with defaults (LRU, 5min TTL)
@@ -841,5 +871,5 @@ const { tools } = createAgentTools(sandbox, {
 
 ---
 
-*Last Updated*: 2026-01-02
+*Last Updated*: 2026-01-22
 *For*: Claude Code and AI coding assistants

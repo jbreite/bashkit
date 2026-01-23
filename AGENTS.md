@@ -98,12 +98,14 @@ This is useful for:
 
 | Tool | Purpose | Key Inputs |
 |------|---------|------------|
-| `Bash` | Execute shell commands | `command`, `timeout?`, `description?` |
-| `Read` | Read files or list directories | `file_path`, `offset?`, `limit?` |
+| `Bash` | Execute shell commands | `command`, `timeout`, `description` |
+| `Read` | Read files or list directories | `file_path`, `offset`, `limit` |
 | `Write` | Create/overwrite files | `file_path`, `content` |
-| `Edit` | Replace strings in files | `file_path`, `old_string`, `new_string`, `replace_all?` |
-| `Glob` | Find files by pattern | `pattern`, `path?` |
-| `Grep` | Search file contents | `pattern`, `path?`, `output_mode?`, `-i?`, `-C?` |
+| `Edit` | Replace strings in files | `file_path`, `old_string`, `new_string`, `replace_all` |
+| `Glob` | Find files by pattern | `pattern`, `path` |
+| `Grep` | Search file contents | `pattern`, `path`, `output_mode`, `-i`, `-C` |
+
+> **Note on nullable types:** Optional parameters use `T | null` (not `T | undefined`) for OpenAI structured outputs compatibility. AI models should send explicit `null` for parameters they don't want to set. This works with both OpenAI and Anthropic models.
 
 ### Optional Tools (via config)
 

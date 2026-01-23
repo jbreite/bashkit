@@ -48,13 +48,13 @@ const taskInputSchema = z.object({
     .describe("The type of specialized agent to use for this task"),
   system_prompt: z
     .string()
-    .optional()
+    .nullable()
     .describe(
       "Optional custom system prompt for this agent. If provided, overrides the default system prompt for the subagent type. Use this to create dynamic, specialized agents on the fly.",
     ),
   tools: z
     .array(z.string())
-    .optional()
+    .nullable()
     .describe(
       "Optional list of tool names this agent can use (e.g., ['Read', 'Grep', 'WebSearch']). If provided, overrides the default tools for the subagent type. Use this to restrict or expand the agent's capabilities.",
     ),

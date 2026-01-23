@@ -230,6 +230,8 @@ export type {
   AskUserError,
   AskUserOutput,
   AskUserResponseHandler,
+  QuestionOption,
+  StructuredQuestion,
 } from "./ask-user";
 export { createAskUserTool } from "./ask-user";
 

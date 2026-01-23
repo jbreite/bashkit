@@ -27,7 +27,7 @@ const globInputSchema = z.object({
     ),
   path: z
     .string()
-    .optional()
+    .nullable()
     .describe("Directory to search in (defaults to working directory)"),
 });
 
@@ -54,7 +54,7 @@ export function createGlobTool(sandbox: Sandbox, config?: ToolConfig) {
       pattern,
       path,
     }: GlobInput): Promise<GlobOutput | GlobError> => {
-      const searchPath = path || ".";
+      const searchPath = path ?? ".";
       const startTime = performance.now();
       const debugId = isDebugEnabled()
         ? debugStart("glob", { pattern, path: searchPath })

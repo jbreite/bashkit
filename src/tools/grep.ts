@@ -48,62 +48,62 @@ const grepInputSchema = z.object({
     .describe("The regular expression pattern to search for in file contents"),
   path: z
     .string()
-    .optional()
+    .nullable()
     .describe("File or directory to search in (defaults to cwd)"),
   glob: z
     .string()
-    .optional()
+    .nullable()
     .describe('Glob pattern to filter files (e.g. "*.js", "*.{ts,tsx}")'),
   type: z
     .string()
-    .optional()
+    .nullable()
     .describe('File type to search (e.g. "js", "py", "rust")'),
   output_mode: z
     .enum(["content", "files_with_matches", "count"])
-    .optional()
+    .nullable()
     .describe(
       'Output mode: "content" shows matching lines, "files_with_matches" shows file paths (default), "count" shows match counts',
     ),
-  "-i": z.boolean().optional().describe("Case insensitive search"),
+  "-i": z.boolean().nullable().describe("Case insensitive search"),
   "-n": z
     .boolean()
-    .optional()
+    .nullable()
     .describe(
       "Show line numbers in output. Requires output_mode: 'content'. Defaults to true.",
     ),
   "-B": z
     .number()
-    .optional()
+    .nullable()
     .describe(
       "Number of lines to show before each match. Requires output_mode: 'content'.",
     ),
   "-A": z
     .number()
-    .optional()
+    .nullable()
     .describe(
       "Number of lines to show after each match. Requires output_mode: 'content'.",
     ),
   "-C": z
     .number()
-    .optional()
+    .nullable()
     .describe(
       "Number of lines to show before and after each match. Requires output_mode: 'content'.",
     ),
   head_limit: z
     .number()
-    .optional()
+    .nullable()
     .describe(
       "Limit output to first N lines/entries. Works across all output modes. Defaults to 0 (unlimited).",
     ),
   offset: z
     .number()
-    .optional()
+    .nullable()
     .describe(
       "Skip first N lines/entries before applying head_limit. Works across all output modes. Defaults to 0.",
     ),
   multiline: z
     .boolean()
-    .optional()
+    .nullable()
     .describe(
       "Enable multiline mode where patterns can span lines. Default: false.",
     ),
@@ -177,15 +177,17 @@ export function createGrepTool(sandbox: Sandbox, config?: GrepToolConfig) {
         path,
         glob,
         type,
-        output_mode = "files_with_matches",
+        output_mode: rawOutputMode,
         "-i": caseInsensitive,
         "-B": beforeContext,
         "-A": afterContext,
         "-C": context,
         head_limit,
-        offset = 0,
+        offset: rawOffset,
         multiline,
       } = input;
+      const output_mode = rawOutputMode ?? "files_with_matches";
+      const offset = rawOffset ?? 0;
 
       const searchPath = path || ".";
       const startTime = performance.now();
@@ -292,13 +294,13 @@ function buildRipgrepCommand(opts: {
   pattern: string;
   searchPath: string;
   output_mode: string;
-  caseInsensitive?: boolean;
-  beforeContext?: number;
-  afterContext?: number;
-  context?: number;
-  glob?: string;
-  type?: string;
-  multiline?: boolean;
+  caseInsensitive: boolean | null;
+  beforeContext: number | null;
+  afterContext: number | null;
+  context: number | null;
+  glob: string | null;
+  type: string | null;
+  multiline: boolean | null;
 }): string {
   const flags: string[] = ["--json"]; // Always use JSON output for reliable parsing
 
@@ -387,8 +389,8 @@ interface ParsedMatch {
 
 function parseContentOutput(
   stdout: string,
-  head_limit?: number,
-  offset: number = 0,
+  head_limit: number | null,
+  offset: number,
 ): GrepContentOutput {
   // Parse all messages, grouped by file, preserving context line numbers
   const fileData: Map<

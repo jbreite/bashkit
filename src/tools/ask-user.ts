@@ -10,15 +10,15 @@ import {
 // Option for structured questions
 export interface QuestionOption {
   label: string;
-  description?: string;
+  description: string | null;
 }
 
 // Structured question with options
 export interface StructuredQuestion {
-  header?: string; // Short label (max 12 chars), displayed as chip/tag
+  header: string | null; // Short label (max 12 chars), displayed as chip/tag
   question: string;
-  options?: QuestionOption[];
-  multiSelect?: boolean;
+  options: QuestionOption[] | null;
+  multiSelect: boolean | null;
 }
 
 // Simple question output (backward compatible)
@@ -54,7 +54,7 @@ const questionOptionSchema = z.object({
     ),
   description: z
     .string()
-    .optional()
+    .nullable()
     .describe("Explanation of what this option means or its implications."),
 });
 
@@ -62,7 +62,7 @@ const questionOptionSchema = z.object({
 const structuredQuestionSchema = z.object({
   header: z
     .string()
-    .optional()
+    .nullable()
     .describe(
       "Very short label displayed as a chip/tag (max 12 chars). Examples: 'Auth method', 'Library', 'Approach'.",
     ),
@@ -75,13 +75,13 @@ const structuredQuestionSchema = z.object({
     .array(questionOptionSchema)
     .min(2)
     .max(4)
-    .optional()
+    .nullable()
     .describe(
       "Available choices for this question. 2-4 options. An 'Other' option is automatically available to users.",
     ),
   multiSelect: z
     .boolean()
-    .optional()
+    .nullable()
     .describe(
       "Set to true to allow the user to select multiple options instead of just one.",
     ),
@@ -91,7 +91,7 @@ const structuredQuestionSchema = z.object({
 const askUserInputSchema = z.object({
   question: z
     .string()
-    .optional()
+    .nullable()
     .describe(
       "Simple question string (for backward compatibility). Use 'questions' for structured multi-choice.",
     ),
@@ -99,7 +99,7 @@ const askUserInputSchema = z.object({
     .array(structuredQuestionSchema)
     .min(1)
     .max(4)
-    .optional()
+    .nullable()
     .describe("Structured questions with options (1-4 questions)."),
 });
 

@@ -41,6 +41,8 @@ export type {
   AskUserError,
   AskUserOutput,
   AskUserResponseHandler,
+  QuestionOption,
+  StructuredQuestion,
   // Sandbox tools
   BashError,
   BashOutput,
