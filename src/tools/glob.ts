@@ -28,6 +28,7 @@ const globInputSchema = z.object({
   path: z
     .string()
     .nullable()
+    .default(null)
     .describe("Directory to search in (defaults to working directory)"),
 });
 

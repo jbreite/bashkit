@@ -55,6 +55,7 @@ const questionOptionSchema = z.object({
   description: z
     .string()
     .nullable()
+    .default(null)
     .describe("Explanation of what this option means or its implications."),
 });
 
@@ -63,6 +64,7 @@ const structuredQuestionSchema = z.object({
   header: z
     .string()
     .nullable()
+    .default(null)
     .describe(
       "Very short label displayed as a chip/tag (max 12 chars). Examples: 'Auth method', 'Library', 'Approach'.",
     ),
@@ -76,12 +78,14 @@ const structuredQuestionSchema = z.object({
     .min(2)
     .max(4)
     .nullable()
+    .default(null)
     .describe(
       "Available choices for this question. 2-4 options. An 'Other' option is automatically available to users.",
     ),
   multiSelect: z
     .boolean()
     .nullable()
+    .default(null)
     .describe(
       "Set to true to allow the user to select multiple options instead of just one.",
     ),
@@ -92,6 +96,7 @@ const askUserInputSchema = z.object({
   question: z
     .string()
     .nullable()
+    .default(null)
     .describe(
       "Simple question string (for backward compatibility). Use 'questions' for structured multi-choice.",
     ),
@@ -100,6 +105,7 @@ const askUserInputSchema = z.object({
     .min(1)
     .max(4)
     .nullable()
+    .default(null)
     .describe("Structured questions with options (1-4 questions)."),
 });
 

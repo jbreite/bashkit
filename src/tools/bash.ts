@@ -26,16 +26,19 @@ const bashInputSchema = z.object({
   timeout: z
     .number()
     .nullable()
+    .default(null)
     .describe("Optional timeout in milliseconds (max 600000)"),
   description: z
     .string()
     .nullable()
+    .default(null)
     .describe(
       "Clear, concise description of what this command does in 5-10 words",
     ),
   run_in_background: z
     .boolean()
     .nullable()
+    .default(null)
     .describe("Set to true to run this command in the background"),
 });
 

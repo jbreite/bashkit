@@ -49,61 +49,76 @@ const grepInputSchema = z.object({
   path: z
     .string()
     .nullable()
+    .default(null)
     .describe("File or directory to search in (defaults to cwd)"),
   glob: z
     .string()
     .nullable()
+    .default(null)
     .describe('Glob pattern to filter files (e.g. "*.js", "*.{ts,tsx}")'),
   type: z
     .string()
     .nullable()
+    .default(null)
     .describe('File type to search (e.g. "js", "py", "rust")'),
   output_mode: z
     .enum(["content", "files_with_matches", "count"])
     .nullable()
+    .default(null)
     .describe(
       'Output mode: "content" shows matching lines, "files_with_matches" shows file paths (default), "count" shows match counts',
     ),
-  "-i": z.boolean().nullable().describe("Case insensitive search"),
+  "-i": z
+    .boolean()
+    .nullable()
+    .default(null)
+    .describe("Case insensitive search"),
   "-n": z
     .boolean()
     .nullable()
+    .default(null)
     .describe(
       "Show line numbers in output. Requires output_mode: 'content'. Defaults to true.",
     ),
   "-B": z
     .number()
     .nullable()
+    .default(null)
     .describe(
       "Number of lines to show before each match. Requires output_mode: 'content'.",
     ),
   "-A": z
     .number()
     .nullable()
+    .default(null)
     .describe(
       "Number of lines to show after each match. Requires output_mode: 'content'.",
     ),
   "-C": z
     .number()
     .nullable()
+    .default(null)
     .describe(
       "Number of lines to show before and after each match. Requires output_mode: 'content'.",
     ),
   head_limit: z
     .number()
     .nullable()
+    .default(null)
     .describe(
       "Limit output to first N lines/entries. Works across all output modes. Defaults to 0 (unlimited).",
     ),
   offset: z
     .number()
     .nullable()
+    .default(null)
     .describe(
       "Skip first N lines/entries before applying head_limit. Works across all output modes. Defaults to 0.",
     ),
   multiline: z
     .boolean()
     .nullable()
+    .default(null)
     .describe(
       "Enable multiline mode where patterns can span lines. Default: false.",
     ),

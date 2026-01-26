@@ -33,8 +33,13 @@ const readInputSchema = z.object({
   offset: z
     .number()
     .nullable()
+    .default(null)
     .describe("Line number to start reading from (1-indexed)"),
-  limit: z.number().nullable().describe("Maximum number of lines to read"),
+  limit: z
+    .number()
+    .nullable()
+    .default(null)
+    .describe("Maximum number of lines to read"),
 });
 
 type ReadInput = z.infer<typeof readInputSchema>;

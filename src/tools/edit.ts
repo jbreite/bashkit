@@ -30,6 +30,7 @@ const editInputSchema = z.object({
   replace_all: z
     .boolean()
     .nullable()
+    .default(null)
     .describe("Replace all occurrences of old_string (default false)"),
 });
 

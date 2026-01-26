@@ -125,10 +125,12 @@ const webSearchInputSchema = z.object({
   allowed_domains: z
     .array(z.string())
     .nullable()
+    .default(null)
     .describe("Only include results from these domains"),
   blocked_domains: z
     .array(z.string())
     .nullable()
+    .default(null)
     .describe("Never include results from these domains"),
 });
 
