@@ -26,6 +26,9 @@
     "build:cli": "bun build src/cli/init.ts --outdir dist/cli --target node --format esm --external @clack/prompts && chmod +x dist/cli/init.js",
     "build:types": "tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest watch",
+    "test:coverage": "vitest run --coverage",
     "format": "biome format --write .",
     "format:check": "biome format .",
     "lint": "biome lint --write .",
@@ -61,9 +64,11 @@
     "@types/bun": "latest",
     "@types/node": "^24.10.0",
     "@vercel/sandbox": "^1.0.4",
+    "@vitest/coverage-v8": "^3.0.0",
     "ai": "^6.0.0",
     "parallel-web": "^0.2.4",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "vitest": "^3.0.0"
   },
   "peerDependencies": {
     "ai": ">=5.0.0",
