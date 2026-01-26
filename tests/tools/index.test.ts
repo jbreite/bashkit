@@ -1,9 +1,6 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import {
-  createAgentTools,
-  type AgentToolsResult,
-  type WebFetchConfig,
-} from "@/tools/index";
+import { createAgentTools, type AgentToolsResult } from "@/tools/index";
+import type { WebFetchConfig } from "@/types";
 import type { CachedTool } from "@/cache/cached";
 import {
   createMockSandbox,
