@@ -29,7 +29,8 @@ const editInputSchema = z.object({
     ),
   replace_all: z
     .boolean()
-    .optional()
+    .nullable()
+    .default(null)
     .describe("Replace all occurrences of old_string (default false)"),
 });
 
@@ -65,8 +66,9 @@ export function createEditTool(sandbox: Sandbox, config?: ToolConfig) {
       file_path,
       old_string,
       new_string,
-      replace_all = false,
+      replace_all: rawReplaceAll,
     }: EditInput): Promise<EditOutput | EditError> => {
+      const replace_all = rawReplaceAll ?? false;
       const startTime = performance.now();
       const debugId = isDebugEnabled()
         ? debugStart("edit", {

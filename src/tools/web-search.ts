@@ -33,8 +33,8 @@ export interface WebSearchError {
  */
 interface SearchOptions {
   query: string;
-  allowedDomains?: string[];
-  blockedDomains?: string[];
+  allowedDomains: string[] | null;
+  blockedDomains: string[] | null;
 }
 
 // Module cache for parallel-web to avoid repeated dynamic imports
@@ -124,11 +124,13 @@ const webSearchInputSchema = z.object({
   query: z.string().describe("The search query to use"),
   allowed_domains: z
     .array(z.string())
-    .optional()
+    .nullable()
+    .default(null)
     .describe("Only include results from these domains"),
   blocked_domains: z
     .array(z.string())
-    .optional()
+    .nullable()
+    .default(null)
     .describe("Never include results from these domains"),
 });
 

@@ -19,6 +19,32 @@ Agentic coding tools for Vercel AI SDK. Give AI agents the ability to execute co
 - Search the web and fetch URLs
 - Load skills on-demand via the [Agent Skills](https://agentskills.io) standard
 
+## Breaking Changes in v0.4.0
+
+### Nullable Types for OpenAI Compatibility
+
+All optional tool parameters now use `.nullable()` instead of `.optional()` in Zod schemas. This change enables compatibility with OpenAI's structured outputs, which require all properties to be in the `required` array.
+
+**What changed:**
+- Tool input types changed from `T | undefined` to `T | null`
+- Exported interfaces (`QuestionOption`, `StructuredQuestion`) use `T | null`
+- AI models will send explicit `null` values instead of omitting properties
+
+**Migration:**
+```typescript
+// Before v0.4.0
+const option: QuestionOption = { label: "test", description: undefined };
+
+// v0.4.0+
+const option: QuestionOption = { label: "test", description: null };
+```
+
+**Why this matters:**
+- Works with both OpenAI and Anthropic models
+- OpenAI structured outputs require nullable (not optional) fields
+- Anthropic/Claude handles nullable fields correctly
+- The `??` operator handles both `null` and `undefined`, so runtime behavior is unchanged
+
 ## Installation
 
 ```bash

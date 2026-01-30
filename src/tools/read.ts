@@ -32,9 +32,14 @@ const readInputSchema = z.object({
   file_path: z.string().describe("Absolute path to file or directory"),
   offset: z
     .number()
-    .optional()
+    .nullable()
+    .default(null)
     .describe("Line number to start reading from (1-indexed)"),
-  limit: z.number().optional().describe("Maximum number of lines to read"),
+  limit: z
+    .number()
+    .nullable()
+    .default(null)
+    .describe("Maximum number of lines to read"),
 });
 
 type ReadInput = z.infer<typeof readInputSchema>;
