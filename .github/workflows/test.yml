@@ -56,6 +56,17 @@ jobs:
       - name: Lint
         run: bun run lint
 
+  check-agents-md:
+    name: Check AGENTS.md Symlinks
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check CLAUDE.md symlinks exist
+        run: bash scripts/check-agents-md.sh
+
   typecheck:
     name: Type Check
     runs-on: ubuntu-latest
