@@ -35,6 +35,8 @@
     "lint:check": "biome lint .",
     "check": "biome check --write .",
     "check:ci": "biome check .",
+    "link-agents": "bash scripts/link-agents-md.sh",
+    "check:agents": "bash scripts/check-agents-md.sh",
     "prepublishOnly": "bun run build"
   },
   "keywords": [
