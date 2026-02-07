@@ -59,39 +59,19 @@ BashKit provides a comprehensive toolkit for building AI coding agents using the
 
 ```
 src/
-├── sandbox/         # Execution environment abstractions
-│   ├── interface.ts # Core Sandbox interface
-│   ├── local.ts     # Bun-based local development sandbox
-│   ├── vercel.ts    # Vercel Firecracker VM sandbox (async)
-│   ├── e2b.ts       # E2B code interpreter sandbox (async)
-│   ├── ensure-tools.ts  # Auto-setup ripgrep for remote sandboxes
-│   └── lazy-singleton.ts # Prevents race conditions in parallel init
-├── tools/           # Tool implementations (10 tools)
-│   ├── bash.ts      # Shell command execution
-│   ├── read.ts      # File/directory reading
-│   ├── write.ts     # File creation
-│   ├── edit.ts      # String replacement editing
-│   ├── glob.ts      # Pattern-based file finding
-│   ├── grep.ts      # Regex content search
-│   ├── web-search.ts    # Web search via parallel-web
-│   ├── web-fetch.ts     # URL content fetching
-│   ├── task.ts          # Sub-agent spawning
-│   ├── todo-write.ts    # Task list management
-│   └── index.ts         # Tool factory orchestration
-├── cache/           # Tool result caching
-│   ├── types.ts     # CacheStore interface & types
-│   ├── lru.ts       # LRU cache implementation
-│   ├── cached.ts    # cached() tool wrapper function
-│   └── index.ts     # Barrel exports
-├── middleware/      # Vercel AI SDK middleware
-│   └── anthropic-cache.ts  # Prompt caching for Claude
-├── utils/           # Utility functions
-│   └── prune-messages.ts   # Token estimation and pruning
+├── sandbox/         # Execution environment abstractions (see src/sandbox/AGENTS.md)
+├── tools/           # Tool implementations (see src/tools/AGENTS.md)
+├── cache/           # Tool result caching (see src/cache/AGENTS.md)
+├── middleware/      # Vercel AI SDK middleware (see src/middleware/AGENTS.md)
+├── utils/           # Utility functions (see src/utils/AGENTS.md)
+├── skills/          # Agent Skills standard (see src/skills/AGENTS.md)
+├── setup/           # Agent environment setup (see src/setup/AGENTS.md)
+├── cli/             # CLI initialization (see src/cli/AGENTS.md)
 ├── types.ts         # Configuration types
 └── index.ts         # Main exports (barrel file)
 ```
 
-**Total**: 29 TypeScript files
+Each folder has its own `AGENTS.md` with detailed file descriptions, key exports, architecture, and modification guides.
 
 ### Key Design Patterns
 
@@ -220,45 +200,12 @@ User → Vercel AI SDK → Tool (Bash/Read/Write/etc.)
 
 ## File Map (Quick Reference)
 
-### By Task
+Each `src/` subfolder has an `AGENTS.md` with detailed file listings and guides. Key entry points:
 
-**Adding/Modifying Tools**
-- Tool implementations: `/src/tools/*.ts`
-- Tool factory: `/src/tools/index.ts`
-- Reference implementation: `/src/tools/bash.ts`
-
-**Sandbox Work**
-- Interface definition: `/src/sandbox/interface.ts`
-- Local dev: `/src/sandbox/local.ts`
-- Production: `/src/sandbox/vercel.ts` or `/src/sandbox/e2b.ts`
-- Tool setup (ripgrep): `/src/sandbox/ensure-tools.ts`
-- Race condition prevention: `/src/sandbox/lazy-singleton.ts`
-
-**Configuration**
-- Type definitions: `/src/types.ts`
-- Default config: `/src/types.ts` (DEFAULT_CONFIG)
-
-**Middleware**
-- Implementations: `/src/middleware/*.ts`
-- Prompt caching: `/src/middleware/anthropic-cache.ts`
-
-**Caching**
-- Cache types: `/src/cache/types.ts`
-- LRU implementation: `/src/cache/lru.ts`
-- Tool wrapper: `/src/cache/cached.ts`
-- Barrel exports: `/src/cache/index.ts`
-
-**Utilities**
-- Message handling: `/src/utils/prune-messages.ts`
-
-**Entry Points**
-- Main exports: `/src/index.ts`
-- Package config: `/package.json`
-
-**Examples & Testing**
-- Full agent example: `/examples/basic.ts`
-- Direct tool testing: `/examples/test-tools.ts`
-- Web tools demo: `/examples/test-web-tools.ts`
+- **Configuration**: `/src/types.ts` (ToolConfig, AgentConfig, DEFAULT_CONFIG)
+- **Main exports**: `/src/index.ts` (barrel file)
+- **Package config**: `/package.json`
+- **Examples**: `/examples/basic.ts`, `/examples/test-tools.ts`, `/examples/test-web-tools.ts`
 
 ---
 
@@ -324,280 +271,17 @@ await tools.Bash.execute({
 
 ## Common Implementation Tasks
 
-### Task 1: Adding a New Tool
-
-**Step-by-step**:
-
-1. **Create tool file**: `/src/tools/your-tool.ts`
-
-```typescript
-import { tool } from 'ai';
-import { z } from 'zod';
-import { zodSchema } from 'ai';
-import type { Sandbox } from '../sandbox/interface';
-import type { ToolConfig } from '../types';
-
-// 1. Define input schema
-const yourToolInputSchema = z.object({
-  requiredParam: z.string(),
-  optionalParam: z.string().optional()
-});
-
-// 2. Define output types
-export interface YourToolOutput {
-  result: string;
-  metadata?: Record<string, unknown>;
-}
-
-export interface YourToolError {
-  error: string;
-}
-
-// 3. Create factory function
-export function createYourTool(sandbox: Sandbox, config?: ToolConfig) {
-  return tool({
-    description: 'Clear, concise description for the AI model',
-    inputSchema: zodSchema(yourToolInputSchema),
-    execute: async (input): Promise<YourToolOutput | YourToolError> => {
-      try {
-        // Use sandbox methods: exec, readFile, writeFile, etc.
-        const result = await sandbox.exec(input.requiredParam);
-        return { result: result.stdout };
-      } catch (err) {
-        return { error: String(err) };
-      }
-    }
-  });
-}
-```
-
-2. **Export from tools index**: `/src/tools/index.ts`
-
-```typescript
-export { createYourTool } from './your-tool';
-export type { YourToolOutput, YourToolError } from './your-tool';
-```
-
-3. **Add to tool factory**: `/src/tools/index.ts` in `createAgentTools()`
-
-```typescript
-export function createAgentTools(sandbox: Sandbox, config?: AgentConfig) {
-  const tools = {
-    Bash: createBashTool(sandbox, config?.tools?.Bash),
-    // ... other tools
-    YourTool: createYourTool(sandbox, config?.tools?.YourTool)
-  };
-  return tools;
-}
-```
-
-4. **Update types if needed**: Add config types to `/src/types.ts`
-
-**Reference**: See `/src/tools/bash.ts` for complete example
-
----
-
-### Task 2: Implementing a New Sandbox
-
-**Step-by-step**:
-
-1. **Create sandbox file**: `/src/sandbox/your-sandbox.ts`
-
-```typescript
-import type { Sandbox, ExecOptions, ExecResult } from './interface';
-
-export function createYourSandbox(options?: { workingDirectory?: string }): Sandbox {
-  const workingDir = options?.workingDirectory ?? '/tmp';
-
-  return {
-    async exec(command: string, options?: ExecOptions): Promise<ExecResult> {
-      const startTime = Date.now();
-      const controller = new AbortController();
-
-      // Handle timeout
-      const timeoutId = options?.timeout
-        ? setTimeout(() => controller.abort(), options.timeout)
-        : undefined;
-
-      try {
-        // Your execution logic here
-        // Example: spawn process, capture output, etc.
-
-        return {
-          stdout: '...',
-          stderr: '...',
-          exit_code: 0,
-          interrupted: false,
-          duration_ms: Date.now() - startTime
-        };
-      } catch (error) {
-        throw new Error(`Execution failed: ${error}`);
-      } finally {
-        if (timeoutId) clearTimeout(timeoutId);
-      }
-    },
-
-    async readFile(path: string): Promise<string> {
-      // Implementation
-    },
-
-    async writeFile(path: string, content: string): Promise<void> {
-      // Implementation
-    },
-
-    async readDir(path: string): Promise<string[]> {
-      // Implementation
-    },
-
-    async fileExists(path: string): Promise<boolean> {
-      // Implementation
-    },
-
-    async isDirectory(path: string): Promise<boolean> {
-      // Implementation
-    },
-
-    async destroy(): Promise<void> {
-      // Cleanup resources
-    },
-
-    // For Grep tool support - set by ensureSandboxTools()
-    rgPath: undefined,
-  };
-}
-```
-
-For remote sandboxes, make the factory async and call `ensureSandboxTools`:
-```typescript
-import { ensureSandboxTools } from './ensure-tools';
-
-export async function createYourSandbox(options?): Promise<Sandbox> {
-  let rgPath: string | undefined;
-
-  const sandbox: Sandbox = {
-    // ... methods ...
-    get rgPath() { return rgPath; },
-    set rgPath(p) { rgPath = p; },
-  };
-
-  // Auto-setup ripgrep (supports x86_64 and ARM64)
-  await ensureSandboxTools(sandbox);
-  return sandbox;
-}
-```
-
-2. **Export from sandbox index**: `/src/sandbox/index.ts`
-
-```typescript
-export { createYourSandbox } from './your-sandbox';
-```
-
-3. **Export from main index**: `/src/index.ts`
-
-```typescript
-export { createYourSandbox } from './sandbox';
-```
-
-**Reference**:
-- Simple: `/src/sandbox/local.ts`
-- Complex: `/src/sandbox/vercel.ts`
-
----
-
-### Task 3: Adding Configuration Options
-
-**Step-by-step**:
-
-1. **Add types**: `/src/types.ts`
-
-```typescript
-// Per-tool config
-export type ToolConfig = {
-  timeout?: number;
-  maxFileSize?: number;
-  // Add your new option
-  yourNewOption?: string;
-};
-
-// Or for global config
-export type AgentConfig = {
-  tools?: Record<string, ToolConfig>;
-  // Add your new option
-  yourGlobalOption?: boolean;
-};
-```
-
-2. **Update defaults** (if needed): `/src/types.ts`
-
-```typescript
-export const DEFAULT_CONFIG: AgentConfig = {
-  defaultTimeout: 120000,
-  workingDirectory: '/tmp',
-  yourGlobalOption: false  // Add default
-};
-```
-
-3. **Use in tool**: Pass config through factory and apply in execute
-
-```typescript
-export function createYourTool(sandbox: Sandbox, config?: ToolConfig) {
-  const yourOption = config?.yourNewOption ?? 'default';
-
-  return tool({
-    // ...
-    execute: async (input) => {
-      // Use yourOption here
-    }
-  });
-}
-```
-
-4. **Document**: Update README.md configuration section
-
----
-
-### Task 4: Adding Middleware
-
-**Step-by-step**:
-
-1. **Create middleware file**: `/src/middleware/your-middleware.ts`
-
-```typescript
-import type { LanguageModelV2Middleware } from 'ai';
-
-export const yourMiddleware: LanguageModelV2Middleware = {
-  transformParams: async ({ params }) => {
-    // Modify params before model invocation
-    return {
-      ...params,
-      // Your modifications
-    };
-  },
-
-  // Or use wrapGenerate for post-processing
-  wrapGenerate: async ({ doGenerate, params }) => {
-    const result = await doGenerate();
-    // Post-process result
-    return result;
-  }
-};
-```
-
-2. **Export from middleware index**: `/src/middleware/index.ts`
-
-```typescript
-export { yourMiddleware } from './your-middleware';
-```
-
-3. **Export from main index**: `/src/index.ts`
-
-```typescript
-export { yourMiddleware } from './middleware';
-```
-
-4. **Document usage**: Update README.md
-
-**Reference**: `/src/middleware/anthropic-cache.ts` for prompt caching example
+Each task has a detailed step-by-step guide in the relevant folder's `AGENTS.md`:
+
+| Task | Guide Location |
+|------|---------------|
+| Adding a new tool | `src/tools/AGENTS.md` → "Common Modifications" |
+| Implementing a new sandbox | `src/sandbox/AGENTS.md` → "Common Modifications" |
+| Adding middleware | `src/middleware/AGENTS.md` → "Common Modifications" |
+| Adding a cache backend | `src/cache/AGENTS.md` → "Common Modifications" |
+| Adding configuration options | Add types to `/src/types.ts`, use in tool factory via `config?.yourOption ?? default` |
+| Adding a skill source | `src/skills/AGENTS.md` → "Common Modifications" |
+| Setting up agent environments | `src/setup/AGENTS.md` → "Common Modifications" |
 
 ---
 

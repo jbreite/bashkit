@@ -92,6 +92,21 @@ This is useful for:
 - Persisting sandbox state between server restarts
 - Reducing sandbox creation overhead
 
+## Internal Architecture
+
+For developers working on bashkit internals, each source folder has its own `AGENTS.md`:
+
+- `src/sandbox/AGENTS.md` -- Execution environment abstractions
+- `src/tools/AGENTS.md` -- Tool implementations
+- `src/cache/AGENTS.md` -- Tool result caching
+- `src/middleware/AGENTS.md` -- AI SDK middleware
+- `src/utils/AGENTS.md` -- Utility functions
+- `src/skills/AGENTS.md` -- Agent Skills support
+- `src/setup/AGENTS.md` -- Environment setup
+- `src/cli/AGENTS.md` -- CLI initialization
+
+See also `CLAUDE.md` for development workflow and conventions.
+
 ## Available Tools
 
 ### Default Tools (always included)
