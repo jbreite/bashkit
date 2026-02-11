@@ -92,7 +92,7 @@ async function main() {
   console.log(`   ✓ Copied PDF to input/${pdfFilename}`);
 
   // 5. Create tools
-  const { tools } = createAgentTools(sandbox);
+  const { tools } = await createAgentTools(sandbox);
 
   // 6. Build system prompt with skills
   const systemPrompt = `You are a PDF processing assistant with access to powerful PDF manipulation tools.

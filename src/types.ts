@@ -1,6 +1,7 @@
 import type { LanguageModel, Tool } from "ai";
 import type { CacheStore } from "./cache/types";
 import type { SkillMetadata } from "./skills/types";
+import type { ModelPricing } from "./utils/budget-tracking";
 
 /**
  * SDK tool options picked from the Tool type.
@@ -115,6 +116,26 @@ export type CacheConfig =
         | undefined;
     };
 
+/**
+ * Supported pricing providers for automatic model cost lookup.
+ */
+export type PricingProvider = "openRouter";
+
+/**
+ * Budget tracking configuration.
+ * At least one of `pricingProvider` or `modelPricing` must be provided.
+ */
+export type BudgetConfig = {
+  /** Maximum budget in USD (must be positive) */
+  maxUsd: number;
+  /** Pricing provider for automatic model cost lookup. Omit to skip fetching. */
+  pricingProvider?: PricingProvider;
+  /** API key for the pricing provider. Passed as bearer token. */
+  apiKey?: string;
+  /** Per-model pricing overrides (always highest priority over provider data) */
+  modelPricing?: Record<string, ModelPricing>;
+};
+
 export type AgentConfig = {
   tools?: {
     Bash?: ToolConfig;
@@ -136,6 +157,8 @@ export type AgentConfig = {
   webFetch?: WebFetchConfig;
   /** Enable tool result caching */
   cache?: CacheConfig;
+  /** Budget tracking configuration */
+  budget?: BudgetConfig;
   defaultTimeout?: number;
   workingDirectory?: string;
 };

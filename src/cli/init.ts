@@ -64,7 +64,7 @@ export const config: AgentConfig = {${
   }};
 
 // Create tools
-export const { tools } = createAgentTools(sandbox${webTools ? ", config" : ""});
+export const { tools } = await createAgentTools(sandbox${webTools ? ", config" : ""});
 `;
 
   const configPath = join(process.cwd(), "bashkit.config.ts");

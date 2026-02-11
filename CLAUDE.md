@@ -79,7 +79,7 @@ Each folder has its own `AGENTS.md` with detailed file descriptions, key exports
 All tools and sandboxes created via factory functions:
 ```typescript
 const sandbox = createLocalSandbox({ workingDirectory: '/tmp' });
-const { tools } = createAgentTools(sandbox, config);
+const { tools } = await createAgentTools(sandbox, config);
 ```
 
 #### 2. Sandbox Abstraction
@@ -107,7 +107,7 @@ const sandbox = await createE2BSandbox({ apiKey: '...' });
 #### 3. Tool Composition
 Tools assembled into a ToolSet for Vercel AI SDK:
 ```typescript
-const { tools } = createAgentTools(sandbox, {
+const { tools } = await createAgentTools(sandbox, {
   tools: { Bash: { timeout: 30000 } },
   webSearch: { apiKey: process.env.PARALLEL_API_KEY }
 });
@@ -167,10 +167,10 @@ const replaceAll = rawReplaceAll ?? false;
 Optional caching for tool execution results:
 ```typescript
 // Enable with defaults (LRU, 5min TTL)
-const { tools } = createAgentTools(sandbox, { cache: true });
+const { tools } = await createAgentTools(sandbox, { cache: true });
 
 // Per-tool control
-const { tools } = createAgentTools(sandbox, {
+const { tools } = await createAgentTools(sandbox, {
   cache: { Read: true, Glob: true, Grep: false }
 });
 
@@ -181,6 +181,30 @@ const cachedTool = cached(myTool, 'MyTool', { ttl: 60000 });
 
 **Default cached tools**: Read, Glob, Grep, WebFetch, WebSearch
 **Not cached by default**: Bash, Write, Edit (side effects)
+
+#### 8. Budget Tracking
+Cumulative cost tracking across agentic loop steps:
+```typescript
+// Via createAgentTools (recommended)
+const { tools, budget } = await createAgentTools(sandbox, {
+  budget: { maxUsd: 5.00, pricingProvider: "openRouter" },
+});
+
+// Standalone usage
+const pricing = await fetchOpenRouterPricing();
+const budget = createBudgetTracker(5.00, { openRouterPricing: pricing });
+```
+
+**Pricing sources** (checked in order):
+1. User-provided `modelPricing` overrides (highest priority)
+2. OpenRouter's free public API (auto-fetched, cached 24h)
+
+**Model ID matching** (PostHog's 3-tier strategy):
+1. Exact match (case-insensitive)
+2. Longest contained match (model variant contains cost variant)
+3. Reverse containment (cost variant contains model variant)
+
+**Task tool integration**: When `budget` is set in `AgentConfig`, the budget tracker auto-wires into all Task tool sub-agents via `stopWhen` and `onStepFinish`.
 
 ### Component Interactions
 
@@ -202,7 +226,7 @@ User → Vercel AI SDK → Tool (Bash/Read/Write/etc.)
 
 Each `src/` subfolder has an `AGENTS.md` with detailed file listings and guides. Key entry points:
 
-- **Configuration**: `/src/types.ts` (ToolConfig, AgentConfig, DEFAULT_CONFIG)
+- **Configuration**: `/src/types.ts` (ToolConfig, AgentConfig, BudgetConfig, DEFAULT_CONFIG)
 - **Main exports**: `/src/index.ts` (barrel file)
 - **Package config**: `/package.json`
 - **Examples**: `/examples/basic.ts`, `/examples/test-tools.ts`, `/examples/test-web-tools.ts`
@@ -233,7 +257,20 @@ bun install
 
 ### Testing Changes
 
-**No formal test suite** - use examples as integration tests:
+**Unit tests** use Vitest (run via `bun run test`, NOT `bun test`):
+
+```bash
+# Run all tests
+bun run test
+
+# Run specific test file(s)
+bun run test tests/utils/budget-tracking.test.ts
+
+# Watch mode
+bun run test:watch
+```
+
+**Examples** serve as integration tests:
 
 ```bash
 # Test tools directly (no AI, no API key needed)
@@ -253,7 +290,7 @@ ANTHROPIC_API_KEY=xxx bun examples/basic.ts
 import { createLocalSandbox, createAgentTools } from './src';
 
 const sandbox = createLocalSandbox({ workingDirectory: '/tmp' });
-const { tools } = createAgentTools(sandbox);
+const { tools } = await createAgentTools(sandbox);
 
 // Test your changes...
 await tools.Bash.execute({
@@ -409,16 +446,20 @@ if (config?.webSearch) {
 
 ### Testing Strategy
 
-**No formal test suite** - intentional design choice:
-- Examples serve as integration tests
+**Unit tests** via Vitest (`bun run test`):
+- `/tests/tools/` - Tool unit and integration tests
+- `/tests/utils/` - Utility function tests
+
+**Examples** as integration tests:
 - `/examples/test-tools.ts` - Direct tool API testing (no AI model needed)
 - `/examples/basic.ts` - Full agentic loop with Claude
 - `/examples/test-web-tools.ts` - Web tools demonstration
 
 **Before releases**:
-1. Run all examples to verify functionality
-2. Test each sandbox implementation
-3. Verify type generation (`bun run build`)
+1. Run `bun run test` to verify all unit tests pass
+2. Run all examples to verify functionality
+3. Test each sandbox implementation
+4. Verify type generation (`bun run build`)
 
 ### Breaking Changes to Avoid
 
@@ -452,10 +493,10 @@ if (config?.webSearch) {
 **Tool Result Caching**:
 ```typescript
 // Enable caching for read-only tools
-const { tools } = createAgentTools(sandbox, { cache: true });
+const { tools } = await createAgentTools(sandbox, { cache: true });
 
 // Custom TTL and per-tool control
-const { tools } = createAgentTools(sandbox, {
+const { tools } = await createAgentTools(sandbox, {
   cache: {
     ttl: 10 * 60 * 1000,  // 10 minutes
     debug: true,          // Log cache hits/misses
@@ -471,6 +512,26 @@ console.log(readTool.getStats());
 // { hits: 5, misses: 2, hitRate: 0.71, size: 2 }
 ```
 Returns cached results for identical tool calls. Default TTL: 5 minutes.
+
+**Budget Tracking**:
+```typescript
+// Track cumulative cost and stop when budget exceeded
+const { tools, budget } = await createAgentTools(sandbox, {
+  budget: { maxUsd: 5.00, pricingProvider: "openRouter" },
+});
+
+const result = await generateText({
+  model,
+  tools,
+  stopWhen: [stepCountIs(50), budget.stopWhen],
+  onStepFinish: (step) => {
+    budget.onStepFinish(step);
+    console.log(budget.getStatus());
+    // { totalCostUsd: 0.12, maxUsd: 5, remainingUsd: 4.88, ... }
+  },
+});
+```
+Pricing auto-fetched from OpenRouter (free API, cached 24h). Supports manual `modelPricing` overrides. Budget auto-wires into Task tool sub-agents.
 
 **Prompt Caching**:
 ```typescript
@@ -501,7 +562,7 @@ Keeps conversations within token limits.
 
 **Timeout Configuration**:
 ```typescript
-const { tools } = createAgentTools(sandbox, {
+const { tools } = await createAgentTools(sandbox, {
   defaultTimeout: 30000, // 30 seconds instead of 120s
   tools: {
     Bash: { timeout: 10000 } // Override per-tool
@@ -519,7 +580,7 @@ const { tools } = createAgentTools(sandbox, {
 **Configuration-Based Security**:
 
 ```typescript
-const { tools } = createAgentTools(sandbox, {
+const { tools } = await createAgentTools(sandbox, {
   tools: {
     Bash: {
       blockedCommands: ['rm -rf', 'dd if=', 'curl'],
