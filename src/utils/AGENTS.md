@@ -1,6 +1,6 @@
 # Utils Module
 
-Utilities for token estimation, conversation management, and tool execution tracing. This module provides the infrastructure for managing long-running agent conversations, staying within context limits, and debugging tool execution patterns.
+Utilities for token estimation, conversation management, budget tracking, and tool execution tracing. This module provides the infrastructure for managing long-running agent conversations, staying within context limits, tracking cumulative costs, and debugging tool execution patterns.
 
 ## Files
 
@@ -9,6 +9,7 @@ Utilities for token estimation, conversation management, and tool execution trac
 | `prune-messages.ts` | Token estimation and message pruning to reduce context usage |
 | `compact-conversation.ts` | AI-powered conversation summarization for context management |
 | `context-status.ts` | Context window monitoring with usage thresholds and guidance |
+| `budget-tracking.ts` | Cumulative cost tracking with OpenRouter pricing and budget enforcement |
 | `debug.ts` | Tool execution tracing and debug event logging |
 | `http-constants.ts` | Shared HTTP status codes for web tools |
 | `index.ts` | Barrel exports for public API |
@@ -50,6 +51,18 @@ Utilities for token estimation, conversation management, and tool execution trac
 - `reinitDebugMode(): void` -- Re-initialize from environment
 - `DebugEvent` -- Debug event structure with id, timestamp, tool, event type, input/output, duration, parent
 
+**Budget Tracking** (`budget-tracking.ts`):
+- `createBudgetTracker(maxUsd: number, options?): BudgetTracker` -- Create a budget tracker for cumulative cost monitoring
+- `fetchOpenRouterPricing(apiKey?): Promise<Map<string, ModelPricing>>` -- Fetch model pricing from OpenRouter's public API (cached 24h, concurrent-safe)
+- `calculateStepCost(usage: LanguageModelUsage, pricing: ModelPricing): number` -- Calculate cost for a single step from token usage
+- `searchModelInCosts(model: string, costsMap: Map<string, ModelPricing>): ModelPricing | undefined` -- 3-tier model ID matching (exact, contained, reverse)
+- `getModelMatchVariants(model: string): string[]` -- Generate match variants for fuzzy model ID lookup
+- `findPricingForModel(model: string, options?): ModelPricing | undefined` -- Find pricing checking overrides then OpenRouter cache
+- `resetOpenRouterCache(): void` -- Reset module-level OpenRouter cache (for testing)
+- `BudgetTracker` -- Interface with `onStepFinish`, `stopWhen`, and `getStatus` methods
+- `BudgetStatus` -- Status object with totalCostUsd, remainingUsd, usagePercent, exceeded, unpricedSteps
+- `ModelPricing` -- Per-token pricing (inputPerToken, outputPerToken, cacheReadPerToken?, cacheWritePerToken?)
+
 **Constants** (`http-constants.ts`):
 - `RETRYABLE_STATUS_CODES: number[]` -- HTTP status codes indicating retryable errors [408, 429, 500, 502, 503]
 
@@ -66,6 +79,8 @@ prune-messages.ts (standalone)
 compact-conversation.ts (depends on prune-messages for token estimation)
        ↓
 context-status.ts (depends on prune-messages for token estimation)
+
+budget-tracking.ts (standalone, depends on "ai" types only)
 ```
 
 ### Token Estimation Flow
@@ -144,13 +159,23 @@ Simple heuristic (4 chars per token) provides fast, consistent estimates across 
 
 Custom guidance functions can access metrics for dynamic messages.
 
+### Budget Tracking Pattern
+`createBudgetTracker` returns a `BudgetTracker` with three methods designed for the Vercel AI SDK agentic loop:
+- `onStepFinish(step)` -- Call from `onStepFinish` callback to accumulate cost
+- `stopWhen` -- Compose with other `StopCondition`s in `stopWhen` array
+- `getStatus()` -- Query current cost, remaining budget, and exceeded flag
+
+Pricing is resolved synchronously from a pre-fetched map. OpenRouter pricing is fetched once (with 24h cache and concurrent deduplication) before creating the tracker. Model ID matching uses PostHog's 3-tier strategy: exact match, longest contained match, reverse containment. Per-model pricing lookups are cached within the tracker instance.
+
+Steps with unknown models are tracked as `unpricedSteps` (cost $0). An optional `onUnpricedModel` callback fires once per unknown model.
+
 ### Environment-Driven Debug Pattern
 Debug mode initialized once from `process.env.BASHKIT_DEBUG` on module load. Uses lazy singleton pattern to avoid race conditions. Tools call debug functions unconditionally; functions check mode internally.
 
 ## Integration Points
 
 ### Depends on
-- `ai` -- `ModelMessage`, `LanguageModel`, `generateText` (for compact-conversation)
+- `ai` -- `ModelMessage`, `LanguageModel`, `generateText` (for compact-conversation), `LanguageModelUsage`, `StepResult`, `StopCondition`, `ToolSet` (for budget-tracking)
 - Node.js `fs` -- `appendFileSync` (for debug file mode)
 
 ### Used by
@@ -167,8 +192,9 @@ All utilities exported from `src/index.ts`:
 - Token functions: `estimateTokens`, `estimateMessageTokens`, `estimateMessagesTokens`, `pruneMessagesByTokens`
 - Compaction: `compactConversation`, `createCompactConfig`, `MODEL_CONTEXT_LIMITS`
 - Context: `getContextStatus`, `contextNeedsAttention`, `contextNeedsCompaction`
+- Budget: `createBudgetTracker`
 - Debug: `clearDebugLogs`, `getDebugLogs`, `isDebugEnabled`, `reinitDebugMode`
-- Types: `PruneMessagesConfig`, `CompactConversationConfig`, `CompactConversationState`, `CompactConversationResult`, `ContextStatus`, `ContextStatusConfig`, `ContextStatusLevel`, `ContextMetrics`, `DebugEvent`, `ModelContextLimit`
+- Types: `PruneMessagesConfig`, `CompactConversationConfig`, `CompactConversationState`, `CompactConversationResult`, `ContextStatus`, `ContextStatusConfig`, `ContextStatusLevel`, `ContextMetrics`, `DebugEvent`, `ModelContextLimit`, `BudgetTracker`, `BudgetStatus`, `ModelPricing`
 
 ## Common Modifications
 
@@ -259,14 +285,16 @@ compactConversation(messages, {
 
 ### Test Files
 - `/tests/utils/prune-messages.test.ts` -- Comprehensive unit tests for token estimation and pruning
+- `/tests/utils/budget-tracking.test.ts` -- Comprehensive unit tests for budget tracking (cost calculation, model matching, OpenRouter fetch, tracker lifecycle)
 
 ### Coverage
-- **Tested**: `prune-messages.ts` (estimateTokens, estimateMessageTokens, estimateMessagesTokens, pruneMessagesByTokens)
+- **Tested**: `prune-messages.ts` (estimateTokens, estimateMessageTokens, estimateMessagesTokens, pruneMessagesByTokens), `budget-tracking.ts` (calculateStepCost, searchModelInCosts, getModelMatchVariants, findPricingForModel, createBudgetTracker, fetchOpenRouterPricing)
 - **Not tested**: `compact-conversation.ts`, `context-status.ts`, `debug.ts`, `http-constants.ts`
 
 ### Running Tests
 ```bash
-bun test tests/utils/prune-messages.test.ts
+bun run test tests/utils/prune-messages.test.ts
+bun run test tests/utils/budget-tracking.test.ts
 ```
 
 ### Testing Debug Mode
