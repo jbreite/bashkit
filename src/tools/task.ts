@@ -37,6 +37,9 @@ export interface TaskOutput {
 
 export interface TaskError {
   error: string;
+  subagent?: string;
+  description?: string;
+  duration_ms?: number;
 }
 
 const taskInputSchema = z.object({
@@ -406,7 +409,13 @@ export function createTaskTool(
           debugError(debugId, "task", errorMessage);
         }
 
-        return { error: errorMessage };
+        const durationMs = Math.round(performance.now() - startTime);
+        return {
+          error: errorMessage,
+          subagent: subagent_type,
+          description,
+          duration_ms: durationMs,
+        };
       }
     },
   });
