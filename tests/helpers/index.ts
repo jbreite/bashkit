@@ -28,3 +28,5 @@ export {
   sampleGrepPatterns,
   type RipgrepMatch,
 } from "./fixtures";
+
+export { makeUsage, makeStep } from "./make-step";

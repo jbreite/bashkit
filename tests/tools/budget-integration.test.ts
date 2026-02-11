@@ -5,9 +5,8 @@ import {
   createBudgetTracker,
   resetOpenRouterCache,
 } from "@/utils/budget-tracking";
-import { createMockSandbox, type MockSandbox } from "@test/helpers";
+import { createMockSandbox, makeStep, type MockSandbox } from "@test/helpers";
 import { MockLanguageModelV3 } from "ai/test";
-import type { StepResult, ToolSet } from "ai";
 
 /** Mock OpenRouter response with minimal valid pricing data */
 const MOCK_OPENROUTER_RESPONSE = {
@@ -81,43 +80,9 @@ describe("createAgentTools budget integration", () => {
     if (!budget) throw new Error("expected budget");
 
     // Simulate a step with the custom model to verify pricing is used
-    const mockStep = {
-      response: { modelId: "custom-model", id: "r", timestamp: new Date() },
-      usage: {
-        inputTokens: 10,
-        inputTokenDetails: {
-          noCacheTokens: undefined,
-          cacheReadTokens: undefined,
-          cacheWriteTokens: undefined,
-        },
-        outputTokens: 5,
-        outputTokenDetails: {
-          textTokens: undefined,
-          reasoningTokens: undefined,
-        },
-        totalTokens: 15,
-      },
-      content: [],
-      text: "",
-      reasoning: [],
-      reasoningText: undefined,
-      files: [],
-      sources: [],
-      toolCalls: [],
-      staticToolCalls: [],
-      dynamicToolCalls: [],
-      toolResults: [],
-      staticToolResults: [],
-      dynamicToolResults: [],
-      finishReason: "stop",
-      rawFinishReason: "stop",
-      warnings: undefined,
-      request: { headers: {} },
-      providerMetadata: undefined,
-      isContinued: false,
-    } as unknown as StepResult<ToolSet>;
-
-    budget.onStepFinish(mockStep);
+    budget.onStepFinish(
+      makeStep("custom-model", { inputTokens: 10, outputTokens: 5 }),
+    );
 
     const status = budget.getStatus();
     // 10 * 0.01 + 5 * 0.02 = 0.1 + 0.1 = 0.2
