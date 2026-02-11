@@ -105,21 +105,21 @@ export async function fetchOpenRouterPricing(): Promise<
         if (err instanceof DOMException && err.name === "AbortError") {
           throw new Error(
             `[bashkit] OpenRouter pricing fetch timed out after ${OPENROUTER_FETCH_TIMEOUT_MS / 1000}s. ` +
-            `This usually means OpenRouter is unreachable from your network. ` +
-            `You can bypass this by providing modelPricing overrides in your config.`,
+              `This usually means OpenRouter is unreachable from your network. ` +
+              `You can bypass this by providing modelPricing overrides in your config.`,
           );
         }
         throw new Error(
           `[bashkit] OpenRouter pricing fetch failed (network error). ` +
-          `Ensure you have internet access or provide modelPricing overrides in your config. ` +
-          `Original error: ${err instanceof Error ? err.message : String(err)}`,
+            `Ensure you have internet access or provide modelPricing overrides in your config. ` +
+            `Original error: ${err instanceof Error ? err.message : String(err)}`,
         );
       }
 
       if (!response.ok) {
         throw new Error(
           `[bashkit] OpenRouter pricing fetch failed: HTTP ${response.status} ${response.statusText}. ` +
-          `You can bypass this by providing modelPricing overrides in your config.`,
+            `You can bypass this by providing modelPricing overrides in your config.`,
         );
       }
 
@@ -128,7 +128,7 @@ export async function fetchOpenRouterPricing(): Promise<
       if (!Array.isArray(models)) {
         throw new Error(
           `[bashkit] OpenRouter pricing response missing data array. ` +
-          `The API may have changed. Please provide modelPricing overrides in your config.`,
+            `The API may have changed. Please provide modelPricing overrides in your config.`,
         );
       }
 
@@ -343,18 +343,12 @@ export function calculateStepCost(
   const noCache = usage.inputTokenDetails?.noCacheTokens;
 
   // Use granular cache pricing if breakdown is available
-  if (
-    cacheRead != null ||
-    cacheWrite != null ||
-    noCache != null
-  ) {
-    const noCacheCost =
-      (noCache ?? 0) * pricing.inputPerToken;
+  if (cacheRead != null || cacheWrite != null || noCache != null) {
+    const noCacheCost = (noCache ?? 0) * pricing.inputPerToken;
     const cacheReadCost =
       (cacheRead ?? 0) * (pricing.cacheReadPerToken ?? pricing.inputPerToken);
     const cacheWriteCost =
-      (cacheWrite ?? 0) *
-      (pricing.cacheWritePerToken ?? pricing.inputPerToken);
+      (cacheWrite ?? 0) * (pricing.cacheWritePerToken ?? pricing.inputPerToken);
     inputCost = noCacheCost + cacheReadCost + cacheWriteCost;
   } else {
     // Fall back to charging all input tokens at input rate

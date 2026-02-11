@@ -240,8 +240,8 @@ export async function createAgentTools(
       if (!config.modelPricing) {
         throw new Error(
           `[bashkit] Failed to fetch OpenRouter pricing and no modelPricing overrides provided. ` +
-          `Either provide modelPricing in config or ensure network access to OpenRouter. ` +
-          `Original error: ${err instanceof Error ? err.message : String(err)}`,
+            `Either provide modelPricing in config or ensure network access to OpenRouter. ` +
+            `Original error: ${err instanceof Error ? err.message : String(err)}`,
         );
       }
     }

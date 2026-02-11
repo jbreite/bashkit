@@ -109,10 +109,7 @@ describe("searchModelInCosts", () => {
       "anthropic/claude-sonnet-4-5",
       { inputPerToken: 0.000003, outputPerToken: 0.000015 },
     ],
-    [
-      "openai/gpt-4o",
-      { inputPerToken: 0.0000025, outputPerToken: 0.00001 },
-    ],
+    ["openai/gpt-4o", { inputPerToken: 0.0000025, outputPerToken: 0.00001 }],
     [
       "google/gemini-2.0-flash",
       { inputPerToken: 0.0000001, outputPerToken: 0.0000004 },
@@ -120,10 +117,7 @@ describe("searchModelInCosts", () => {
   ]);
 
   it("finds exact match (case-insensitive)", () => {
-    const result = searchModelInCosts(
-      "Anthropic/Claude-Sonnet-4-5",
-      costsMap,
-    );
+    const result = searchModelInCosts("Anthropic/Claude-Sonnet-4-5", costsMap);
     expect(result).toEqual({
       inputPerToken: 0.000003,
       outputPerToken: 0.000015,
@@ -137,10 +131,7 @@ describe("searchModelInCosts", () => {
   });
 
   it("finds match with version suffix (longest contained)", () => {
-    const result = searchModelInCosts(
-      "claude-sonnet-4-5-20250929",
-      costsMap,
-    );
+    const result = searchModelInCosts("claude-sonnet-4-5-20250929", costsMap);
     expect(result).toBeDefined();
     expect(result?.inputPerToken).toBe(0.000003);
   });
@@ -151,10 +142,7 @@ describe("searchModelInCosts", () => {
   });
 
   it("returns undefined for empty cost map", () => {
-    const result = searchModelInCosts(
-      "anthropic/claude-sonnet-4-5",
-      new Map(),
-    );
+    const result = searchModelInCosts("anthropic/claude-sonnet-4-5", new Map());
     expect(result).toBeUndefined();
   });
 
@@ -199,11 +187,7 @@ describe("findPricingForModel", () => {
       ],
     ]);
 
-    const result = findPricingForModel(
-      "claude-sonnet-4-5",
-      undefined,
-      orCache,
-    );
+    const result = findPricingForModel("claude-sonnet-4-5", undefined, orCache);
     expect(result).toBeDefined();
     expect(result?.inputPerToken).toBe(0.000003);
   });
@@ -373,8 +357,14 @@ describe("fetchOpenRouterPricing", () => {
       ok: true,
       json: async () => ({
         data: [
-          { id: "neg/model", pricing: { prompt: "-0.001", completion: "0.01" } },
-          { id: "valid/model", pricing: { prompt: "0.001", completion: "0.01" } },
+          {
+            id: "neg/model",
+            pricing: { prompt: "-0.001", completion: "0.01" },
+          },
+          {
+            id: "valid/model",
+            pricing: { prompt: "0.001", completion: "0.01" },
+          },
         ],
       }),
     } as Response);
@@ -390,7 +380,10 @@ describe("fetchOpenRouterPricing", () => {
       ok: true,
       json: async () => ({
         data: [
-          { id: "inf/model", pricing: { prompt: "Infinity", completion: "0.01" } },
+          {
+            id: "inf/model",
+            pricing: { prompt: "Infinity", completion: "0.01" },
+          },
         ],
       }),
     } as Response);
@@ -430,9 +423,7 @@ describe("fetchOpenRouterPricing", () => {
       new Error("Network error"),
     );
 
-    await expect(fetchOpenRouterPricing()).rejects.toThrow(
-      "network error",
-    );
+    await expect(fetchOpenRouterPricing()).rejects.toThrow("network error");
     await resetOpenRouterCache();
     vi.spyOn(globalThis, "fetch").mockRejectedValueOnce(
       new Error("Network error"),
@@ -443,7 +434,10 @@ describe("fetchOpenRouterPricing", () => {
   });
 
   it("throws on timeout with actionable message", async () => {
-    const abortError = new DOMException("The operation was aborted", "AbortError");
+    const abortError = new DOMException(
+      "The operation was aborted",
+      "AbortError",
+    );
     vi.spyOn(globalThis, "fetch").mockRejectedValueOnce(abortError);
 
     await expect(fetchOpenRouterPricing()).rejects.toThrow("timed out");
@@ -695,7 +689,6 @@ describe("createBudgetTracker", () => {
     expect(tracker.getStatus().unpricedSteps).toBe(1);
   });
 
-
   it("onUnpricedModel callback fires with the model ID", () => {
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
     const callback = vi.fn();
@@ -728,5 +721,68 @@ describe("createBudgetTracker", () => {
       ),
     ).toThrow("Unpriced model not allowed: mystery-model");
     warnSpy.mockRestore();
+  });
+
+  // -------------------------------------------------------------------------
+  // Parallel task shared budget
+  // -------------------------------------------------------------------------
+
+  it("parallel tasks accumulate into a shared budget", async () => {
+    const tracker = createBudgetTracker(10.0, {
+      modelPricing: {
+        "test-model": { inputPerToken: 0.01, outputPerToken: 0.02 },
+      },
+    });
+
+    // Simulate 10 parallel tasks each reporting a step concurrently
+    // (like 10 subagents spawned by the Task tool sharing one budget)
+    const tasks = Array.from({ length: 10 }, () =>
+      Promise.resolve().then(() => {
+        tracker.onStepFinish(
+          makeStep("test-model", { inputTokens: 100, outputTokens: 50 }),
+        );
+      }),
+    );
+
+    await Promise.all(tasks);
+
+    const status = tracker.getStatus();
+    // Each step: 100*0.01 + 50*0.02 = 1.0 + 1.0 = 2.0
+    // 10 steps total: 20.0
+    expect(status.totalCostUsd).toBeCloseTo(20.0, 6);
+    expect(status.stepsCompleted).toBe(10);
+    expect(status.exceeded).toBe(true);
+  });
+
+  it("stopWhen triggers for parallel tasks when shared budget exceeded", async () => {
+    const tracker = createBudgetTracker(5.0, {
+      modelPricing: {
+        "test-model": { inputPerToken: 0.01, outputPerToken: 0.02 },
+      },
+    });
+
+    // Simulate orchestrator spending $0.50
+    tracker.onStepFinish(
+      makeStep("test-model", { inputTokens: 50, outputTokens: 0 }),
+    );
+    // 50 * 0.01 = 0.50
+    expect(tracker.getStatus().totalCostUsd).toBeCloseTo(0.5, 6);
+    expect(tracker.stopWhen({ steps: [] })).toBe(false);
+
+    // Simulate 3 parallel tasks each spending $2.00
+    const tasks = Array.from({ length: 3 }, () =>
+      Promise.resolve().then(() => {
+        tracker.onStepFinish(
+          makeStep("test-model", { inputTokens: 100, outputTokens: 50 }),
+        );
+      }),
+    );
+    await Promise.all(tasks);
+
+    // Orchestrator: $0.50 + 3 tasks * $2.00 = $6.50 > $5.00
+    expect(tracker.getStatus().totalCostUsd).toBeCloseTo(6.5, 6);
+    expect(tracker.stopWhen({ steps: [] })).toBe(true);
+    expect(tracker.getStatus().exceeded).toBe(true);
+    expect(tracker.getStatus().stepsCompleted).toBe(4);
   });
 });
