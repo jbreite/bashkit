@@ -37,9 +37,9 @@ describe("createAgentTools budget integration", () => {
     resetOpenRouterCache();
   });
 
-  it("returns budget when maxBudgetUsd is set", async () => {
+  it("returns budget when budget config is set", async () => {
     const { budget } = await createAgentTools(sandbox, {
-      maxBudgetUsd: 5.0,
+      budget: { maxUsd: 5.0, pricingProvider: "openRouter" },
     });
 
     expect(budget).toBeDefined();
@@ -48,7 +48,7 @@ describe("createAgentTools budget integration", () => {
     expect(budget?.stopWhen).toBeInstanceOf(Function);
   });
 
-  it("does not return budget when maxBudgetUsd is not set", async () => {
+  it("does not return budget when budget config is not set", async () => {
     const { budget } = await createAgentTools(sandbox);
 
     expect(budget).toBeUndefined();
@@ -56,13 +56,13 @@ describe("createAgentTools budget integration", () => {
 
   it("budget tracker initial status is correct", async () => {
     const { budget } = await createAgentTools(sandbox, {
-      maxBudgetUsd: 10.0,
+      budget: { maxUsd: 10.0, pricingProvider: "openRouter" },
     });
     if (!budget) throw new Error("expected budget");
 
     const status = budget.getStatus();
     expect(status.totalCostUsd).toBe(0);
-    expect(status.maxBudgetUsd).toBe(10.0);
+    expect(status.maxUsd).toBe(10.0);
     expect(status.remainingUsd).toBe(10.0);
     expect(status.usagePercent).toBe(0);
     expect(status.stepsCompleted).toBe(0);
@@ -72,9 +72,12 @@ describe("createAgentTools budget integration", () => {
 
   it("passes modelPricing to budget tracker", async () => {
     const { budget } = await createAgentTools(sandbox, {
-      maxBudgetUsd: 5.0,
-      modelPricing: {
-        "custom-model": { inputPerToken: 0.01, outputPerToken: 0.02 },
+      budget: {
+        maxUsd: 5.0,
+        pricingProvider: "openRouter",
+        modelPricing: {
+          "custom-model": { inputPerToken: 0.01, outputPerToken: 0.02 },
+        },
       },
     });
     if (!budget) throw new Error("expected budget");
@@ -90,9 +93,35 @@ describe("createAgentTools budget integration", () => {
     expect(status.stepsCompleted).toBe(1);
   });
 
+  it("budget with only modelPricing does not fetch", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+    fetchSpy.mockClear();
+
+    const { budget } = await createAgentTools(sandbox, {
+      budget: {
+        maxUsd: 5.0,
+        modelPricing: {
+          "my-model": { inputPerToken: 0.01, outputPerToken: 0.02 },
+        },
+      },
+    });
+
+    expect(budget).toBeDefined();
+    // No fetch should have been called (no pricingProvider)
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("throws when budget has neither pricingProvider nor modelPricing", async () => {
+    await expect(
+      createAgentTools(sandbox, {
+        budget: { maxUsd: 5.0 },
+      }),
+    ).rejects.toThrow("pricingProvider or modelPricing");
+  });
+
   it("still returns all core tools when budget is enabled", async () => {
     const { tools } = await createAgentTools(sandbox, {
-      maxBudgetUsd: 5.0,
+      budget: { maxUsd: 5.0, pricingProvider: "openRouter" },
     });
 
     expect(tools.Bash).toBeDefined();

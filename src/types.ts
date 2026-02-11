@@ -116,6 +116,26 @@ export type CacheConfig =
         | undefined;
     };
 
+/**
+ * Supported pricing providers for automatic model cost lookup.
+ */
+export type PricingProvider = "openRouter";
+
+/**
+ * Budget tracking configuration.
+ * At least one of `pricingProvider` or `modelPricing` must be provided.
+ */
+export type BudgetConfig = {
+  /** Maximum budget in USD (must be positive) */
+  maxUsd: number;
+  /** Pricing provider for automatic model cost lookup. Omit to skip fetching. */
+  pricingProvider?: PricingProvider;
+  /** API key for the pricing provider. Passed as bearer token. */
+  apiKey?: string;
+  /** Per-model pricing overrides (always highest priority over provider data) */
+  modelPricing?: Record<string, ModelPricing>;
+};
+
 export type AgentConfig = {
   tools?: {
     Bash?: ToolConfig;
@@ -137,13 +157,8 @@ export type AgentConfig = {
   webFetch?: WebFetchConfig;
   /** Enable tool result caching */
   cache?: CacheConfig;
-  /** Maximum budget in USD. Enables budget tracking when set. */
-  maxBudgetUsd?: number;
-  /**
-   * Optional per-model pricing overrides for models not on OpenRouter
-   * or when you want exact pricing. Maps any model identifier to pricing.
-   */
-  modelPricing?: Record<string, ModelPricing>;
+  /** Budget tracking configuration */
+  budget?: BudgetConfig;
   defaultTimeout?: number;
   workingDirectory?: string;
 };

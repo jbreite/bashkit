@@ -113,7 +113,9 @@ export {
 export type {
   AgentConfig,
   AskUserConfig,
+  BudgetConfig,
   CacheConfig,
+  PricingProvider,
   SkillConfig,
   ToolConfig,
   WebFetchConfig,

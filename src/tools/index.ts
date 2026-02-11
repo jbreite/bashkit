@@ -123,7 +123,7 @@ export interface AgentToolsResult {
   tools: ToolSet;
   /** Shared plan mode state (only present when planMode is enabled) */
   planModeState?: PlanModeState;
-  /** Budget tracker (only present when maxBudgetUsd is set) */
+  /** Budget tracker (only present when budget config is set) */
   budget?: BudgetTracker;
 }
 
@@ -156,9 +156,9 @@ export interface AgentToolsResult {
  * });
  *
  * @example
- * // With budget tracking
+ * // With budget tracking (OpenRouter pricing)
  * const { tools, budget } = await createAgentTools(sandbox, {
- *   maxBudgetUsd: 5.00,
+ *   budget: { maxUsd: 5.00, pricingProvider: "openRouter" },
  * });
  */
 export async function createAgentTools(
@@ -229,24 +229,36 @@ export async function createAgentTools(
     }
   }
 
-  // Create budget tracker if configured — eagerly fetch OpenRouter pricing
+  // Create budget tracker if configured
   let budget: BudgetTracker | undefined;
-  if (config?.maxBudgetUsd != null) {
+  if (config?.budget) {
+    const { pricingProvider, apiKey, modelPricing, maxUsd } = config.budget;
+
+    // Validate: at least one pricing source required
+    if (!pricingProvider && !modelPricing) {
+      throw new Error(
+        "[bashkit] Budget requires either pricingProvider or modelPricing (or both).",
+      );
+    }
+
+    // Only fetch if pricingProvider is set
     let openRouterPricing: Map<string, ModelPricing> | undefined;
-    try {
-      openRouterPricing = await fetchOpenRouterPricing();
-    } catch (err) {
-      // If user provided modelPricing overrides, we can continue without OpenRouter
-      if (!config.modelPricing) {
-        throw new Error(
-          `[bashkit] Failed to fetch OpenRouter pricing and no modelPricing overrides provided. ` +
-            `Either provide modelPricing in config or ensure network access to OpenRouter. ` +
-            `Original error: ${err instanceof Error ? err.message : String(err)}`,
-        );
+    if (pricingProvider === "openRouter") {
+      try {
+        openRouterPricing = await fetchOpenRouterPricing(apiKey);
+      } catch (err) {
+        if (!modelPricing) {
+          throw new Error(
+            `[bashkit] Failed to fetch OpenRouter pricing and no modelPricing overrides provided. ` +
+              `Either provide modelPricing in your budget config or ensure network access to OpenRouter. ` +
+              `Original error: ${err instanceof Error ? err.message : String(err)}`,
+          );
+        }
       }
     }
-    budget = createBudgetTracker(config.maxBudgetUsd, {
-      modelPricing: config.modelPricing,
+
+    budget = createBudgetTracker(maxUsd, {
+      modelPricing,
       openRouterPricing,
     });
   }

@@ -9,7 +9,6 @@ import {
   resetOpenRouterCache,
   type ModelPricing,
 } from "@/utils/budget-tracking";
-import type { LanguageModelUsage } from "ai";
 import { makeUsage, makeStep } from "@test/helpers";
 
 const TEST_PRICING: Record<string, ModelPricing> = {
@@ -124,7 +123,10 @@ describe("findPricingForModel", () => {
       ["custom-model", { inputPerToken: 0.001, outputPerToken: 0.002 }],
     ]);
 
-    const result = findPricingForModel("custom-model", overrides, openRouterCache);
+    const result = findPricingForModel("custom-model", {
+      overrides,
+      openRouterCache,
+    });
     expect(result?.inputPerToken).toBe(0.01);
   });
 
@@ -136,7 +138,9 @@ describe("findPricingForModel", () => {
       ],
     ]);
 
-    const result = findPricingForModel("claude-sonnet-4-5", undefined, openRouterCache);
+    const result = findPricingForModel("claude-sonnet-4-5", {
+      openRouterCache,
+    });
     expect(result).toBeDefined();
     expect(result?.inputPerToken).toBe(0.000003);
   });
@@ -144,12 +148,10 @@ describe("findPricingForModel", () => {
   it("returns undefined and warns for unknown model", () => {
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
     const warned = new Set<string>();
-    const result = findPricingForModel(
-      "totally-unknown-model-12345",
-      undefined,
-      new Map(),
-      warned,
-    );
+    const result = findPricingForModel("totally-unknown-model-12345", {
+      openRouterCache: new Map(),
+      warnedModels: warned,
+    });
     expect(result).toBeUndefined();
     expect(warnSpy).toHaveBeenCalledWith(
       expect.stringContaining("No pricing found"),
@@ -159,7 +161,7 @@ describe("findPricingForModel", () => {
 
   it("does not warn when no warnedModels set is provided", () => {
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
-    findPricingForModel("some-model", undefined, new Map());
+    findPricingForModel("some-model", { openRouterCache: new Map() });
     expect(warnSpy).not.toHaveBeenCalled();
     warnSpy.mockRestore();
   });
@@ -167,8 +169,14 @@ describe("findPricingForModel", () => {
   it("warns only once per model per warnedModels set", () => {
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
     const warned = new Set<string>();
-    findPricingForModel("repeat-model", undefined, new Map(), warned);
-    findPricingForModel("repeat-model", undefined, new Map(), warned);
+    findPricingForModel("repeat-model", {
+      openRouterCache: new Map(),
+      warnedModels: warned,
+    });
+    findPricingForModel("repeat-model", {
+      openRouterCache: new Map(),
+      warnedModels: warned,
+    });
     expect(warnSpy).toHaveBeenCalledTimes(1);
     warnSpy.mockRestore();
   });
@@ -456,6 +464,38 @@ describe("fetchOpenRouterPricing", () => {
 
     vi.useRealTimers();
   });
+
+  it("sends Authorization header when apiKey is provided", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ data: [] }),
+    } as Response);
+
+    await fetchOpenRouterPricing("sk-or-test-key");
+
+    expect(fetchSpy).toHaveBeenCalledWith(
+      "https://openrouter.ai/api/v1/models",
+      expect.objectContaining({
+        headers: { Authorization: "Bearer sk-or-test-key" },
+      }),
+    );
+  });
+
+  it("omits Authorization header when no apiKey is provided", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ data: [] }),
+    } as Response);
+
+    await fetchOpenRouterPricing();
+
+    expect(fetchSpy).toHaveBeenCalledWith(
+      "https://openrouter.ai/api/v1/models",
+      expect.objectContaining({
+        headers: {},
+      }),
+    );
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -463,11 +503,11 @@ describe("fetchOpenRouterPricing", () => {
 // ---------------------------------------------------------------------------
 
 describe("createBudgetTracker", () => {
-  it("throws on negative maxBudgetUsd", () => {
+  it("throws on negative maxUsd", () => {
     expect(() => createBudgetTracker(-1)).toThrow("must be positive");
   });
 
-  it("throws on zero maxBudgetUsd", () => {
+  it("throws on zero maxUsd", () => {
     expect(() => createBudgetTracker(0)).toThrow("must be positive");
   });
 
@@ -501,7 +541,7 @@ describe("createBudgetTracker", () => {
     );
 
     const status = tracker.getStatus();
-    expect(status.maxBudgetUsd).toBe(1.0);
+    expect(status.maxUsd).toBe(1.0);
     expect(status.totalCostUsd).toBeCloseTo(0.2, 6);
     expect(status.remainingUsd).toBeCloseTo(0.8, 6);
     expect(status.usagePercent).toBeCloseTo(20, 1);

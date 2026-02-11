@@ -26,7 +26,7 @@ export interface ModelPricing {
 
 export interface BudgetStatus {
   totalCostUsd: number;
-  maxBudgetUsd: number;
+  maxUsd: number;
   remainingUsd: number;
   usagePercent: number;
   stepsCompleted: number;
@@ -77,9 +77,9 @@ const OPENROUTER_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
  *
  * On failure, throws an error (callers decide whether to rethrow or fall back).
  */
-export async function fetchOpenRouterPricing(): Promise<
-  Map<string, ModelPricing>
-> {
+export async function fetchOpenRouterPricing(
+  apiKey?: string,
+): Promise<Map<string, ModelPricing>> {
   if (
     openRouterCache &&
     Date.now() - openRouterCacheTimestamp < OPENROUTER_CACHE_TTL_MS
@@ -98,8 +98,13 @@ export async function fetchOpenRouterPricing(): Promise<
     try {
       let response: Response;
       try {
+        const headers: Record<string, string> = {};
+        if (apiKey) {
+          headers["Authorization"] = `Bearer ${apiKey}`;
+        }
         response = await fetch("https://openrouter.ai/api/v1/models", {
           signal: controller.signal,
+          headers,
         });
       } catch (err) {
         if (err instanceof DOMException && err.name === "AbortError") {
@@ -292,31 +297,36 @@ export function searchModelInCosts(
  */
 export function findPricingForModel(
   model: string,
-  overrides?: Record<string, ModelPricing> | Map<string, ModelPricing>,
-  openRouterCache?: Map<string, ModelPricing>,
-  warnedModels?: Set<string>,
+  options?: {
+    overrides?: Record<string, ModelPricing> | Map<string, ModelPricing>;
+    openRouterCache?: Map<string, ModelPricing>;
+    warnedModels?: Set<string>;
+  },
 ): ModelPricing | undefined {
   // 1. Check user overrides
-  if (overrides) {
+  if (options?.overrides) {
     const overrideMap =
-      overrides instanceof Map
-        ? overrides
+      options.overrides instanceof Map
+        ? options.overrides
         : new Map(
-            Object.entries(overrides).map(([k, v]) => [k.toLowerCase(), v]),
+            Object.entries(options.overrides).map(([k, v]) => [
+              k.toLowerCase(),
+              v,
+            ]),
           );
     const found = searchModelInCosts(model, overrideMap);
     if (found) return found;
   }
 
   // 2. Search OpenRouter cache
-  if (openRouterCache) {
-    const found = searchModelInCosts(model, openRouterCache);
+  if (options?.openRouterCache) {
+    const found = searchModelInCosts(model, options.openRouterCache);
     if (found) return found;
   }
 
   // 3. Warn once per model (scoped to the provided set, not module-level)
-  if (warnedModels && !warnedModels.has(model.toLowerCase())) {
-    warnedModels.add(model.toLowerCase());
+  if (options?.warnedModels && !options.warnedModels.has(model.toLowerCase())) {
+    options.warnedModels.add(model.toLowerCase());
     console.warn(
       `[bashkit] No pricing found for model "${model}". Cost will not be tracked for this step.`,
     );
@@ -371,7 +381,7 @@ export function calculateStepCost(
  * and/or user-provided overrides. Use `fetchOpenRouterPricing()` to eagerly load
  * the map before creating the tracker (this is what `createAgentTools` does).
  *
- * @param maxBudgetUsd - Maximum budget in USD (must be positive)
+ * @param maxUsd - Maximum budget in USD (must be positive)
  * @param options - Pricing sources: user overrides and/or pre-fetched OpenRouter map
  * @returns BudgetTracker instance
  *
@@ -392,17 +402,15 @@ export function calculateStepCost(
  * ```
  */
 export function createBudgetTracker(
-  maxBudgetUsd: number,
+  maxUsd: number,
   options?: {
     modelPricing?: Record<string, ModelPricing>;
     openRouterPricing?: Map<string, ModelPricing>;
     onUnpricedModel?: (modelId: string) => void;
   },
 ): BudgetTracker {
-  if (maxBudgetUsd <= 0) {
-    throw new Error(
-      `[bashkit] maxBudgetUsd must be positive, got ${maxBudgetUsd}`,
-    );
+  if (maxUsd <= 0) {
+    throw new Error(`[bashkit] maxUsd must be positive, got ${maxUsd}`);
   }
 
   // Pre-build override Map once (avoids re-creating from Record on every step)
@@ -438,12 +446,11 @@ export function createBudgetTracker(
       if (pricingCache.has(modelId)) {
         pricing = pricingCache.get(modelId);
       } else {
-        pricing = findPricingForModel(
-          modelId,
-          overrideMap,
-          openRouterPricing,
+        pricing = findPricingForModel(modelId, {
+          overrides: overrideMap,
+          openRouterCache: openRouterPricing,
           warnedModels,
-        );
+        });
         pricingCache.set(modelId, pricing);
       }
 
@@ -461,18 +468,18 @@ export function createBudgetTracker(
     },
 
     stopWhen(_options) {
-      return totalCostUsd >= maxBudgetUsd;
+      return totalCostUsd >= maxUsd;
     },
 
     getStatus(): BudgetStatus {
-      const remaining = Math.max(0, maxBudgetUsd - totalCostUsd);
+      const remaining = Math.max(0, maxUsd - totalCostUsd);
       return {
         totalCostUsd,
-        maxBudgetUsd,
+        maxUsd,
         remainingUsd: remaining,
-        usagePercent: (totalCostUsd / maxBudgetUsd) * 100,
+        usagePercent: (totalCostUsd / maxUsd) * 100,
         stepsCompleted,
-        exceeded: totalCostUsd >= maxBudgetUsd,
+        exceeded: totalCostUsd >= maxUsd,
         unpricedSteps,
       };
     },
