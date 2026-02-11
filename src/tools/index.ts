@@ -4,6 +4,12 @@ import { cached, LRUCacheStore } from "../cache";
 import type { Sandbox } from "../sandbox/interface";
 import type { AgentConfig, CacheConfig } from "../types";
 import { DEFAULT_CONFIG } from "../types";
+import {
+  createBudgetTracker,
+  fetchOpenRouterPricing,
+  type BudgetTracker,
+  type ModelPricing,
+} from "../utils/budget-tracking";
 import { createAskUserTool } from "./ask-user";
 import { createBashTool } from "./bash";
 import { createEditTool } from "./edit";
@@ -117,6 +123,8 @@ export interface AgentToolsResult {
   tools: ToolSet;
   /** Shared plan mode state (only present when planMode is enabled) */
   planModeState?: PlanModeState;
+  /** Budget tracker (only present when maxBudgetUsd is set) */
+  budget?: BudgetTracker;
 }
 
 /**
@@ -138,26 +146,25 @@ export interface AgentToolsResult {
  *
  * @example
  * // Basic usage (lean default for background agents)
- * const { tools } = createAgentTools(sandbox);
+ * const { tools } = await createAgentTools(sandbox);
  *
  * @example
  * // Interactive agent with plan mode
- * const { tools, planModeState } = createAgentTools(sandbox, {
+ * const { tools, planModeState } = await createAgentTools(sandbox, {
  *   planMode: true,
  *   askUser: { onQuestion: async (q) => await promptUser(q) },
  * });
  *
  * @example
- * // With web and skill tools
- * const { tools } = createAgentTools(sandbox, {
- *   webSearch: { apiKey: process.env.PARALLEL_API_KEY },
- *   skill: { skills: discoveredSkills },
+ * // With budget tracking
+ * const { tools, budget } = await createAgentTools(sandbox, {
+ *   maxBudgetUsd: 5.00,
  * });
  */
-export function createAgentTools(
+export async function createAgentTools(
   sandbox: Sandbox,
   config?: AgentConfig,
-): AgentToolsResult {
+): Promise<AgentToolsResult> {
   const toolsConfig = {
     ...DEFAULT_CONFIG.tools,
     ...config?.tools,
@@ -222,7 +229,29 @@ export function createAgentTools(
     }
   }
 
-  return { tools, planModeState };
+  // Create budget tracker if configured — eagerly fetch OpenRouter pricing
+  let budget: BudgetTracker | undefined;
+  if (config?.maxBudgetUsd != null) {
+    let openRouterPricing: Map<string, ModelPricing> | undefined;
+    try {
+      openRouterPricing = await fetchOpenRouterPricing();
+    } catch (err) {
+      // If user provided modelPricing overrides, we can continue without OpenRouter
+      if (!config.modelPricing) {
+        throw new Error(
+          `[bashkit] Failed to fetch OpenRouter pricing and no modelPricing overrides provided. ` +
+          `Either provide modelPricing in config or ensure network access to OpenRouter. ` +
+          `Original error: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
+    }
+    budget = createBudgetTracker(config.maxBudgetUsd, {
+      modelPricing: config.modelPricing,
+      openRouterPricing,
+    });
+  }
+
+  return { tools, planModeState, budget };
 }
 
 // --- Ask User Tool ---

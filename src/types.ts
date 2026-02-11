@@ -1,6 +1,7 @@
 import type { LanguageModel, Tool } from "ai";
 import type { CacheStore } from "./cache/types";
 import type { SkillMetadata } from "./skills/types";
+import type { ModelPricing } from "./utils/budget-tracking";
 
 /**
  * SDK tool options picked from the Tool type.
@@ -136,6 +137,13 @@ export type AgentConfig = {
   webFetch?: WebFetchConfig;
   /** Enable tool result caching */
   cache?: CacheConfig;
+  /** Maximum budget in USD. Enables budget tracking when set. */
+  maxBudgetUsd?: number;
+  /**
+   * Optional per-model pricing overrides for models not on OpenRouter
+   * or when you want exact pricing. Maps any model identifier to pricing.
+   */
+  modelPricing?: Record<string, ModelPricing>;
   defaultTimeout?: number;
   workingDirectory?: string;
 };

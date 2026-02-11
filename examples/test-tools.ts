@@ -16,7 +16,7 @@ async function main() {
   console.log("🧪 Testing bashkit tools directly...\n");
 
   const sandbox = createLocalSandbox({ cwd: "/tmp/bashkit-test" });
-  const { tools } = createAgentTools(sandbox);
+  const { tools } = await createAgentTools(sandbox);
 
   const toolOptions = { toolCallId: "test", messages: [] };
 

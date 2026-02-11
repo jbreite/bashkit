@@ -20,7 +20,7 @@ async function testGrep(name: string, sandbox: Sandbox, testDir: string) {
   await sandbox.exec(`mkdir -p ${testDir}`);
   await sandbox.writeFile(testFile, "Hello world\nfoo bar\nHello again");
 
-  const { tools } = createAgentTools(sandbox);
+  const { tools } = await createAgentTools(sandbox);
 
   if (!tools.Grep.execute) {
     console.log(`❌ ${name}: Grep tool not found`);

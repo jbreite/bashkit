@@ -233,7 +233,20 @@ bun install
 
 ### Testing Changes
 
-**No formal test suite** - use examples as integration tests:
+**Unit tests** use Vitest (run via `bun run test`, NOT `bun test`):
+
+```bash
+# Run all tests
+bun run test
+
+# Run specific test file(s)
+bun run test tests/utils/budget-tracking.test.ts
+
+# Watch mode
+bun run test:watch
+```
+
+**Examples** serve as integration tests:
 
 ```bash
 # Test tools directly (no AI, no API key needed)
@@ -409,16 +422,20 @@ if (config?.webSearch) {
 
 ### Testing Strategy
 
-**No formal test suite** - intentional design choice:
-- Examples serve as integration tests
+**Unit tests** via Vitest (`bun run test`):
+- `/tests/tools/` - Tool unit and integration tests
+- `/tests/utils/` - Utility function tests
+
+**Examples** as integration tests:
 - `/examples/test-tools.ts` - Direct tool API testing (no AI model needed)
 - `/examples/basic.ts` - Full agentic loop with Claude
 - `/examples/test-web-tools.ts` - Web tools demonstration
 
 **Before releases**:
-1. Run all examples to verify functionality
-2. Test each sandbox implementation
-3. Verify type generation (`bun run build`)
+1. Run `bun run test` to verify all unit tests pass
+2. Run all examples to verify functionality
+3. Test each sandbox implementation
+4. Verify type generation (`bun run build`)
 
 ### Breaking Changes to Avoid
 

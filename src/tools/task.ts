@@ -13,6 +13,7 @@ import {
   tool,
   zodSchema,
 } from "ai";
+import type { BudgetTracker } from "../utils/budget-tracking";
 import { z } from "zod";
 import {
   debugEnd,
@@ -139,6 +140,8 @@ export interface TaskToolConfig {
   defaultOnStepFinish?: (event: SubagentStepEvent) => void | Promise<void>;
   /** Optional stream writer for real-time subagent activity (uses streamText instead of generateText) */
   streamWriter?: UIMessageStreamWriter;
+  /** Budget tracker — auto-wires stopWhen and onStepFinish for sub-agent cost tracking */
+  budget?: BudgetTracker;
 }
 
 function filterTools(
@@ -177,6 +180,7 @@ export function createTaskTool(
     defaultStopWhen,
     defaultOnStepFinish,
     streamWriter,
+    budget,
   } = config;
 
   return tool({
@@ -216,13 +220,20 @@ export function createTaskTool(
         // Custom system_prompt overrides the type's default
         const systemPrompt = system_prompt ?? typeConfig.systemPrompt;
 
+        // Merge budget stopWhen with existing stop conditions
+        const baseStopWhen =
+          typeConfig.stopWhen ?? defaultStopWhen ?? stepCountIs(15);
+        const effectiveStopWhen = budget
+          ? [baseStopWhen, budget.stopWhen].flat()
+          : baseStopWhen;
+
         // Common options for both generateText and streamText
         const commonOptions = {
           model,
           tools,
           system: systemPrompt,
           prompt,
-          stopWhen: typeConfig.stopWhen ?? defaultStopWhen ?? stepCountIs(15),
+          stopWhen: effectiveStopWhen,
           prepareStep: typeConfig.prepareStep,
         };
 
@@ -243,6 +254,8 @@ export function createTaskTool(
           const result = streamText({
             ...commonOptions,
             onStepFinish: async (step) => {
+              // Track cost before anything else
+              budget?.onStepFinish(step);
               // Stream tool calls
               if (step.toolCalls?.length) {
                 for (const tc of step.toolCalls) {
@@ -336,6 +349,8 @@ export function createTaskTool(
         const result = await generateText({
           ...commonOptions,
           onStepFinish: async (step) => {
+            // Track cost before anything else
+            budget?.onStepFinish(step);
             // Call subagent-specific callback
             await typeConfig.onStepFinish?.(step);
             // Call default callback with subagent context

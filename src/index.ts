@@ -133,6 +133,9 @@ export type {
 } from "./cache";
 export { cached, createRedisCacheStore, LRUCacheStore } from "./cache";
 export type {
+  BudgetStatus,
+  BudgetTracker,
+  ModelPricing,
   CompactConversationConfig,
   CompactConversationResult,
   CompactConversationState,
@@ -146,6 +149,7 @@ export type {
 } from "./utils";
 // Utils
 export {
+  createBudgetTracker,
   clearDebugLogs,
   compactConversation,
   contextNeedsAttention,
