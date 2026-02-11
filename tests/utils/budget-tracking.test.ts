@@ -120,23 +120,23 @@ describe("findPricingForModel", () => {
     const overrides: Record<string, ModelPricing> = {
       "custom-model": { inputPerToken: 0.01, outputPerToken: 0.02 },
     };
-    const orCache = new Map<string, ModelPricing>([
+    const openRouterCache = new Map<string, ModelPricing>([
       ["custom-model", { inputPerToken: 0.001, outputPerToken: 0.002 }],
     ]);
 
-    const result = findPricingForModel("custom-model", overrides, orCache);
+    const result = findPricingForModel("custom-model", overrides, openRouterCache);
     expect(result?.inputPerToken).toBe(0.01);
   });
 
   it("falls back to OpenRouter cache when no override", () => {
-    const orCache = new Map<string, ModelPricing>([
+    const openRouterCache = new Map<string, ModelPricing>([
       [
         "anthropic/claude-sonnet-4-5",
         { inputPerToken: 0.000003, outputPerToken: 0.000015 },
       ],
     ]);
 
-    const result = findPricingForModel("claude-sonnet-4-5", undefined, orCache);
+    const result = findPricingForModel("claude-sonnet-4-5", undefined, openRouterCache);
     expect(result).toBeDefined();
     expect(result?.inputPerToken).toBe(0.000003);
   });

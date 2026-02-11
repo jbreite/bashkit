@@ -293,7 +293,7 @@ export function searchModelInCosts(
 export function findPricingForModel(
   model: string,
   overrides?: Record<string, ModelPricing> | Map<string, ModelPricing>,
-  orCache?: Map<string, ModelPricing>,
+  openRouterCache?: Map<string, ModelPricing>,
   warnedModels?: Set<string>,
 ): ModelPricing | undefined {
   // 1. Check user overrides
@@ -309,8 +309,8 @@ export function findPricingForModel(
   }
 
   // 2. Search OpenRouter cache
-  if (orCache) {
-    const found = searchModelInCosts(model, orCache);
+  if (openRouterCache) {
+    const found = searchModelInCosts(model, openRouterCache);
     if (found) return found;
   }
 
