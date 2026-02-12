@@ -20,8 +20,7 @@ import {
   debugError,
   debugStart,
   isDebugEnabled,
-  popParent,
-  pushParent,
+  runWithDebugParent,
 } from "../utils/debug";
 
 export interface TaskOutput {
@@ -209,73 +208,134 @@ export function createTaskTool(
           })
         : "";
 
-      // Push this task as parent context for child tool calls
-      if (debugId) pushParent(debugId);
+      const executeTask = async (): Promise<TaskOutput | TaskError> => {
+        try {
+          const model = typeConfig.model || defaultModel;
+          // Custom tools override the type's default tools, additionalTools are merged in
+          const tools = filterTools(
+            allTools,
+            customTools ?? typeConfig.tools,
+            typeConfig.additionalTools,
+          );
+          // Custom system_prompt overrides the type's default
+          const systemPrompt = system_prompt ?? typeConfig.systemPrompt;
 
-      try {
-        const model = typeConfig.model || defaultModel;
-        // Custom tools override the type's default tools, additionalTools are merged in
-        const tools = filterTools(
-          allTools,
-          customTools ?? typeConfig.tools,
-          typeConfig.additionalTools,
-        );
-        // Custom system_prompt overrides the type's default
-        const systemPrompt = system_prompt ?? typeConfig.systemPrompt;
+          // Merge budget stopWhen with existing stop conditions
+          const baseStopWhen =
+            typeConfig.stopWhen ?? defaultStopWhen ?? stepCountIs(15);
+          const effectiveStopWhen = budget
+            ? [baseStopWhen, budget.stopWhen].flat()
+            : baseStopWhen;
 
-        // Merge budget stopWhen with existing stop conditions
-        const baseStopWhen =
-          typeConfig.stopWhen ?? defaultStopWhen ?? stepCountIs(15);
-        const effectiveStopWhen = budget
-          ? [baseStopWhen, budget.stopWhen].flat()
-          : baseStopWhen;
+          // Common options for both generateText and streamText
+          const commonOptions = {
+            model,
+            tools,
+            system: systemPrompt,
+            prompt,
+            stopWhen: effectiveStopWhen,
+            prepareStep: typeConfig.prepareStep,
+          };
 
-        // Common options for both generateText and streamText
-        const commonOptions = {
-          model,
-          tools,
-          system: systemPrompt,
-          prompt,
-          stopWhen: effectiveStopWhen,
-          prepareStep: typeConfig.prepareStep,
-        };
+          // Use streamText if streamWriter is provided, otherwise generateText
+          if (streamWriter) {
+            // Emit start event
+            const startId = generateEventId();
+            streamWriter.write({
+              type: "data-subagent",
+              id: startId,
+              data: {
+                event: "start",
+                subagent: subagent_type,
+                description,
+              } satisfies SubagentEventData,
+            });
 
-        // Use streamText if streamWriter is provided, otherwise generateText
-        if (streamWriter) {
-          // Emit start event
-          const startId = generateEventId();
-          streamWriter.write({
-            type: "data-subagent",
-            id: startId,
-            data: {
-              event: "start",
+            const result = streamText({
+              ...commonOptions,
+              onStepFinish: async (step) => {
+                // Track cost before anything else
+                budget?.onStepFinish(step);
+                // Stream tool calls
+                if (step.toolCalls?.length) {
+                  for (const tc of step.toolCalls) {
+                    const eventId = generateEventId();
+                    streamWriter.write({
+                      type: "data-subagent",
+                      id: eventId,
+                      data: {
+                        event: "tool-call",
+                        subagent: subagent_type,
+                        description,
+                        toolName: tc.toolName,
+                        args: tc.input as Record<string, unknown>,
+                      } satisfies SubagentEventData,
+                    });
+                  }
+                }
+                // Call subagent-specific callback
+                await typeConfig.onStepFinish?.(step);
+                // Call default callback with subagent context
+                await defaultOnStepFinish?.({
+                  subagentType: subagent_type,
+                  description,
+                  step,
+                });
+              },
+            });
+
+            // Wait for stream to complete
+            const text = await result.text;
+            const usage = await result.usage;
+            const response = await result.response;
+
+            // Emit done event
+            streamWriter.write({
+              type: "data-subagent",
+              id: generateEventId(),
+              data: {
+                event: "done",
+                subagent: subagent_type,
+                description,
+              } satisfies SubagentEventData,
+            });
+
+            // Emit complete event with full messages for UI access
+            streamWriter.write({
+              type: "data-subagent",
+              id: generateEventId(),
+              data: {
+                event: "complete",
+                subagent: subagent_type,
+                description,
+                messages: response.messages,
+              } satisfies SubagentEventData,
+            });
+
+            const durationMs = Math.round(performance.now() - startTime);
+
+            return {
+              result: text,
+              usage:
+                usage.inputTokens !== undefined &&
+                usage.outputTokens !== undefined
+                  ? {
+                      input_tokens: usage.inputTokens,
+                      output_tokens: usage.outputTokens,
+                    }
+                  : undefined,
+              duration_ms: durationMs,
               subagent: subagent_type,
               description,
-            } satisfies SubagentEventData,
-          });
+            };
+          }
 
-          const result = streamText({
+          // Default: use generateText (no streaming)
+          const result = await generateText({
             ...commonOptions,
             onStepFinish: async (step) => {
               // Track cost before anything else
               budget?.onStepFinish(step);
-              // Stream tool calls
-              if (step.toolCalls?.length) {
-                for (const tc of step.toolCalls) {
-                  const eventId = generateEventId();
-                  streamWriter.write({
-                    type: "data-subagent",
-                    id: eventId,
-                    data: {
-                      event: "tool-call",
-                      subagent: subagent_type,
-                      description,
-                      toolName: tc.toolName,
-                      args: tc.input as Record<string, unknown>,
-                    } satisfies SubagentEventData,
-                  });
-                }
-              }
               // Call subagent-specific callback
               await typeConfig.onStepFinish?.(step);
               // Call default callback with subagent context
@@ -287,136 +347,63 @@ export function createTaskTool(
             },
           });
 
-          // Wait for stream to complete
-          const text = await result.text;
-          const usage = await result.usage;
-          const response = await result.response;
-
-          // Emit done event
-          streamWriter.write({
-            type: "data-subagent",
-            id: generateEventId(),
-            data: {
-              event: "done",
-              subagent: subagent_type,
-              description,
-            } satisfies SubagentEventData,
-          });
-
-          // Emit complete event with full messages for UI access
-          streamWriter.write({
-            type: "data-subagent",
-            id: generateEventId(),
-            data: {
-              event: "complete",
-              subagent: subagent_type,
-              description,
-              messages: response.messages,
-            } satisfies SubagentEventData,
-          });
-
           const durationMs = Math.round(performance.now() - startTime);
 
-          // Pop parent context and emit debug end
-          if (debugId) {
-            popParent();
-            debugEnd(debugId, "task", {
-              summary: {
-                tokens: {
-                  input: usage.inputTokens,
-                  output: usage.outputTokens,
-                },
-                steps: response.messages?.length,
-              },
-              duration_ms: durationMs,
-            });
-          }
+          // Format usage
+          const usage =
+            result.usage.inputTokens !== undefined &&
+            result.usage.outputTokens !== undefined
+              ? {
+                  input_tokens: result.usage.inputTokens,
+                  output_tokens: result.usage.outputTokens,
+                }
+              : undefined;
 
           return {
-            result: text,
-            usage:
-              usage.inputTokens !== undefined &&
-              usage.outputTokens !== undefined
-                ? {
-                    input_tokens: usage.inputTokens,
-                    output_tokens: usage.outputTokens,
-                  }
-                : undefined,
+            result: result.text,
+            usage,
             duration_ms: durationMs,
             subagent: subagent_type,
             description,
           };
+        } catch (error) {
+          const errorMessage =
+            error instanceof Error ? error.message : "Unknown error";
+
+          const durationMs = Math.round(performance.now() - startTime);
+          return {
+            error: errorMessage,
+            subagent: subagent_type,
+            description,
+            duration_ms: durationMs,
+          };
         }
+      };
 
-        // Default: use generateText (no streaming)
-        const result = await generateText({
-          ...commonOptions,
-          onStepFinish: async (step) => {
-            // Track cost before anything else
-            budget?.onStepFinish(step);
-            // Call subagent-specific callback
-            await typeConfig.onStepFinish?.(step);
-            // Call default callback with subagent context
-            await defaultOnStepFinish?.({
-              subagentType: subagent_type,
-              description,
-              step,
-            });
-          },
-        });
+      // Wrap in debug parent context so child tool calls are correctly attributed
+      const result = await runWithDebugParent(debugId, executeTask);
 
-        const durationMs = Math.round(performance.now() - startTime);
-
-        // Format usage
-        const usage =
-          result.usage.inputTokens !== undefined &&
-          result.usage.outputTokens !== undefined
-            ? {
-                input_tokens: result.usage.inputTokens,
-                output_tokens: result.usage.outputTokens,
-              }
-            : undefined;
-
-        // Pop parent context and emit debug end
-        if (debugId) {
-          popParent();
+      // Emit debug end/error outside the parent context for correct indent level
+      if (debugId) {
+        if ("error" in result) {
+          debugError(debugId, "task", result.error);
+        } else {
           debugEnd(debugId, "task", {
             summary: {
-              tokens: {
-                input: result.usage.inputTokens,
-                output: result.usage.outputTokens,
-              },
-              steps: result.steps?.length,
+              tokens: result.usage
+                ? {
+                    input: result.usage.input_tokens,
+                    output: result.usage.output_tokens,
+                  }
+                : undefined,
             },
-            duration_ms: durationMs,
+            duration_ms:
+              result.duration_ms ?? Math.round(performance.now() - startTime),
           });
         }
-
-        return {
-          result: result.text,
-          usage,
-          duration_ms: durationMs,
-          subagent: subagent_type,
-          description,
-        };
-      } catch (error) {
-        const errorMessage =
-          error instanceof Error ? error.message : "Unknown error";
-
-        // Pop parent context and emit debug error
-        if (debugId) {
-          popParent();
-          debugError(debugId, "task", errorMessage);
-        }
-
-        const durationMs = Math.round(performance.now() - startTime);
-        return {
-          error: errorMessage,
-          subagent: subagent_type,
-          description,
-          duration_ms: durationMs,
-        };
       }
+
+      return result;
     },
   });
 }
