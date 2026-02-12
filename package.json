@@ -1,6 +1,6 @@
 {
   "name": "bashkit",
-  "version": "0.5.1",
+  "version": "0.5.2",
   "description": "Agentic coding tools for the Vercel AI SDK",
   "type": "module",
   "main": "./dist/index.js",

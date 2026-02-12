@@ -43,8 +43,7 @@ Utilities for token estimation, conversation management, budget tracking, and to
 - `debugStart(tool: string, input?: Record<string, unknown>): string` -- Record tool start, returns event ID
 - `debugEnd(id: string, tool: string, options: { output?, summary?, duration_ms }): void` -- Record tool success
 - `debugError(id: string, tool: string, error: string | Error): void` -- Record tool error
-- `pushParent(id: string): void` -- Push parent context for nested tool calls
-- `popParent(): void` -- Pop parent context
+- `runWithDebugParent<T>(parentId: string, fn: () => T): T` -- Run function with debug parent context (AsyncLocalStorage-based, safe for parallel execution)
 - `isDebugEnabled(): boolean` -- Check if debug mode active
 - `getDebugLogs(): DebugEvent[]` -- Get all debug events (memory mode only)
 - `clearDebugLogs(): void` -- Reset debug state
@@ -128,9 +127,10 @@ Three complementary approaches:
 2. Tool succeeds → `debugEnd(id, tool, { output, summary, duration_ms })`
 3. Tool fails → `debugError(id, tool, error)`
 
-**Parent Tracking**:
-- `pushParent(id)` before spawning nested tools (e.g., Task spawning subagent)
-- `popParent()` after nested execution completes
+**Parent Tracking** (via `AsyncLocalStorage`):
+- `runWithDebugParent(id, fn)` wraps execution in an isolated async context
+- All tool calls within `fn` (including async continuations) get `parent` set to `id`
+- Safe for parallel execution — each call gets its own context
 - Events include `parent` field to reconstruct call hierarchy
 
 **Data Truncation**:
