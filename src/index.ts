@@ -133,7 +133,6 @@ export type {
 } from "./cache";
 export { cached, createRedisCacheStore, LRUCacheStore } from "./cache";
 export type {
-  AutoCompactionConfig,
   CompactConversationConfig,
   CompactConversationResult,
   CompactConversationState,

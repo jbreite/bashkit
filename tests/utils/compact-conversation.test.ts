@@ -451,7 +451,7 @@ describe("createAutoCompaction", () => {
       summarizerModel: mockModel,
     });
 
-    expect(compaction.state.conversationSummary).toBe("");
+    expect(compaction.getState().conversationSummary).toBe("");
 
     await compaction.prepareStep({
       messages: makeMessages(30),
@@ -459,7 +459,7 @@ describe("createAutoCompaction", () => {
       model: mockModel,
     } as never);
 
-    expect(compaction.state.conversationSummary).toBe("Auto summary.");
+    expect(compaction.getState().conversationSummary).toBe("Auto summary.");
   });
 
   it("handles multiple compaction cycles (state accumulates)", async () => {
@@ -479,7 +479,7 @@ describe("createAutoCompaction", () => {
       model: mockModel,
     } as never);
 
-    expect(compaction.state.conversationSummary).toBe("Summary round 1.");
+    expect(compaction.getState().conversationSummary).toBe("Summary round 1.");
 
     // Second compaction (fresh large messages)
     await compaction.prepareStep({
@@ -488,7 +488,7 @@ describe("createAutoCompaction", () => {
       model: mockModel,
     } as never);
 
-    expect(compaction.state.conversationSummary).toBe("Summary round 2.");
+    expect(compaction.getState().conversationSummary).toBe("Summary round 2.");
 
     // Second call should have received the first summary in the prompt
     const secondCall = vi.mocked(generateText).mock.calls[1][0] as {

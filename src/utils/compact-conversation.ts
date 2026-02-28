@@ -29,8 +29,6 @@ export interface CompactConversationConfig {
   summaryInstructions?: string;
 }
 
-export interface AutoCompactionConfig extends CompactConversationConfig {}
-
 export interface CompactConversationState {
   /** Accumulated summary from previous compactions */
   conversationSummary: string;
@@ -482,9 +480,9 @@ function extractFileOps(messages: ModelMessage[]): FileOperations {
  * });
  * ```
  */
-export function createAutoCompaction(config: AutoCompactionConfig): {
+export function createAutoCompaction(config: CompactConversationConfig): {
   prepareStep: PrepareStepFunction<ToolSet>;
-  state: CompactConversationState;
+  getState: () => Readonly<CompactConversationState>;
 } {
   const state: CompactConversationState = { conversationSummary: "" };
   const threshold = config.compactionThreshold ?? 0.85;
@@ -508,7 +506,7 @@ export function createAutoCompaction(config: AutoCompactionConfig): {
     return {};
   };
 
-  return { prepareStep, state };
+  return { prepareStep, getState: () => ({ ...state }) };
 }
 
 /**

@@ -1,5 +1,4 @@
 export {
-  type AutoCompactionConfig,
   type CompactConversationConfig,
   type CompactConversationResult,
   type CompactConversationState,
