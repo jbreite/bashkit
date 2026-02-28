@@ -25,6 +25,8 @@ export interface CompactConversationConfig {
   summarizerModel: LanguageModel;
   /** The original task/goal the agent is working on - helps preserve context */
   taskContext?: string;
+  /** Extra instructions for the summarizer (e.g., "Focus on database schema decisions") */
+  summaryInstructions?: string;
 }
 
 export interface AutoCompactionConfig extends CompactConversationConfig {}
@@ -117,6 +119,7 @@ export async function compactConversation(
     config.taskContext,
     state.conversationSummary,
     fileOps,
+    config.summaryInstructions,
   );
 
   // Build compacted messages
@@ -205,7 +208,7 @@ Brief description of what the user asked for and the current goal.
 - Maintain the user's original terminology and naming.
 - Do not editorialize or add suggestions - just capture what happened.
 - Omit sections that have no relevant information.
-</instructions>`;
+{{SUMMARY_INSTRUCTIONS}}</instructions>`;
 
 async function summarizeMessages(
   messages: ModelMessage[],
@@ -213,6 +216,7 @@ async function summarizeMessages(
   taskContext?: string,
   previousSummary?: string,
   fileOps?: FileOperations,
+  summaryInstructions?: string,
 ): Promise<string> {
   let fileOpsBlock = "";
   if (fileOps) {
@@ -256,7 +260,11 @@ async function summarizeMessages(
       previousSummary || "None - this is the first compaction",
     )
     .replace("{{CONVERSATION}}", formatMessagesForSummary(messages))
-    .replace("{{FILE_OPERATIONS}}", fileOpsBlock);
+    .replace("{{FILE_OPERATIONS}}", fileOpsBlock)
+    .replace(
+      "{{SUMMARY_INSTRUCTIONS}}",
+      summaryInstructions ? `- ${summaryInstructions}` : "",
+    );
 
   const result = await generateText({
     model,
@@ -275,7 +283,7 @@ const MAX_PART_LENGTH = 500;
 
 function truncate(str: string, max: number = MAX_PART_LENGTH): string {
   if (str.length <= max) return str;
-  return str.slice(0, max) + "... [truncated]";
+  return `${str.slice(0, max)}... [truncated]`;
 }
 
 function formatMessagesForSummary(messages: ModelMessage[]): string {

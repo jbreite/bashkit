@@ -308,7 +308,10 @@ describe("compactConversation", () => {
     const recentMessages = makeMessages(6); // 12 messages → protected by default 10
     const allMessages = [...toolMessages, ...recentMessages];
 
-    await compactConversation(allMessages, makeConfig({ protectRecentMessages: 12 }));
+    await compactConversation(
+      allMessages,
+      makeConfig({ protectRecentMessages: 12 }),
+    );
 
     expect(generateText).toHaveBeenCalledOnce();
 
@@ -321,6 +324,21 @@ describe("compactConversation", () => {
     expect(prompt).toContain("/src/app.ts"); // Read
     expect(prompt).toContain("/src/new-file.ts"); // Write (Modified)
     expect(prompt).toContain("/src/utils.ts"); // Edit (Modified)
+  });
+
+  it("includes summaryInstructions in the summarization prompt", async () => {
+    await compactConversation(
+      makeMessages(30),
+      makeConfig({ summaryInstructions: "Focus on database schema decisions" }),
+    );
+
+    expect(generateText).toHaveBeenCalledOnce();
+
+    const call = vi.mocked(generateText).mock.calls[0][0] as {
+      messages: ModelMessage[];
+    };
+    const prompt = String(call.messages[0].content);
+    expect(prompt).toContain("Focus on database schema decisions");
   });
 
   it("passes previous summary to the summarizer on subsequent compactions", async () => {
