@@ -2,6 +2,7 @@ export {
   type CompactConversationConfig,
   type CompactConversationResult,
   type CompactConversationState,
+  CompactionError,
   compactConversation,
   createAutoCompaction,
   createCompactConfig,

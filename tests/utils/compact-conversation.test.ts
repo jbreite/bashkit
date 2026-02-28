@@ -14,6 +14,7 @@ vi.mock("ai", async (importOriginal) => {
 
 import { generateText } from "ai";
 import {
+  CompactionError,
   compactConversation,
   createAutoCompaction,
   createCompactConfig,
@@ -496,6 +497,87 @@ describe("createAutoCompaction", () => {
     };
     const prompt = String(secondCall.messages[0].content);
     expect(prompt).toContain("Summary round 1.");
+  });
+
+  it("retries once and succeeds on second attempt", async () => {
+    vi.mocked(generateText)
+      .mockRejectedValueOnce(new Error("rate limit"))
+      .mockResolvedValueOnce({ text: "Retry summary." } as never);
+
+    const compaction = createAutoCompaction({
+      maxTokens: 2000,
+      summarizerModel: mockModel,
+    });
+
+    const result = await compaction.prepareStep({
+      messages: makeMessages(30),
+      stepNumber: 1,
+      model: mockModel,
+    } as never);
+
+    expect(result).toHaveProperty("messages");
+    expect(generateText).toHaveBeenCalledTimes(2);
+    expect(compaction.getState().conversationSummary).toBe("Retry summary.");
+  });
+
+  it("throws CompactionError after 2 failures", async () => {
+    const cause = new Error("network down");
+    vi.mocked(generateText)
+      .mockRejectedValueOnce(new Error("first failure"))
+      .mockRejectedValueOnce(cause);
+
+    const compaction = createAutoCompaction({
+      maxTokens: 2000,
+      summarizerModel: mockModel,
+    });
+
+    await expect(
+      compaction.prepareStep({
+        messages: makeMessages(30),
+        stepNumber: 1,
+        model: mockModel,
+      } as never),
+    ).rejects.toThrow(CompactionError);
+
+    try {
+      await compaction.prepareStep({
+        messages: makeMessages(30),
+        stepNumber: 2,
+        model: mockModel,
+      } as never);
+    } catch (err) {
+      expect(err).toBeInstanceOf(CompactionError);
+      expect((err as CompactionError).message).toContain("2 attempts");
+      expect((err as CompactionError).cause).toBe(cause);
+    }
+  });
+
+  it("returns {} when didCompact is false without retrying", async () => {
+    // Use a config where tokens exceed threshold but all messages are protected
+    // so compactConversation returns didCompact: false
+    const messages: ModelMessage[] = [
+      { role: "user", content: "a".repeat(10000) },
+      { role: "assistant", content: "b".repeat(10000) },
+      { role: "user", content: "c".repeat(10000) },
+      { role: "assistant", content: "d".repeat(10000) },
+    ];
+
+    const compaction = createAutoCompaction({
+      maxTokens: 500,
+      summarizerModel: mockModel,
+      protectRecentMessages: 10,
+    });
+
+    const result = await compaction.prepareStep({
+      messages,
+      stepNumber: 1,
+      model: mockModel,
+    } as never);
+
+    expect(result).toEqual({});
+    // generateText should NOT have been called because compactConversation
+    // returns didCompact: false (all messages protected)
+    expect(generateText).not.toHaveBeenCalled();
   });
 });
 

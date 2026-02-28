@@ -8,6 +8,14 @@ import {
 import { estimateMessagesTokens } from "./prune-messages";
 import { getContextStatus } from "./context-status";
 
+export class CompactionError extends Error {
+  override readonly name = "CompactionError";
+
+  constructor(message: string, options?: { cause?: unknown }) {
+    super(message, options);
+  }
+}
+
 interface FileOperations {
   read: Set<string>;
   written: Set<string>;
@@ -496,14 +504,25 @@ export function createAutoCompaction(config: CompactConversationConfig): {
       return {};
     }
 
-    const result = await compactConversation(args.messages, config, state);
-
-    if (result.didCompact) {
-      state.conversationSummary = result.state.conversationSummary;
-      return { messages: result.messages };
+    let lastError: unknown;
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        const result = await compactConversation(args.messages, config, state);
+        if (result.didCompact) {
+          state.conversationSummary = result.state.conversationSummary;
+          return { messages: result.messages };
+        }
+        // didCompact was false — no point retrying
+        return {};
+      } catch (err) {
+        lastError = err;
+      }
     }
 
-    return {};
+    throw new CompactionError(
+      "Conversation compaction failed after 2 attempts",
+      { cause: lastError },
+    );
   };
 
   return { prepareStep, getState: () => ({ ...state }) };

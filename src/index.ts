@@ -147,6 +147,7 @@ export type {
 // Utils
 export {
   clearDebugLogs,
+  CompactionError,
   compactConversation,
   contextNeedsAttention,
   contextNeedsCompaction,
