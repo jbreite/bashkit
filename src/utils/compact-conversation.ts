@@ -1,5 +1,18 @@
-import { generateText, type LanguageModel, type ModelMessage } from "ai";
+import {
+  generateText,
+  type LanguageModel,
+  type ModelMessage,
+  type PrepareStepFunction,
+  type ToolSet,
+} from "ai";
 import { estimateMessagesTokens } from "./prune-messages";
+import { getContextStatus } from "./context-status";
+
+interface FileOperations {
+  read: Set<string>;
+  written: Set<string>;
+  edited: Set<string>;
+}
 
 export interface CompactConversationConfig {
   /** Model's context limit (e.g., 200000 for Claude) */
@@ -13,6 +26,8 @@ export interface CompactConversationConfig {
   /** The original task/goal the agent is working on - helps preserve context */
   taskContext?: string;
 }
+
+export interface AutoCompactionConfig extends CompactConversationConfig {}
 
 export interface CompactConversationState {
   /** Accumulated summary from previous compactions */
@@ -81,15 +96,19 @@ export async function compactConversation(
     return { messages, state, didCompact: false };
   }
 
-  // Split messages: old (to summarize) vs recent (to keep)
+  // Split messages at a safe point that won't orphan tool results
   const protectCount = config.protectRecentMessages ?? 10;
-  const recentMessages = messages.slice(-protectCount);
-  const oldMessages = messages.slice(0, -protectCount);
+  const splitAt = findSafeSplitIndex(messages, protectCount);
+  const oldMessages = messages.slice(0, splitAt);
+  const recentMessages = messages.slice(splitAt);
 
   // Nothing to summarize
   if (oldMessages.length === 0) {
     return { messages, state, didCompact: false };
   }
+
+  // Extract file operations from old messages for the summary
+  const fileOps = extractFileOps(oldMessages);
 
   // Summarize old portion (the prompt includes previous summary as context)
   const newSummary = await summarizeMessages(
@@ -97,6 +116,7 @@ export async function compactConversation(
     config.summarizerModel,
     config.taskContext,
     state.conversationSummary,
+    fileOps,
   );
 
   // Build compacted messages
@@ -136,6 +156,8 @@ Create a structured summary of the conversation below. This summary will replace
 <previous-summary>
 {{PREVIOUS_SUMMARY}}
 </previous-summary>
+
+{{FILE_OPERATIONS}}
 
 <conversation-to-summarize>
 {{CONVERSATION}}
@@ -190,7 +212,41 @@ async function summarizeMessages(
   model: LanguageModel,
   taskContext?: string,
   previousSummary?: string,
+  fileOps?: FileOperations,
 ): Promise<string> {
+  let fileOpsBlock = "";
+  if (fileOps) {
+    const MAX_FILES = 50;
+    const sanitize = (p: string) => p.replace(/[<>&]/g, "");
+    const readFiles = [...fileOps.read].sort().map(sanitize);
+    const modifiedFiles = [...new Set([...fileOps.written, ...fileOps.edited])]
+      .sort()
+      .map(sanitize);
+
+    const sections: string[] = [];
+    if (readFiles.length > 0) {
+      const listed = readFiles.slice(0, MAX_FILES);
+      sections.push(`Read: ${listed.join(", ")}`);
+      if (readFiles.length > MAX_FILES) {
+        sections.push(
+          `... and ${readFiles.length - MAX_FILES} more read files`,
+        );
+      }
+    }
+    if (modifiedFiles.length > 0) {
+      const listed = modifiedFiles.slice(0, MAX_FILES);
+      sections.push(`Modified: ${listed.join(", ")}`);
+      if (modifiedFiles.length > MAX_FILES) {
+        sections.push(
+          `... and ${modifiedFiles.length - MAX_FILES} more modified files`,
+        );
+      }
+    }
+    if (sections.length > 0) {
+      fileOpsBlock = `<file-operations>\n${sections.join("\n")}\n</file-operations>`;
+    }
+  }
+
   const prompt = SUMMARIZATION_PROMPT.replace(
     "{{TASK_CONTEXT}}",
     taskContext || "Not specified",
@@ -199,7 +255,8 @@ async function summarizeMessages(
       "{{PREVIOUS_SUMMARY}}",
       previousSummary || "None - this is the first compaction",
     )
-    .replace("{{CONVERSATION}}", formatMessagesForSummary(messages));
+    .replace("{{CONVERSATION}}", formatMessagesForSummary(messages))
+    .replace("{{FILE_OPERATIONS}}", fileOpsBlock);
 
   const result = await generateText({
     model,
@@ -212,6 +269,13 @@ async function summarizeMessages(
   });
 
   return result.text;
+}
+
+const MAX_PART_LENGTH = 500;
+
+function truncate(str: string, max: number = MAX_PART_LENGTH): string {
+  if (str.length <= max) return str;
+  return str.slice(0, max) + "... [truncated]";
 }
 
 function formatMessagesForSummary(messages: ModelMessage[]): string {
@@ -233,34 +297,206 @@ function formatMessagesForSummary(messages: ModelMessage[]): string {
             if ("text" in part && typeof part.text === "string") {
               return part.text;
             }
-            if ("toolName" in part && "args" in part) {
-              return `[Tool Call: ${part.toolName}]\nArgs: ${JSON.stringify(
-                part.args,
-                null,
-                2,
-              )}`;
+            if (isToolCallPart(part)) {
+              const argsStr = truncate(JSON.stringify(part.args));
+              return `[Tool Call: ${part.toolName}]\nArgs: ${argsStr}`;
             }
             if ("result" in part) {
               const resultStr =
                 typeof part.result === "string"
                   ? part.result
-                  : JSON.stringify(part.result, null, 2);
-              return `[Tool Result]\n${resultStr}`;
+                  : JSON.stringify(part.result);
+              return `[Tool Result]\n${truncate(resultStr)}`;
             }
-            return JSON.stringify(part, null, 2);
+            return truncate(JSON.stringify(part));
           })
           .join("\n\n");
 
         return `<message index="${index}" role="${role}">\n${parts}\n</message>`;
       }
 
-      return `<message index="${index}" role="${role}">\n${JSON.stringify(
-        msg.content,
-        null,
-        2,
+      return `<message index="${index}" role="${role}">\n${truncate(
+        JSON.stringify(msg.content),
       )}\n</message>`;
     })
     .join("\n\n");
+}
+
+function isToolCallPart(
+  part: unknown,
+): part is { toolName: string; args: unknown } {
+  return (
+    typeof part === "object" &&
+    part !== null &&
+    "toolName" in part &&
+    "args" in part
+  );
+}
+
+/**
+ * Check if an assistant message contains tool calls in its content.
+ */
+function hasToolCalls(message: ModelMessage): boolean {
+  if (message.role !== "assistant" || !Array.isArray(message.content)) {
+    return false;
+  }
+  return message.content.some(isToolCallPart);
+}
+
+/**
+ * Find a safe index to split messages that won't orphan tool results from their calls.
+ *
+ * Starts at the naive split point (messages.length - protectCount) and walks
+ * backwards to avoid splitting inside a tool call/result pair.
+ */
+function findSafeSplitIndex(
+  messages: ModelMessage[],
+  protectCount: number,
+): number {
+  const naiveSplit = Math.max(0, messages.length - protectCount);
+  let splitAt = naiveSplit;
+
+  // Walk backwards to find a safe boundary
+  while (splitAt > 0) {
+    const msg = messages[splitAt];
+    // Don't split at a tool result — it needs its preceding assistant message
+    if (msg.role === "tool") {
+      splitAt--;
+      continue;
+    }
+    // If the previous message is an assistant with tool calls,
+    // the tool results at splitAt+ would be orphaned
+    const prev = messages[splitAt - 1];
+    if (prev?.role === "assistant" && hasToolCalls(prev)) {
+      splitAt--;
+      continue;
+    }
+    break;
+  }
+
+  // If backward walk hit 0 (all tool pairs), walk forward from naive split
+  // to find the first safe boundary instead of giving up entirely
+  if (splitAt === 0 && naiveSplit > 0) {
+    splitAt = naiveSplit;
+    while (splitAt < messages.length) {
+      const msg = messages[splitAt];
+      if (msg.role !== "tool") {
+        const prev = messages[splitAt - 1];
+        if (!prev || prev.role !== "assistant" || !hasToolCalls(prev)) {
+          break;
+        }
+      }
+      splitAt++;
+    }
+    // If we walked past the end, fall back to naive split —
+    // some orphaning is better than no compaction
+    if (splitAt >= messages.length) {
+      splitAt = naiveSplit;
+    }
+  }
+
+  return splitAt;
+}
+
+/**
+ * Extract file paths touched by tool calls in the conversation.
+ *
+ * Walks through assistant messages looking for tool call content parts
+ * and maps tool names to read/written/edited operations.
+ */
+function extractFileOps(messages: ModelMessage[]): FileOperations {
+  const ops: FileOperations = {
+    read: new Set(),
+    written: new Set(),
+    edited: new Set(),
+  };
+
+  for (const msg of messages) {
+    if (msg.role !== "assistant" || !Array.isArray(msg.content)) continue;
+
+    for (const part of msg.content) {
+      if (!isToolCallPart(part)) continue;
+
+      const toolName = String(part.toolName).toLowerCase();
+      const rawArgs = part.args;
+      if (typeof rawArgs !== "object" || rawArgs === null) continue;
+      const args = rawArgs as Record<string, unknown>;
+
+      switch (toolName) {
+        case "read": {
+          const filePath = args.file_path;
+          if (typeof filePath === "string") ops.read.add(filePath);
+          break;
+        }
+        case "write": {
+          const filePath = args.file_path;
+          if (typeof filePath === "string") ops.written.add(filePath);
+          break;
+        }
+        case "edit": {
+          const filePath = args.file_path;
+          if (typeof filePath === "string") ops.edited.add(filePath);
+          break;
+        }
+      }
+    }
+  }
+
+  return ops;
+}
+
+/**
+ * Create an auto-compaction helper that integrates with the AI SDK's `prepareStep` hook.
+ *
+ * Returns a `prepareStep` function that monitors context usage and automatically
+ * compacts the conversation when the threshold is exceeded.
+ *
+ * @example
+ * ```typescript
+ * import { createAutoCompaction } from 'bashkit';
+ *
+ * const compaction = createAutoCompaction({
+ *   maxTokens: 200_000,
+ *   summarizerModel: anthropic('claude-haiku-4'),
+ *   taskContext: 'Building a REST API',
+ * });
+ *
+ * const result = await generateText({
+ *   model: anthropic('claude-sonnet-4-5'),
+ *   tools,
+ *   messages,
+ *   prepareStep: compaction.prepareStep,
+ *   stopWhen: stepCountIs(20),
+ * });
+ * ```
+ */
+export function createAutoCompaction(config: AutoCompactionConfig): {
+  prepareStep: PrepareStepFunction<ToolSet>;
+  state: CompactConversationState;
+} {
+  const state: CompactConversationState = { conversationSummary: "" };
+  const threshold = config.compactionThreshold ?? 0.85;
+
+  const prepareStep: PrepareStepFunction<ToolSet> = async (args) => {
+    const status = getContextStatus(args.messages, config.maxTokens, {
+      criticalThreshold: threshold,
+    });
+
+    if (status.status !== "critical") {
+      return {};
+    }
+
+    const result = await compactConversation(args.messages, config, state);
+
+    if (result.didCompact) {
+      state.conversationSummary = result.state.conversationSummary;
+      return { messages: result.messages };
+    }
+
+    return {};
+  };
+
+  return { prepareStep, state };
 }
 
 /**

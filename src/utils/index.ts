@@ -1,8 +1,10 @@
 export {
+  type AutoCompactionConfig,
   type CompactConversationConfig,
   type CompactConversationResult,
   type CompactConversationState,
   compactConversation,
+  createAutoCompaction,
   createCompactConfig,
   MODEL_CONTEXT_LIMITS,
   type ModelContextLimit,
