@@ -519,7 +519,7 @@ describe("createAutoCompaction", () => {
     expect(compaction.getState().conversationSummary).toBe("Retry summary.");
   });
 
-  it("throws CompactionError after 2 failures", async () => {
+  it("throws CompactionError after 2 failures with cause", async () => {
     const cause = new Error("network down");
     vi.mocked(generateText)
       .mockRejectedValueOnce(new Error("first failure"))
@@ -530,20 +530,13 @@ describe("createAutoCompaction", () => {
       summarizerModel: mockModel,
     });
 
-    await expect(
-      compaction.prepareStep({
-        messages: makeMessages(30),
-        stepNumber: 1,
-        model: mockModel,
-      } as never),
-    ).rejects.toThrow(CompactionError);
-
     try {
       await compaction.prepareStep({
         messages: makeMessages(30),
-        stepNumber: 2,
+        stepNumber: 1,
         model: mockModel,
       } as never);
+      expect.fail("Should have thrown");
     } catch (err) {
       expect(err).toBeInstanceOf(CompactionError);
       expect((err as CompactionError).message).toContain("2 attempts");
