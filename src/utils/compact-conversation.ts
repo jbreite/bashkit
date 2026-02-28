@@ -258,20 +258,17 @@ async function summarizeMessages(
     }
   }
 
+  const templateVars: Record<string, string> = {
+    TASK_CONTEXT: taskContext || "Not specified",
+    PREVIOUS_SUMMARY: previousSummary || "None - this is the first compaction",
+    CONVERSATION: formatMessagesForSummary(messages),
+    FILE_OPERATIONS: fileOpsBlock,
+    SUMMARY_INSTRUCTIONS: summaryInstructions ? `- ${summaryInstructions}` : "",
+  };
   const prompt = SUMMARIZATION_PROMPT.replace(
-    "{{TASK_CONTEXT}}",
-    taskContext || "Not specified",
-  )
-    .replace(
-      "{{PREVIOUS_SUMMARY}}",
-      previousSummary || "None - this is the first compaction",
-    )
-    .replace("{{CONVERSATION}}", formatMessagesForSummary(messages))
-    .replace("{{FILE_OPERATIONS}}", fileOpsBlock)
-    .replace(
-      "{{SUMMARY_INSTRUCTIONS}}",
-      summaryInstructions ? `- ${summaryInstructions}` : "",
-    );
+    /\{\{(\w+)\}\}/g,
+    (_, key) => templateVars[key] ?? "",
+  );
 
   const result = await generateText({
     model,
