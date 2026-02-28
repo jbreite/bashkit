@@ -18,8 +18,7 @@ export class CompactionError extends Error {
 
 interface FileOperations {
   read: Set<string>;
-  written: Set<string>;
-  edited: Set<string>;
+  modified: Set<string>;
 }
 
 export interface CompactConversationConfig {
@@ -233,9 +232,7 @@ async function summarizeMessages(
     const MAX_FILES = 50;
     const sanitize = (p: string) => p.replace(/[<>&]/g, "");
     const readFiles = [...fileOps.read].sort().map(sanitize);
-    const modifiedFiles = [...new Set([...fileOps.written, ...fileOps.edited])]
-      .sort()
-      .map(sanitize);
+    const modifiedFiles = [...fileOps.modified].sort().map(sanitize);
 
     const sections: string[] = [];
     if (readFiles.length > 0) {
@@ -425,8 +422,7 @@ function findSafeSplitIndex(
 function extractFileOps(messages: ModelMessage[]): FileOperations {
   const ops: FileOperations = {
     read: new Set(),
-    written: new Set(),
-    edited: new Set(),
+    modified: new Set(),
   };
 
   for (const msg of messages) {
@@ -446,14 +442,10 @@ function extractFileOps(messages: ModelMessage[]): FileOperations {
           if (typeof filePath === "string") ops.read.add(filePath);
           break;
         }
-        case "write": {
-          const filePath = args.file_path;
-          if (typeof filePath === "string") ops.written.add(filePath);
-          break;
-        }
+        case "write":
         case "edit": {
           const filePath = args.file_path;
-          if (typeof filePath === "string") ops.edited.add(filePath);
+          if (typeof filePath === "string") ops.modified.add(filePath);
           break;
         }
       }
