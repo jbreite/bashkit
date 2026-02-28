@@ -288,9 +288,9 @@ async function summarizeMessages(
 
 const MAX_PART_LENGTH = 500;
 
-function truncate(str: string, max: number = MAX_PART_LENGTH): string {
-  if (str.length <= max) return str;
-  return `${str.slice(0, max)}... [truncated]`;
+function truncate(str: string): string {
+  if (str.length <= MAX_PART_LENGTH) return str;
+  return `${str.slice(0, MAX_PART_LENGTH)}... [truncated]`;
 }
 
 function formatMessagesForSummary(messages: ModelMessage[]): string {

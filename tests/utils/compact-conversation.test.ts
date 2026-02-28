@@ -18,7 +18,6 @@ import {
   compactConversation,
   createAutoCompaction,
   createCompactConfig,
-  MODEL_CONTEXT_LIMITS,
 } from "@/utils/compact-conversation";
 import type {
   CompactConversationConfig,
