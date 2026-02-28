@@ -231,6 +231,98 @@ describe("compactConversation", () => {
     expect(result.state.conversationSummary).toBe("First summary.");
   });
 
+  it("includes file operations in the summarization prompt", async () => {
+    // Build messages with tool calls for Read, Write, and Edit in the old portion,
+    // followed by enough plain messages to stay in the "recent" window.
+    const toolMessages: ModelMessage[] = [
+      { role: "user", content: "Please read and edit some files." },
+      {
+        role: "assistant",
+        content: [
+          {
+            type: "tool-call",
+            toolCallId: "r1",
+            toolName: "Read",
+            args: { file_path: "/src/app.ts" },
+          },
+        ],
+      } as unknown as ModelMessage,
+      {
+        role: "tool",
+        content: [
+          {
+            type: "tool-result",
+            toolCallId: "r1",
+            toolName: "Read",
+            result: "file contents",
+          },
+        ],
+      } as unknown as ModelMessage,
+      {
+        role: "assistant",
+        content: [
+          {
+            type: "tool-call",
+            toolCallId: "w1",
+            toolName: "Write",
+            args: { file_path: "/src/new-file.ts" },
+          },
+        ],
+      } as unknown as ModelMessage,
+      {
+        role: "tool",
+        content: [
+          {
+            type: "tool-result",
+            toolCallId: "w1",
+            toolName: "Write",
+            result: "ok",
+          },
+        ],
+      } as unknown as ModelMessage,
+      {
+        role: "assistant",
+        content: [
+          {
+            type: "tool-call",
+            toolCallId: "e1",
+            toolName: "Edit",
+            args: { file_path: "/src/utils.ts" },
+          },
+        ],
+      } as unknown as ModelMessage,
+      {
+        role: "tool",
+        content: [
+          {
+            type: "tool-result",
+            toolCallId: "e1",
+            toolName: "Edit",
+            result: "ok",
+          },
+        ],
+      } as unknown as ModelMessage,
+    ];
+
+    // Recent filler that will be protected (not summarized)
+    const recentMessages = makeMessages(6); // 12 messages → protected by default 10
+    const allMessages = [...toolMessages, ...recentMessages];
+
+    await compactConversation(allMessages, makeConfig({ protectRecentMessages: 12 }));
+
+    expect(generateText).toHaveBeenCalledOnce();
+
+    const call = vi.mocked(generateText).mock.calls[0][0] as {
+      messages: ModelMessage[];
+    };
+    const prompt = String(call.messages[0].content);
+
+    expect(prompt).toContain("<file-operations>");
+    expect(prompt).toContain("/src/app.ts"); // Read
+    expect(prompt).toContain("/src/new-file.ts"); // Write (Modified)
+    expect(prompt).toContain("/src/utils.ts"); // Edit (Modified)
+  });
+
   it("passes previous summary to the summarizer on subsequent compactions", async () => {
     vi.mocked(generateText).mockResolvedValueOnce({
       text: "Second summary.",
