@@ -89,6 +89,10 @@ export async function compactConversation(
   config: CompactConversationConfig,
   state: CompactConversationState = { conversationSummary: "" },
 ): Promise<CompactConversationResult> {
+  // Note: This re-estimates tokens even when called from createAutoCompaction
+  // (which already estimated via getContextStatus). This is intentional — the
+  // cost is negligible compared to the generateText call that follows, and
+  // keeping compactConversation self-contained avoids coupling to callers.
   const currentTokens = estimateMessagesTokens(messages);
   const threshold = config.compactionThreshold ?? 0.85;
   const limit = config.maxTokens * threshold;
