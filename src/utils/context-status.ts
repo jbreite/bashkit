@@ -38,10 +38,15 @@ export interface ContextStatusConfig {
   highGuidance?: string | ((metrics: ContextMetrics) => string);
   /** Custom guidance message for 'critical' status */
   criticalGuidance?: string | ((metrics: ContextMetrics) => string);
+  /** Pre-computed token count to skip re-estimation */
+  knownTokenCount?: number;
 }
 
 const DEFAULT_CONFIG: Required<
-  Omit<ContextStatusConfig, "highGuidance" | "criticalGuidance">
+  Omit<
+    ContextStatusConfig,
+    "highGuidance" | "criticalGuidance" | "knownTokenCount"
+  >
 > = {
   elevatedThreshold: 0.5,
   highThreshold: 0.7,
@@ -97,7 +102,8 @@ export function getContextStatus(
     ...config,
   };
 
-  const usedTokens = estimateMessagesTokens(messages);
+  const usedTokens =
+    config?.knownTokenCount ?? estimateMessagesTokens(messages);
   const usagePercent = usedTokens / maxTokens;
 
   const baseStatus = { usedTokens, maxTokens, usagePercent };

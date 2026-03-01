@@ -6,8 +6,9 @@ import type { AgentConfig, CacheConfig } from "../types";
 import { DEFAULT_CONFIG } from "../types";
 import {
   createBudgetTracker,
-  fetchOpenRouterPricing,
+  fetchOpenRouterModels,
   type BudgetTracker,
+  type ModelInfo,
   type ModelPricing,
 } from "../utils/budget-tracking";
 import { createAskUserTool } from "./ask-user";
@@ -125,6 +126,8 @@ export interface AgentToolsResult {
   planModeState?: PlanModeState;
   /** Budget tracker (only present when budget config is set) */
   budget?: BudgetTracker;
+  /** Model info from OpenRouter (only present when modelRegistry or budget pricingProvider is configured) */
+  openRouterModels?: Map<string, ModelInfo>;
 }
 
 /**
@@ -229,32 +232,49 @@ export async function createAgentTools(
     }
   }
 
+  // Fetch model info from provider (hoisted before budget so both can share the data)
+  let openRouterModels: Map<string, ModelInfo> | undefined;
+
+  const shouldFetchOpenRouter =
+    config?.modelRegistry?.provider === "openRouter" ||
+    config?.budget?.pricingProvider === "openRouter";
+
+  if (shouldFetchOpenRouter) {
+    const apiKey = config?.modelRegistry?.apiKey ?? config?.budget?.apiKey;
+
+    try {
+      openRouterModels = await fetchOpenRouterModels(apiKey);
+    } catch (err) {
+      // Only fatal if budget needs it and has no modelPricing fallback
+      if (config?.budget && !config.budget.modelPricing) {
+        throw new Error(
+          `[bashkit] Failed to fetch OpenRouter pricing and no modelPricing overrides provided. ` +
+            `Either provide modelPricing in your budget config or ensure network access to OpenRouter. ` +
+            `Original error: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
+    }
+  }
+
+  // Derive pricing-only map from models map for budget tracker
+  let openRouterPricing: Map<string, ModelPricing> | undefined;
+  if (openRouterModels) {
+    openRouterPricing = new Map(
+      [...openRouterModels].map(([k, v]) => [k, v.pricing]),
+    );
+  }
+
   // Create budget tracker if configured
   let budget: BudgetTracker | undefined;
   if (config?.budget) {
-    const { pricingProvider, apiKey, modelPricing, maxUsd } = config.budget;
+    const { modelPricing, maxUsd } = config.budget;
 
     // Validate: at least one pricing source required
-    if (!pricingProvider && !modelPricing) {
+    // modelRegistry, pricingProvider, or modelPricing
+    if (!openRouterPricing && !modelPricing) {
       throw new Error(
-        "[bashkit] Budget requires either pricingProvider or modelPricing (or both).",
+        "[bashkit] Budget requires either modelRegistry, pricingProvider, or modelPricing.",
       );
-    }
-
-    // Only fetch if pricingProvider is set
-    let openRouterPricing: Map<string, ModelPricing> | undefined;
-    if (pricingProvider === "openRouter") {
-      try {
-        openRouterPricing = await fetchOpenRouterPricing(apiKey);
-      } catch (err) {
-        if (!modelPricing) {
-          throw new Error(
-            `[bashkit] Failed to fetch OpenRouter pricing and no modelPricing overrides provided. ` +
-              `Either provide modelPricing in your budget config or ensure network access to OpenRouter. ` +
-              `Original error: ${err instanceof Error ? err.message : String(err)}`,
-          );
-        }
-      }
     }
 
     budget = createBudgetTracker(maxUsd, {
@@ -263,7 +283,7 @@ export async function createAgentTools(
     });
   }
 
-  return { tools, planModeState, budget };
+  return { tools, planModeState, budget, openRouterModels };
 }
 
 // --- Ask User Tool ---

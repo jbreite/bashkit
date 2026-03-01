@@ -24,6 +24,11 @@ export interface ModelPricing {
   cacheWritePerToken?: number;
 }
 
+export interface ModelInfo {
+  pricing: ModelPricing;
+  contextLength: number;
+}
+
 export interface BudgetStatus {
   totalCostUsd: number;
   maxUsd: number;
@@ -51,6 +56,7 @@ export interface BudgetTracker {
 /** Raw model entry from OpenRouter API */
 interface OpenRouterModel {
   id: string;
+  context_length?: number;
   pricing?: {
     prompt?: string;
     completion?: string;
@@ -59,12 +65,14 @@ interface OpenRouterModel {
   };
 }
 
-/** Module-level cache for OpenRouter pricing */
-let openRouterCache: Map<string, ModelPricing> | null = null;
+/** Module-level cache for OpenRouter pricing (derived from models cache) */
+let openRouterPricingCache: Map<string, ModelPricing> | null = null;
+/** Module-level cache for OpenRouter models (pricing + context length) */
+let openRouterModelsCache: Map<string, ModelInfo> | null = null;
 /** Timestamp of last successful fetch */
 let openRouterCacheTimestamp = 0;
 /** Shared promise to deduplicate concurrent fetches */
-let openRouterFetchPromise: Promise<Map<string, ModelPricing>> | null = null;
+let openRouterFetchPromise: Promise<Map<string, ModelInfo>> | null = null;
 
 /** Default timeout for the OpenRouter pricing fetch (10 seconds) */
 const OPENROUTER_FETCH_TIMEOUT_MS = 10_000;
@@ -72,19 +80,18 @@ const OPENROUTER_FETCH_TIMEOUT_MS = 10_000;
 const OPENROUTER_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 
 /**
- * Fetches model pricing from OpenRouter's public API.
- * Results are cached at module level. Concurrent calls are deduplicated.
- *
- * On failure, throws an error (callers decide whether to rethrow or fall back).
+ * Shared fetch that populates both pricing and models caches.
+ * Returns the models map (pricing + contextLength). The pricing-only
+ * map is derived and cached as a side effect.
  */
-export async function fetchOpenRouterPricing(
+async function fetchOpenRouterData(
   apiKey?: string,
-): Promise<Map<string, ModelPricing>> {
+): Promise<Map<string, ModelInfo>> {
   if (
-    openRouterCache &&
+    openRouterModelsCache &&
     Date.now() - openRouterCacheTimestamp < OPENROUTER_CACHE_TTL_MS
   ) {
-    return openRouterCache;
+    return openRouterModelsCache;
   }
   if (openRouterFetchPromise) return openRouterFetchPromise;
 
@@ -141,7 +148,13 @@ export async function fetchOpenRouterPricing(
       // OpenRouter has ~500 models today; 10,000 is generous headroom.
       // The 10s fetch timeout also limits total response size at the network level.
       const MAX_MODELS = 10_000;
-      const map = new Map<string, ModelPricing>();
+      // Sanity cap on context_length to prevent a compromised endpoint from
+      // returning astronomical values that would effectively disable compaction.
+      // Well above Gemini's 1M context window.
+      const MAX_CONTEXT_LENGTH = 10_000_000;
+      const modelsMap = new Map<string, ModelInfo>();
+      const pricingMap = new Map<string, ModelPricing>();
+
       for (const model of models.slice(0, MAX_MODELS)) {
         if (!model.id || !model.pricing) continue;
 
@@ -163,12 +176,27 @@ export async function fetchOpenRouterPricing(
         if (Number.isFinite(cacheWrite) && cacheWrite >= 0)
           pricing.cacheWritePerToken = cacheWrite;
 
-        map.set(model.id.toLowerCase(), pricing);
+        const key = model.id.toLowerCase();
+        pricingMap.set(key, pricing);
+
+        const contextLength = model.context_length;
+        if (
+          typeof contextLength === "number" &&
+          Number.isFinite(contextLength) &&
+          contextLength > 0 &&
+          contextLength <= MAX_CONTEXT_LENGTH
+        ) {
+          modelsMap.set(key, { pricing, contextLength });
+        } else {
+          // Still include models without context_length (with 0 as sentinel)
+          modelsMap.set(key, { pricing, contextLength: 0 });
+        }
       }
 
-      openRouterCache = map;
+      openRouterModelsCache = modelsMap;
+      openRouterPricingCache = pricingMap;
       openRouterCacheTimestamp = Date.now();
-      return openRouterCache;
+      return openRouterModelsCache;
     } finally {
       clearTimeout(timeoutId);
       openRouterFetchPromise = null;
@@ -179,11 +207,51 @@ export async function fetchOpenRouterPricing(
 }
 
 /**
+ * Fetches model pricing from OpenRouter's public API.
+ * Results are cached at module level. Concurrent calls are deduplicated.
+ *
+ * On failure, throws an error (callers decide whether to rethrow or fall back).
+ */
+export async function fetchOpenRouterPricing(
+  apiKey?: string,
+): Promise<Map<string, ModelPricing>> {
+  // If we already have a valid pricing cache, return it directly
+  if (
+    openRouterPricingCache &&
+    Date.now() - openRouterCacheTimestamp < OPENROUTER_CACHE_TTL_MS
+  ) {
+    return openRouterPricingCache;
+  }
+  // Delegate to the shared fetch, then return the pricing-only map
+  await fetchOpenRouterData(apiKey);
+  if (!openRouterPricingCache) {
+    throw new Error(
+      "[bashkit] Internal error: pricing cache not populated after fetch",
+    );
+  }
+  return openRouterPricingCache;
+}
+
+/**
+ * Fetches model info (pricing + context length) from OpenRouter's public API.
+ * Results are cached at module level. Concurrent calls are deduplicated.
+ * Shares the same fetch and cache as `fetchOpenRouterPricing`.
+ *
+ * On failure, throws an error (callers decide whether to rethrow or fall back).
+ */
+export async function fetchOpenRouterModels(
+  apiKey?: string,
+): Promise<Map<string, ModelInfo>> {
+  return fetchOpenRouterData(apiKey);
+}
+
+/**
  * Reset the OpenRouter cache. Primarily for testing.
  * @internal
  */
 export function resetOpenRouterCache(): void {
-  openRouterCache = null;
+  openRouterPricingCache = null;
+  openRouterModelsCache = null;
   openRouterCacheTimestamp = 0;
   openRouterFetchPromise = null;
 }
@@ -217,6 +285,87 @@ export function getModelMatchVariants(model: string): string[] {
 }
 
 /**
+ * Generic 3-tier model ID matching against any map.
+ *
+ * 1. Exact match (case-insensitive key lookup)
+ * 2. Longest contained match: response model variant *contains* a map entry variant
+ * 3. Reverse containment: map entry variant *contains* response model variant
+ *
+ * An optional `filter` predicate skips entries that don't satisfy it
+ * (e.g., entries with `contextLength <= 0`).
+ */
+function searchModelInMap<T>(
+  model: string,
+  map: Map<string, T>,
+  filter?: (value: T) => boolean,
+): T | undefined {
+  if (map.size === 0) return undefined;
+
+  const modelVariants = getModelMatchVariants(model);
+
+  // Build entry variants (lazily, once per invocation)
+  const entryVariantsCache = new Map<string, string[]>();
+  function getEntryVariants(key: string): string[] {
+    let variants = entryVariantsCache.get(key);
+    if (!variants) {
+      variants = getModelMatchVariants(key);
+      entryVariantsCache.set(key, variants);
+    }
+    return variants;
+  }
+
+  // Tier 1: Exact match
+  for (const variant of modelVariants) {
+    const value = map.get(variant);
+    if (value !== undefined && (!filter || filter(value))) return value;
+  }
+
+  // Tier 2: Longest contained match (model variant contains entry variant)
+  let bestMatch: T | undefined;
+  let bestMatchLength = 0;
+
+  for (const [entryKey, value] of map) {
+    if (filter && !filter(value)) continue;
+    const entryVariants = getEntryVariants(entryKey);
+    for (const modelVariant of modelVariants) {
+      for (const entryVariant of entryVariants) {
+        if (
+          modelVariant.includes(entryVariant) &&
+          entryVariant.length > bestMatchLength
+        ) {
+          bestMatch = value;
+          bestMatchLength = entryVariant.length;
+        }
+      }
+    }
+  }
+
+  if (bestMatch !== undefined) return bestMatch;
+
+  // Tier 3: Reverse containment (entry variant contains model variant)
+  let reverseMatch: T | undefined;
+  let reverseMatchLength = Infinity;
+
+  for (const [entryKey, value] of map) {
+    if (filter && !filter(value)) continue;
+    const entryVariants = getEntryVariants(entryKey);
+    for (const modelVariant of modelVariants) {
+      for (const entryVariant of entryVariants) {
+        if (
+          entryVariant.includes(modelVariant) &&
+          entryVariant.length < reverseMatchLength
+        ) {
+          reverseMatch = value;
+          reverseMatchLength = entryVariant.length;
+        }
+      }
+    }
+  }
+
+  return reverseMatch;
+}
+
+/**
  * Searches for a model's pricing in a cost map using 3-tier matching.
  *
  * 1. Exact match (case-insensitive key lookup)
@@ -227,68 +376,21 @@ export function searchModelInCosts(
   model: string,
   costsMap: Map<string, ModelPricing>,
 ): ModelPricing | undefined {
-  if (costsMap.size === 0) return undefined;
+  return searchModelInMap(model, costsMap);
+}
 
-  const modelVariants = getModelMatchVariants(model);
-
-  // Build cost entry variants (lazily, once)
-  const costVariantsCache = new Map<string, string[]>();
-  function getCostVariants(key: string): string[] {
-    let variants = costVariantsCache.get(key);
-    if (!variants) {
-      variants = getModelMatchVariants(key);
-      costVariantsCache.set(key, variants);
-    }
-    return variants;
-  }
-
-  // Tier 1: Exact match
-  for (const variant of modelVariants) {
-    const pricing = costsMap.get(variant);
-    if (pricing) return pricing;
-  }
-
-  // Tier 2: Longest contained match (model variant contains cost variant)
-  let bestMatch: ModelPricing | undefined;
-  let bestMatchLength = 0;
-
-  for (const [costKey, pricing] of costsMap) {
-    const costVariants = getCostVariants(costKey);
-    for (const modelVariant of modelVariants) {
-      for (const costVariant of costVariants) {
-        if (
-          modelVariant.includes(costVariant) &&
-          costVariant.length > bestMatchLength
-        ) {
-          bestMatch = pricing;
-          bestMatchLength = costVariant.length;
-        }
-      }
-    }
-  }
-
-  if (bestMatch) return bestMatch;
-
-  // Tier 3: Reverse containment (cost variant contains model variant)
-  let reverseMatch: ModelPricing | undefined;
-  let reverseMatchLength = Infinity;
-
-  for (const [costKey, pricing] of costsMap) {
-    const costVariants = getCostVariants(costKey);
-    for (const modelVariant of modelVariants) {
-      for (const costVariant of costVariants) {
-        if (
-          costVariant.includes(modelVariant) &&
-          costVariant.length < reverseMatchLength
-        ) {
-          reverseMatch = pricing;
-          reverseMatchLength = costVariant.length;
-        }
-      }
-    }
-  }
-
-  return reverseMatch;
+/**
+ * Looks up a model's context length from the models map using the same
+ * 3-tier matching strategy as pricing lookup (exact, contained, reverse).
+ *
+ * Returns `undefined` if the model is not found or has no context length data.
+ */
+export function getModelContextLength(
+  model: string,
+  modelsMap: Map<string, ModelInfo>,
+): number | undefined {
+  const info = searchModelInMap(model, modelsMap, (v) => v.contextLength > 0);
+  return info?.contextLength;
 }
 
 /**

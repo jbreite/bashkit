@@ -6,8 +6,11 @@ import {
   calculateStepCost,
   createBudgetTracker,
   fetchOpenRouterPricing,
+  fetchOpenRouterModels,
+  getModelContextLength,
   resetOpenRouterCache,
   type ModelPricing,
+  type ModelInfo,
 } from "@/utils/budget-tracking";
 import { makeUsage, makeStep } from "@test/helpers";
 
@@ -773,5 +776,194 @@ describe("createBudgetTracker", () => {
     expect(tracker.stopWhen({ steps: [] })).toBe(true);
     expect(tracker.getStatus().exceeded).toBe(true);
     expect(tracker.getStatus().stepsCompleted).toBe(4);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// fetchOpenRouterModels
+// ---------------------------------------------------------------------------
+
+describe("fetchOpenRouterModels", () => {
+  beforeEach(() => {
+    resetOpenRouterCache();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    resetOpenRouterCache();
+  });
+
+  it("returns models with pricing and context_length", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        data: [
+          {
+            id: "anthropic/claude-sonnet-4-5",
+            context_length: 200000,
+            pricing: {
+              prompt: "0.000003",
+              completion: "0.000015",
+            },
+          },
+          {
+            id: "openai/gpt-4o",
+            context_length: 128000,
+            pricing: {
+              prompt: "0.0000025",
+              completion: "0.00001",
+            },
+          },
+        ],
+      }),
+    } as Response);
+
+    const models = await fetchOpenRouterModels();
+    expect(models.size).toBe(2);
+
+    const claude = models.get("anthropic/claude-sonnet-4-5");
+    expect(claude).toBeDefined();
+    expect(claude?.contextLength).toBe(200000);
+    expect(claude?.pricing.inputPerToken).toBe(0.000003);
+
+    const gpt = models.get("openai/gpt-4o");
+    expect(gpt).toBeDefined();
+    expect(gpt?.contextLength).toBe(128000);
+  });
+
+  it("sets contextLength to 0 when missing from API response", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        data: [
+          {
+            id: "no-context/model",
+            pricing: { prompt: "0.001", completion: "0.01" },
+          },
+        ],
+      }),
+    } as Response);
+
+    const models = await fetchOpenRouterModels();
+    const model = models.get("no-context/model");
+    expect(model).toBeDefined();
+    expect(model?.contextLength).toBe(0);
+  });
+
+  it("shares cache with fetchOpenRouterPricing (single fetch)", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        data: [
+          {
+            id: "shared/model",
+            context_length: 100000,
+            pricing: { prompt: "0.001", completion: "0.01" },
+          },
+        ],
+      }),
+    } as Response);
+
+    const models = await fetchOpenRouterModels();
+    const pricing = await fetchOpenRouterPricing();
+
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    expect(models.get("shared/model")?.contextLength).toBe(100000);
+    expect(pricing.get("shared/model")?.inputPerToken).toBe(0.001);
+  });
+
+  it("rejects negative context_length values", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        data: [
+          {
+            id: "neg-ctx/model",
+            context_length: -1,
+            pricing: { prompt: "0.001", completion: "0.01" },
+          },
+        ],
+      }),
+    } as Response);
+
+    const models = await fetchOpenRouterModels();
+    const model = models.get("neg-ctx/model");
+    expect(model).toBeDefined();
+    expect(model?.contextLength).toBe(0); // sentinel for invalid
+  });
+});
+
+// ---------------------------------------------------------------------------
+// getModelContextLength
+// ---------------------------------------------------------------------------
+
+describe("getModelContextLength", () => {
+  const modelsMap = new Map<string, ModelInfo>([
+    [
+      "anthropic/claude-sonnet-4-5",
+      {
+        pricing: { inputPerToken: 0.000003, outputPerToken: 0.000015 },
+        contextLength: 200000,
+      },
+    ],
+    [
+      "openai/gpt-4o",
+      {
+        pricing: { inputPerToken: 0.0000025, outputPerToken: 0.00001 },
+        contextLength: 128000,
+      },
+    ],
+    [
+      "google/gemini-2.5-pro",
+      {
+        pricing: { inputPerToken: 0.0000001, outputPerToken: 0.0000004 },
+        contextLength: 1000000,
+      },
+    ],
+  ]);
+
+  it("finds exact match (case-insensitive)", () => {
+    const result = getModelContextLength(
+      "Anthropic/Claude-Sonnet-4-5",
+      modelsMap,
+    );
+    expect(result).toBe(200000);
+  });
+
+  it("finds match without provider prefix", () => {
+    const result = getModelContextLength("claude-sonnet-4-5", modelsMap);
+    expect(result).toBe(200000);
+  });
+
+  it("finds match with version suffix (longest contained)", () => {
+    const result = getModelContextLength(
+      "claude-sonnet-4-5-20250929",
+      modelsMap,
+    );
+    expect(result).toBe(200000);
+  });
+
+  it("returns undefined for unknown model", () => {
+    const result = getModelContextLength("unknown/model-xyz", modelsMap);
+    expect(result).toBeUndefined();
+  });
+
+  it("returns undefined for empty map", () => {
+    const result = getModelContextLength("claude-sonnet-4-5", new Map());
+    expect(result).toBeUndefined();
+  });
+
+  it("skips models with contextLength 0", () => {
+    const mapWithZero = new Map<string, ModelInfo>([
+      [
+        "zero-ctx/model",
+        {
+          pricing: { inputPerToken: 0.001, outputPerToken: 0.01 },
+          contextLength: 0,
+        },
+      ],
+    ]);
+    const result = getModelContextLength("zero-ctx/model", mapWithZero);
+    expect(result).toBeUndefined();
   });
 });

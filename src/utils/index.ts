@@ -1,15 +1,21 @@
 export {
   type BudgetStatus,
   type BudgetTracker,
+  type ModelInfo,
   type ModelPricing,
   createBudgetTracker,
+  fetchOpenRouterModels,
+  getModelContextLength,
 } from "./budget-tracking";
 export {
   type CompactConversationConfig,
   type CompactConversationResult,
   type CompactConversationState,
+  CompactionError,
   compactConversation,
+  createAutoCompaction,
   createCompactConfig,
+  createCompactConfigFromModels,
   MODEL_CONTEXT_LIMITS,
   type ModelContextLimit,
 } from "./compact-conversation";

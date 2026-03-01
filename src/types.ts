@@ -122,15 +122,38 @@ export type CacheConfig =
 export type PricingProvider = "openRouter";
 
 /**
+ * Supported model registry providers.
+ * Add new providers here as union types (e.g., 'openRouter' | 'together')
+ */
+export type ModelRegistryProvider = "openRouter";
+
+/**
+ * Configuration for fetching model info (pricing + context lengths) from a provider.
+ * Used by budget tracking and compaction.
+ */
+export type ModelRegistryConfig = {
+  /** Provider to fetch model info from */
+  provider: ModelRegistryProvider;
+  /** API key for the provider (optional, passed as bearer token) */
+  apiKey?: string;
+};
+
+/**
  * Budget tracking configuration.
- * At least one of `pricingProvider` or `modelPricing` must be provided.
+ * At least one of `pricingProvider`, `modelPricing`, or top-level `modelRegistry` must be provided.
  */
 export type BudgetConfig = {
   /** Maximum budget in USD (must be positive) */
   maxUsd: number;
-  /** Pricing provider for automatic model cost lookup. Omit to skip fetching. */
+  /**
+   * Pricing provider for automatic model cost lookup. Omit to skip fetching.
+   * @deprecated Use top-level `modelRegistry` instead.
+   */
   pricingProvider?: PricingProvider;
-  /** API key for the pricing provider. Passed as bearer token. */
+  /**
+   * API key for the pricing provider. Passed as bearer token.
+   * @deprecated Use top-level `modelRegistry` instead.
+   */
   apiKey?: string;
   /** Per-model pricing overrides (always highest priority over provider data) */
   modelPricing?: Record<string, ModelPricing>;
@@ -157,6 +180,9 @@ export type AgentConfig = {
   webFetch?: WebFetchConfig;
   /** Enable tool result caching */
   cache?: CacheConfig;
+  /** Fetch model info (pricing + context lengths) from a provider.
+   *  Used by budget tracking and compaction. */
+  modelRegistry?: ModelRegistryConfig;
   /** Budget tracking configuration */
   budget?: BudgetConfig;
   defaultTimeout?: number;

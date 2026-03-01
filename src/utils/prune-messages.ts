@@ -1,4 +1,5 @@
 import type { ModelMessage } from "ai";
+import { isToolCallPart, isToolResultPart } from "./helpers";
 
 export interface PruneMessagesConfig {
   /** Keep approximately this many tokens (default: 40000) */
@@ -36,12 +37,12 @@ export function estimateMessageTokens(message: ModelMessage): number {
         tokens += estimateTokens(part);
       } else if ("text" in part && typeof part.text === "string") {
         tokens += estimateTokens(part.text);
-      } else if ("result" in part) {
+      } else if (isToolResultPart(part)) {
         // Tool result
-        tokens += estimateTokens(JSON.stringify(part.result));
-      } else if ("args" in part) {
+        tokens += estimateTokens(JSON.stringify(part.output));
+      } else if (isToolCallPart(part)) {
         // Tool call
-        tokens += estimateTokens(JSON.stringify(part.args));
+        tokens += estimateTokens(JSON.stringify(part.input));
       } else {
         // Fallback for other content types
         tokens += estimateTokens(JSON.stringify(part));
@@ -119,17 +120,16 @@ function pruneMessageContent(message: ModelMessage): ModelMessage {
   }
 
   const prunedContent = message.content.map((part) => {
-    if (typeof part === "object" && "toolName" in part && "args" in part) {
-      // Tool call - keep name but truncate args
+    if (isToolCallPart(part)) {
       return {
         ...part,
-        args: { _pruned: true, toolName: part.toolName },
+        input: { _pruned: true, toolName: part.toolName },
       };
     }
     return part;
   });
 
-  return { ...message, content: prunedContent };
+  return { ...message, content: prunedContent } as ModelMessage;
 }
 
 /**
@@ -145,16 +145,16 @@ function pruneToolMessage(message: ModelMessage): ModelMessage {
   }
 
   const prunedContent = message.content.map((part) => {
-    if (typeof part === "object" && "result" in part) {
+    if (isToolResultPart(part)) {
       return {
         ...part,
-        result: { _pruned: true },
+        output: { type: "text" as const, value: "pruned" },
       };
     }
     return part;
   });
 
-  return { ...message, content: prunedContent };
+  return { ...message, content: prunedContent } as ModelMessage;
 }
 
 /**

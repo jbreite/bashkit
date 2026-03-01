@@ -9,6 +9,7 @@ Utilities for token estimation, conversation management, budget tracking, and to
 | `prune-messages.ts` | Token estimation and message pruning to reduce context usage |
 | `compact-conversation.ts` | AI-powered conversation summarization for context management |
 | `context-status.ts` | Context window monitoring with usage thresholds and guidance |
+| `helpers.ts` | Shared type guards for AI SDK content parts (isToolCallPart, isToolResultPart) |
 | `budget-tracking.ts` | Cumulative cost tracking with OpenRouter pricing and budget enforcement |
 | `debug.ts` | Tool execution tracing and debug event logging |
 | `http-constants.ts` | Shared HTTP status codes for web tools |
@@ -25,7 +26,9 @@ Utilities for token estimation, conversation management, budget tracking, and to
 
 **Conversation Compaction** (`compact-conversation.ts`):
 - `compactConversation(messages: ModelMessage[], config: CompactConversationConfig, state?: CompactConversationState): Promise<CompactConversationResult>` -- Async summarization preserving context
+- `createAutoCompaction(config: CompactConversationConfig): { prepareStep, getState }` -- Auto-compaction via AI SDK `prepareStep` hook
 - `createCompactConfig(modelId: ModelContextLimit, summarizerModel: LanguageModel, overrides?): CompactConversationConfig` -- Helper to create config with model presets
+- `CompactionError` -- Typed error thrown after failed compaction retries
 - `MODEL_CONTEXT_LIMITS` -- Token limits for common models (Claude, GPT, Gemini)
 - `CompactConversationConfig` -- Configuration for threshold, protected messages, summarizer model
 - `CompactConversationState` -- Accumulated summary state across compactions
@@ -52,7 +55,9 @@ Utilities for token estimation, conversation management, budget tracking, and to
 
 **Budget Tracking** (`budget-tracking.ts`):
 - `createBudgetTracker(maxUsd: number, options?): BudgetTracker` -- Create a budget tracker for cumulative cost monitoring
-- `fetchOpenRouterPricing(apiKey?): Promise<Map<string, ModelPricing>>` -- Fetch model pricing from OpenRouter's public API (cached 24h, concurrent-safe)
+- `fetchOpenRouterModels(apiKey?): Promise<Map<string, ModelInfo>>` -- Fetch model info (pricing + context lengths) from OpenRouter's public API (cached 24h, concurrent-safe)
+- `fetchOpenRouterPricing(apiKey?): Promise<Map<string, ModelPricing>>` -- Fetch model pricing from OpenRouter's public API (cached 24h, shares fetch with `fetchOpenRouterModels`)
+- `getModelContextLength(model: string, modelsMap: Map<string, ModelInfo>): number | undefined` -- Look up context length using 3-tier model ID matching
 - `calculateStepCost(usage: LanguageModelUsage, pricing: ModelPricing): number` -- Calculate cost for a single step from token usage
 - `searchModelInCosts(model: string, costsMap: Map<string, ModelPricing>): ModelPricing | undefined` -- 3-tier model ID matching (exact, contained, reverse)
 - `getModelMatchVariants(model: string): string[]` -- Generate match variants for fuzzy model ID lookup
@@ -61,6 +66,7 @@ Utilities for token estimation, conversation management, budget tracking, and to
 - `BudgetTracker` -- Interface with `onStepFinish`, `stopWhen`, and `getStatus` methods
 - `BudgetStatus` -- Status object with totalCostUsd, remainingUsd, usagePercent, exceeded, unpricedSteps
 - `ModelPricing` -- Per-token pricing (inputPerToken, outputPerToken, cacheReadPerToken?, cacheWritePerToken?)
+- `ModelInfo` -- Model info with pricing + contextLength
 
 **Constants** (`http-constants.ts`):
 - `RETRYABLE_STATUS_CODES: number[]` -- HTTP status codes indicating retryable errors [408, 429, 500, 502, 503]
@@ -72,11 +78,14 @@ Utilities for token estimation, conversation management, budget tracking, and to
 http-constants.ts (standalone)
        ↓
 debug.ts (standalone, uses http-constants)
+
+helpers.ts (standalone, type guards for AI SDK parts)
        ↓
-prune-messages.ts (standalone)
+prune-messages.ts (depends on helpers)
        ↓
-compact-conversation.ts (depends on prune-messages for token estimation)
+context-status.ts (depends on prune-messages)
        ↓
+compact-conversation.ts (depends on prune-messages, context-status, helpers)
 context-status.ts (depends on prune-messages for token estimation)
 
 budget-tracking.ts (standalone, depends on "ai" types only)
@@ -159,13 +168,21 @@ Simple heuristic (4 chars per token) provides fast, consistent estimates across 
 
 Custom guidance functions can access metrics for dynamic messages.
 
+### Model Registry Pattern
+`createAgentTools` supports a top-level `modelRegistry` config that fetches model info (pricing + context lengths) from a provider (e.g., OpenRouter). The fetched data is:
+- Shared with budget tracking (pricing derived from models map)
+- Returned as `openRouterModels` in the `AgentToolsResult` for use by compaction or other consumers
+- Fetched once and cached 24h, even when both `modelRegistry` and `budget` are configured
+
+Legacy `budget.pricingProvider` is still supported but deprecated in favor of `modelRegistry`.
+
 ### Budget Tracking Pattern
 `createBudgetTracker` returns a `BudgetTracker` with three methods designed for the Vercel AI SDK agentic loop:
 - `onStepFinish(step)` -- Call from `onStepFinish` callback to accumulate cost
 - `stopWhen` -- Compose with other `StopCondition`s in `stopWhen` array
 - `getStatus()` -- Query current cost, remaining budget, and exceeded flag
 
-Pricing is resolved synchronously from a pre-fetched map. OpenRouter pricing is fetched once (with 24h cache and concurrent deduplication) before creating the tracker. Model ID matching uses PostHog's 3-tier strategy: exact match, longest contained match, reverse containment. Per-model pricing lookups are cached within the tracker instance.
+Pricing is resolved synchronously from a pre-fetched map. Model info is fetched once via `modelRegistry` or legacy `pricingProvider` (with 24h cache and concurrent deduplication) before creating the tracker. Model ID matching uses PostHog's 3-tier strategy: exact match, longest contained match, reverse containment. Per-model pricing lookups are cached within the tracker instance.
 
 Steps with unknown models are tracked as `unpricedSteps` (cost $0). An optional `onUnpricedModel` callback fires once per unknown model.
 
@@ -190,7 +207,7 @@ Debug mode initialized once from `process.env.BASHKIT_DEBUG` on module load. Use
 ### Exported from
 All utilities exported from `src/index.ts`:
 - Token functions: `estimateTokens`, `estimateMessageTokens`, `estimateMessagesTokens`, `pruneMessagesByTokens`
-- Compaction: `compactConversation`, `createCompactConfig`, `MODEL_CONTEXT_LIMITS`
+- Compaction: `compactConversation`, `createAutoCompaction`, `createCompactConfig`, `CompactionError`, `MODEL_CONTEXT_LIMITS`
 - Context: `getContextStatus`, `contextNeedsAttention`, `contextNeedsCompaction`
 - Budget: `createBudgetTracker`
 - Debug: `clearDebugLogs`, `getDebugLogs`, `isDebugEnabled`, `reinitDebugMode`
@@ -284,6 +301,16 @@ compactConversation(messages, {
 ## Testing
 
 ### Test Files
+- `/tests/utils/prune-messages.test.ts` -- Unit tests for token estimation and pruning
+- `/tests/utils/compact-conversation.test.ts` -- Unit tests for compaction, auto-compaction, and config helpers
+
+### Coverage
+- **Tested**: `prune-messages.ts`, `compact-conversation.ts` (including `createAutoCompaction` and `CompactionError`)
+- **Not tested**: `context-status.ts`, `helpers.ts`, `debug.ts`, `http-constants.ts`
+
+### Running Tests
+```bash
+bun run test
 - `/tests/utils/prune-messages.test.ts` -- Comprehensive unit tests for token estimation and pruning
 - `/tests/utils/budget-tracking.test.ts` -- Comprehensive unit tests for budget tracking (cost calculation, model matching, OpenRouter fetch, tracker lifecycle)
 
@@ -316,18 +343,4 @@ BASHKIT_DEBUG=memory bun examples/basic.ts
 ```
 
 ### Testing Compaction
-No unit tests. Test via integration:
-
-```typescript
-import { compactConversation, createCompactConfig, MODEL_CONTEXT_LIMITS } from 'bashkit';
-import { anthropic } from '@ai-sdk/anthropic';
-
-const config = createCompactConfig(
-  'claude-sonnet-4-5',
-  anthropic('claude-haiku-4')
-);
-
-let state = { conversationSummary: '' };
-const result = await compactConversation(messages, config, state);
-// Check: result.didCompact, result.messages.length, result.state
-```
+Unit tests cover compaction logic, auto-compaction, retry behavior, and config helpers. See `/tests/utils/compact-conversation.test.ts`.
