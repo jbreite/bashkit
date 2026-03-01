@@ -9,6 +9,7 @@ Utilities for token estimation, conversation management, and tool execution trac
 | `prune-messages.ts` | Token estimation and message pruning to reduce context usage |
 | `compact-conversation.ts` | AI-powered conversation summarization for context management |
 | `context-status.ts` | Context window monitoring with usage thresholds and guidance |
+| `helpers.ts` | Shared type guards for AI SDK content parts (isToolCallPart, isToolResultPart) |
 | `debug.ts` | Tool execution tracing and debug event logging |
 | `http-constants.ts` | Shared HTTP status codes for web tools |
 | `index.ts` | Barrel exports for public API |
@@ -24,7 +25,9 @@ Utilities for token estimation, conversation management, and tool execution trac
 
 **Conversation Compaction** (`compact-conversation.ts`):
 - `compactConversation(messages: ModelMessage[], config: CompactConversationConfig, state?: CompactConversationState): Promise<CompactConversationResult>` -- Async summarization preserving context
+- `createAutoCompaction(config: CompactConversationConfig): { prepareStep, getState }` -- Auto-compaction via AI SDK `prepareStep` hook
 - `createCompactConfig(modelId: ModelContextLimit, summarizerModel: LanguageModel, overrides?): CompactConversationConfig` -- Helper to create config with model presets
+- `CompactionError` -- Typed error thrown after failed compaction retries
 - `MODEL_CONTEXT_LIMITS` -- Token limits for common models (Claude, GPT, Gemini)
 - `CompactConversationConfig` -- Configuration for threshold, protected messages, summarizer model
 - `CompactConversationState` -- Accumulated summary state across compactions
@@ -60,12 +63,14 @@ Utilities for token estimation, conversation management, and tool execution trac
 http-constants.ts (standalone)
        ↓
 debug.ts (standalone, uses http-constants)
+
+helpers.ts (standalone, type guards for AI SDK parts)
        ↓
-prune-messages.ts (standalone)
+prune-messages.ts (depends on helpers)
        ↓
-compact-conversation.ts (depends on prune-messages for token estimation)
+context-status.ts (depends on prune-messages)
        ↓
-context-status.ts (depends on prune-messages for token estimation)
+compact-conversation.ts (depends on prune-messages, context-status, helpers)
 ```
 
 ### Token Estimation Flow
@@ -165,7 +170,7 @@ Debug mode initialized once from `process.env.BASHKIT_DEBUG` on module load. Use
 ### Exported from
 All utilities exported from `src/index.ts`:
 - Token functions: `estimateTokens`, `estimateMessageTokens`, `estimateMessagesTokens`, `pruneMessagesByTokens`
-- Compaction: `compactConversation`, `createCompactConfig`, `MODEL_CONTEXT_LIMITS`
+- Compaction: `compactConversation`, `createAutoCompaction`, `createCompactConfig`, `CompactionError`, `MODEL_CONTEXT_LIMITS`
 - Context: `getContextStatus`, `contextNeedsAttention`, `contextNeedsCompaction`
 - Debug: `clearDebugLogs`, `getDebugLogs`, `isDebugEnabled`, `reinitDebugMode`
 - Types: `PruneMessagesConfig`, `CompactConversationConfig`, `CompactConversationState`, `CompactConversationResult`, `ContextStatus`, `ContextStatusConfig`, `ContextStatusLevel`, `ContextMetrics`, `DebugEvent`, `ModelContextLimit`
@@ -258,15 +263,16 @@ compactConversation(messages, {
 ## Testing
 
 ### Test Files
-- `/tests/utils/prune-messages.test.ts` -- Comprehensive unit tests for token estimation and pruning
+- `/tests/utils/prune-messages.test.ts` -- Unit tests for token estimation and pruning
+- `/tests/utils/compact-conversation.test.ts` -- Unit tests for compaction, auto-compaction, and config helpers
 
 ### Coverage
-- **Tested**: `prune-messages.ts` (estimateTokens, estimateMessageTokens, estimateMessagesTokens, pruneMessagesByTokens)
-- **Not tested**: `compact-conversation.ts`, `context-status.ts`, `debug.ts`, `http-constants.ts`
+- **Tested**: `prune-messages.ts`, `compact-conversation.ts` (including `createAutoCompaction` and `CompactionError`)
+- **Not tested**: `context-status.ts`, `helpers.ts`, `debug.ts`, `http-constants.ts`
 
 ### Running Tests
 ```bash
-bun test tests/utils/prune-messages.test.ts
+bun run test
 ```
 
 ### Testing Debug Mode
@@ -288,18 +294,4 @@ BASHKIT_DEBUG=memory bun examples/basic.ts
 ```
 
 ### Testing Compaction
-No unit tests. Test via integration:
-
-```typescript
-import { compactConversation, createCompactConfig, MODEL_CONTEXT_LIMITS } from 'bashkit';
-import { anthropic } from '@ai-sdk/anthropic';
-
-const config = createCompactConfig(
-  'claude-sonnet-4-5',
-  anthropic('claude-haiku-4')
-);
-
-let state = { conversationSummary: '' };
-const result = await compactConversation(messages, config, state);
-// Check: result.didCompact, result.messages.length, result.state
-```
+Unit tests cover compaction logic, auto-compaction, retry behavior, and config helpers. See `/tests/utils/compact-conversation.test.ts`.

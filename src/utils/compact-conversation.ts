@@ -11,10 +11,6 @@ import { isToolCallPart, isToolResultPart } from "./helpers";
 
 export class CompactionError extends Error {
   override readonly name = "CompactionError";
-
-  constructor(message: string, options?: { cause?: unknown }) {
-    super(message, options);
-  }
 }
 
 interface FileOperations {
@@ -231,7 +227,8 @@ async function summarizeMessages(
   let fileOpsBlock = "";
   if (fileOps) {
     const MAX_FILES = 50;
-    const sanitize = (p: string) => p.replace(/[<>&]/g, "");
+    const sanitize = (p: string) =>
+      p.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
     const readFiles = [...fileOps.read].sort().map(sanitize);
     const modifiedFiles = [...fileOps.modified].sort().map(sanitize);
 
