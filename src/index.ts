@@ -115,6 +115,8 @@ export type {
   AskUserConfig,
   BudgetConfig,
   CacheConfig,
+  ModelRegistryConfig,
+  ModelRegistryProvider,
   PricingProvider,
   SkillConfig,
   ToolConfig,
@@ -137,6 +139,7 @@ export { cached, createRedisCacheStore, LRUCacheStore } from "./cache";
 export type {
   BudgetStatus,
   BudgetTracker,
+  ModelInfo,
   ModelPricing,
   CompactConversationConfig,
   CompactConversationResult,
@@ -152,6 +155,8 @@ export type {
 // Utils
 export {
   createBudgetTracker,
+  fetchOpenRouterModels,
+  getModelContextLength,
   clearDebugLogs,
   CompactionError,
   compactConversation,
@@ -159,6 +164,7 @@ export {
   contextNeedsCompaction,
   createAutoCompaction,
   createCompactConfig,
+  createCompactConfigFromModels,
   estimateMessagesTokens,
   estimateMessageTokens,
   estimateTokens,

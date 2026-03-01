@@ -196,13 +196,15 @@ describe("prune-messages", () => {
           (p) => typeof p === "object" && "input" in p,
         );
         if (toolCall && "input" in toolCall) {
-          expect((toolCall.input as Record<string, unknown>)._pruned).toBe(true);
+          expect((toolCall.input as Record<string, unknown>)._pruned).toBe(
+            true,
+          );
         }
       }
     });
 
     it("should prune tool results in older messages", () => {
-            const messages: ModelMessage[] = [
+      const messages: ModelMessage[] = [
         { role: "user", content: "First" },
         {
           role: "assistant",
@@ -247,8 +249,12 @@ describe("prune-messages", () => {
           (p) => typeof p === "object" && "output" in p,
         );
         if (toolResult && "output" in toolResult) {
-          expect((toolResult.output as Record<string, unknown>).type).toBe("text");
-          expect((toolResult.output as Record<string, unknown>).value).toBe("pruned");
+          expect((toolResult.output as Record<string, unknown>).type).toBe(
+            "text",
+          );
+          expect((toolResult.output as Record<string, unknown>).value).toBe(
+            "pruned",
+          );
         }
       }
     });

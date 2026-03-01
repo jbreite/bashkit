@@ -18,6 +18,7 @@ import {
   compactConversation,
   createAutoCompaction,
   createCompactConfig,
+  createCompactConfigFromModels,
 } from "@/utils/compact-conversation";
 import type {
   CompactConversationConfig,
@@ -598,5 +599,81 @@ describe("createCompactConfig", () => {
     });
 
     expect(config.maxTokens).toBe(50_000);
+  });
+});
+
+describe("createCompactConfigFromModels", () => {
+  const modelsMap = new Map([
+    [
+      "anthropic/claude-sonnet-4-5",
+      {
+        pricing: { inputPerToken: 0.000003, outputPerToken: 0.000015 },
+        contextLength: 200000,
+      },
+    ],
+    [
+      "openai/gpt-4o",
+      {
+        pricing: { inputPerToken: 0.0000025, outputPerToken: 0.00001 },
+        contextLength: 128000,
+      },
+    ],
+  ]);
+
+  it("looks up context length from models map", () => {
+    const config = createCompactConfigFromModels(
+      "claude-sonnet-4-5",
+      mockModel,
+      modelsMap,
+    );
+
+    expect(config.maxTokens).toBe(200000);
+    expect(config.summarizerModel).toBe(mockModel);
+  });
+
+  it("works with provider-prefixed model IDs", () => {
+    const config = createCompactConfigFromModels(
+      "anthropic/claude-sonnet-4-5",
+      mockModel,
+      modelsMap,
+    );
+
+    expect(config.maxTokens).toBe(200000);
+  });
+
+  it("applies overrides", () => {
+    const config = createCompactConfigFromModels(
+      "openai/gpt-4o",
+      mockModel,
+      modelsMap,
+      { compactionThreshold: 0.7, protectRecentMessages: 20 },
+    );
+
+    expect(config.maxTokens).toBe(128000);
+    expect(config.compactionThreshold).toBe(0.7);
+    expect(config.protectRecentMessages).toBe(20);
+  });
+
+  it("override can replace maxTokens", () => {
+    const config = createCompactConfigFromModels(
+      "claude-sonnet-4-5",
+      mockModel,
+      modelsMap,
+      { maxTokens: 50_000 },
+    );
+
+    expect(config.maxTokens).toBe(50_000);
+  });
+
+  it("throws when model not found", () => {
+    expect(() =>
+      createCompactConfigFromModels("unknown/model-xyz", mockModel, modelsMap),
+    ).toThrow("No context length found");
+  });
+
+  it("throws when models map is empty", () => {
+    expect(() =>
+      createCompactConfigFromModels("claude-sonnet-4-5", mockModel, new Map()),
+    ).toThrow("No context length found");
   });
 });

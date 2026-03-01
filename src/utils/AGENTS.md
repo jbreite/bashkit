@@ -55,7 +55,9 @@ Utilities for token estimation, conversation management, budget tracking, and to
 
 **Budget Tracking** (`budget-tracking.ts`):
 - `createBudgetTracker(maxUsd: number, options?): BudgetTracker` -- Create a budget tracker for cumulative cost monitoring
-- `fetchOpenRouterPricing(apiKey?): Promise<Map<string, ModelPricing>>` -- Fetch model pricing from OpenRouter's public API (cached 24h, concurrent-safe)
+- `fetchOpenRouterModels(apiKey?): Promise<Map<string, ModelInfo>>` -- Fetch model info (pricing + context lengths) from OpenRouter's public API (cached 24h, concurrent-safe)
+- `fetchOpenRouterPricing(apiKey?): Promise<Map<string, ModelPricing>>` -- Fetch model pricing from OpenRouter's public API (cached 24h, shares fetch with `fetchOpenRouterModels`)
+- `getModelContextLength(model: string, modelsMap: Map<string, ModelInfo>): number | undefined` -- Look up context length using 3-tier model ID matching
 - `calculateStepCost(usage: LanguageModelUsage, pricing: ModelPricing): number` -- Calculate cost for a single step from token usage
 - `searchModelInCosts(model: string, costsMap: Map<string, ModelPricing>): ModelPricing | undefined` -- 3-tier model ID matching (exact, contained, reverse)
 - `getModelMatchVariants(model: string): string[]` -- Generate match variants for fuzzy model ID lookup
@@ -64,6 +66,7 @@ Utilities for token estimation, conversation management, budget tracking, and to
 - `BudgetTracker` -- Interface with `onStepFinish`, `stopWhen`, and `getStatus` methods
 - `BudgetStatus` -- Status object with totalCostUsd, remainingUsd, usagePercent, exceeded, unpricedSteps
 - `ModelPricing` -- Per-token pricing (inputPerToken, outputPerToken, cacheReadPerToken?, cacheWritePerToken?)
+- `ModelInfo` -- Model info with pricing + contextLength
 
 **Constants** (`http-constants.ts`):
 - `RETRYABLE_STATUS_CODES: number[]` -- HTTP status codes indicating retryable errors [408, 429, 500, 502, 503]
@@ -165,13 +168,21 @@ Simple heuristic (4 chars per token) provides fast, consistent estimates across 
 
 Custom guidance functions can access metrics for dynamic messages.
 
+### Model Registry Pattern
+`createAgentTools` supports a top-level `modelRegistry` config that fetches model info (pricing + context lengths) from a provider (e.g., OpenRouter). The fetched data is:
+- Shared with budget tracking (pricing derived from models map)
+- Returned as `openRouterModels` in the `AgentToolsResult` for use by compaction or other consumers
+- Fetched once and cached 24h, even when both `modelRegistry` and `budget` are configured
+
+Legacy `budget.pricingProvider` is still supported but deprecated in favor of `modelRegistry`.
+
 ### Budget Tracking Pattern
 `createBudgetTracker` returns a `BudgetTracker` with three methods designed for the Vercel AI SDK agentic loop:
 - `onStepFinish(step)` -- Call from `onStepFinish` callback to accumulate cost
 - `stopWhen` -- Compose with other `StopCondition`s in `stopWhen` array
 - `getStatus()` -- Query current cost, remaining budget, and exceeded flag
 
-Pricing is resolved synchronously from a pre-fetched map. OpenRouter pricing is fetched once (with 24h cache and concurrent deduplication) before creating the tracker. Model ID matching uses PostHog's 3-tier strategy: exact match, longest contained match, reverse containment. Per-model pricing lookups are cached within the tracker instance.
+Pricing is resolved synchronously from a pre-fetched map. Model info is fetched once via `modelRegistry` or legacy `pricingProvider` (with 24h cache and concurrent deduplication) before creating the tracker. Model ID matching uses PostHog's 3-tier strategy: exact match, longest contained match, reverse containment. Per-model pricing lookups are cached within the tracker instance.
 
 Steps with unknown models are tracked as `unpricedSteps` (cost $0). An optional `onUnpricedModel` callback fires once per unknown model.
 

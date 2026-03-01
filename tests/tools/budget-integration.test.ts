@@ -8,11 +8,12 @@ import {
 import { createMockSandbox, makeStep, type MockSandbox } from "@test/helpers";
 import { MockLanguageModelV3 } from "ai/test";
 
-/** Mock OpenRouter response with minimal valid pricing data */
+/** Mock OpenRouter response with minimal valid pricing + context length data */
 const MOCK_OPENROUTER_RESPONSE = {
   data: [
     {
       id: "anthropic/claude-sonnet-4-5",
+      context_length: 200000,
       pricing: { prompt: "0.000003", completion: "0.000015" },
     },
   ],
@@ -111,12 +112,12 @@ describe("createAgentTools budget integration", () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
-  it("throws when budget has neither pricingProvider nor modelPricing", async () => {
+  it("throws when budget has neither modelRegistry, pricingProvider, nor modelPricing", async () => {
     await expect(
       createAgentTools(sandbox, {
         budget: { maxUsd: 5.0 },
       }),
-    ).rejects.toThrow("pricingProvider or modelPricing");
+    ).rejects.toThrow("modelRegistry, pricingProvider, or modelPricing");
   });
 
   it("still returns all core tools when budget is enabled", async () => {
@@ -130,6 +131,67 @@ describe("createAgentTools budget integration", () => {
     expect(tools.Edit).toBeDefined();
     expect(tools.Glob).toBeDefined();
     expect(tools.Grep).toBeDefined();
+  });
+
+  it("modelRegistry config returns openRouterModels in result", async () => {
+    const { openRouterModels } = await createAgentTools(sandbox, {
+      modelRegistry: { provider: "openRouter" },
+    });
+
+    expect(openRouterModels).toBeInstanceOf(Map);
+    expect(openRouterModels!.has("anthropic/claude-sonnet-4-5")).toBe(true);
+
+    const model = openRouterModels!.get("anthropic/claude-sonnet-4-5")!;
+    expect(model.contextLength).toBe(200000);
+    expect(model.pricing.inputPerToken).toBe(0.000003);
+    expect(model.pricing.outputPerToken).toBe(0.000015);
+  });
+
+  it("modelRegistry without budget still fetches and returns models", async () => {
+    const { openRouterModels, budget } = await createAgentTools(sandbox, {
+      modelRegistry: { provider: "openRouter" },
+    });
+
+    expect(openRouterModels).toBeInstanceOf(Map);
+    expect(openRouterModels!.size).toBeGreaterThan(0);
+    expect(budget).toBeUndefined();
+  });
+
+  it("modelRegistry + budget shares one fetch (single fetch call)", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+    fetchSpy.mockClear();
+
+    const { openRouterModels, budget } = await createAgentTools(sandbox, {
+      modelRegistry: { provider: "openRouter" },
+      budget: { maxUsd: 5.0 },
+    });
+
+    expect(openRouterModels).toBeInstanceOf(Map);
+    expect(budget).toBeDefined();
+    // Only one fetch call despite both modelRegistry and budget needing data
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it("legacy pricingProvider still works and also returns openRouterModels", async () => {
+    const { openRouterModels, budget } = await createAgentTools(sandbox, {
+      budget: { maxUsd: 5.0, pricingProvider: "openRouter" },
+    });
+
+    expect(budget).toBeDefined();
+    expect(openRouterModels).toBeInstanceOf(Map);
+    expect(openRouterModels!.has("anthropic/claude-sonnet-4-5")).toBe(true);
+  });
+
+  it("modelRegistry satisfies budget pricing requirement (no pricingProvider or modelPricing needed)", async () => {
+    const { budget } = await createAgentTools(sandbox, {
+      modelRegistry: { provider: "openRouter" },
+      budget: { maxUsd: 5.0 },
+    });
+
+    expect(budget).toBeDefined();
+    const status = budget!.getStatus();
+    expect(status.maxUsd).toBe(5.0);
+    expect(status.totalCostUsd).toBe(0);
   });
 });
 

@@ -182,22 +182,50 @@ const cachedTool = cached(myTool, 'MyTool', { ttl: 60000 });
 **Default cached tools**: Read, Glob, Grep, WebFetch, WebSearch
 **Not cached by default**: Bash, Write, Edit (side effects)
 
-#### 8. Budget Tracking
+#### 8. Model Registry
+Fetch model info (pricing + context lengths) from a provider:
+```typescript
+// Standalone model info (no budget needed)
+const { tools, openRouterModels } = await createAgentTools(sandbox, {
+  modelRegistry: { provider: "openRouter" },
+});
+// openRouterModels: Map<string, ModelInfo> with pricing + contextLength
+
+// With budget tracking (recommended)
+const { tools, budget, openRouterModels } = await createAgentTools(sandbox, {
+  modelRegistry: { provider: "openRouter" },
+  budget: { maxUsd: 5.00 },
+});
+```
+
+The `modelRegistry` config fetches model data once and shares it with budget tracking, compaction, and any other consumer. When both `modelRegistry` and `budget` are set, only one fetch occurs.
+
+**Legacy support**: `budget.pricingProvider` still works but is deprecated in favor of `modelRegistry`:
+```typescript
+// Still works (deprecated)
+budget: { maxUsd: 5.00, pricingProvider: "openRouter" }
+// Preferred
+modelRegistry: { provider: "openRouter" }, budget: { maxUsd: 5.00 }
+```
+
+#### 9. Budget Tracking
 Cumulative cost tracking across agentic loop steps:
 ```typescript
 // Via createAgentTools (recommended)
 const { tools, budget } = await createAgentTools(sandbox, {
-  budget: { maxUsd: 5.00, pricingProvider: "openRouter" },
+  modelRegistry: { provider: "openRouter" },
+  budget: { maxUsd: 5.00 },
 });
 
 // Standalone usage
-const pricing = await fetchOpenRouterPricing();
+const models = await fetchOpenRouterModels();
+const pricing = new Map([...models].map(([k, v]) => [k, v.pricing]));
 const budget = createBudgetTracker(5.00, { openRouterPricing: pricing });
 ```
 
 **Pricing sources** (checked in order):
 1. User-provided `modelPricing` overrides (highest priority)
-2. OpenRouter's free public API (auto-fetched, cached 24h)
+2. OpenRouter's free public API (auto-fetched via `modelRegistry`, cached 24h)
 
 **Model ID matching** (PostHog's 3-tier strategy):
 1. Exact match (case-insensitive)
@@ -226,7 +254,7 @@ User → Vercel AI SDK → Tool (Bash/Read/Write/etc.)
 
 Each `src/` subfolder has an `AGENTS.md` with detailed file listings and guides. Key entry points:
 
-- **Configuration**: `/src/types.ts` (ToolConfig, AgentConfig, BudgetConfig, DEFAULT_CONFIG)
+- **Configuration**: `/src/types.ts` (ToolConfig, AgentConfig, BudgetConfig, ModelRegistryConfig, DEFAULT_CONFIG)
 - **Main exports**: `/src/index.ts` (barrel file)
 - **Package config**: `/package.json`
 - **Examples**: `/examples/basic.ts`, `/examples/test-tools.ts`, `/examples/test-web-tools.ts`
@@ -517,7 +545,8 @@ Returns cached results for identical tool calls. Default TTL: 5 minutes.
 ```typescript
 // Track cumulative cost and stop when budget exceeded
 const { tools, budget } = await createAgentTools(sandbox, {
-  budget: { maxUsd: 5.00, pricingProvider: "openRouter" },
+  modelRegistry: { provider: "openRouter" },
+  budget: { maxUsd: 5.00 },
 });
 
 const result = await generateText({
@@ -531,7 +560,7 @@ const result = await generateText({
   },
 });
 ```
-Pricing auto-fetched from OpenRouter (free API, cached 24h). Supports manual `modelPricing` overrides. Budget auto-wires into Task tool sub-agents.
+Pricing auto-fetched from OpenRouter via `modelRegistry` (free API, cached 24h). Supports manual `modelPricing` overrides. Budget auto-wires into Task tool sub-agents.
 
 **Prompt Caching**:
 ```typescript

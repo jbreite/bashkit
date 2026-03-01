@@ -8,6 +8,7 @@ import {
 import { estimateMessagesTokens } from "./prune-messages";
 import { getContextStatus } from "./context-status";
 import { isToolCallPart, isToolResultPart } from "./helpers";
+import { getModelContextLength, type ModelInfo } from "./budget-tracking";
 
 export class CompactionError extends Error {
   override readonly name = "CompactionError";
@@ -507,6 +508,10 @@ export function createAutoCompaction(config: CompactConversationConfig): {
 /**
  * Pre-configured token limits for common models.
  * Use these with compactConversation config.
+ *
+ * @deprecated Use `fetchOpenRouterModels()` + `createCompactConfigFromModels()` instead.
+ * This static table goes stale as models evolve. The OpenRouter-based approach
+ * fetches up-to-date context lengths automatically.
  */
 export const MODEL_CONTEXT_LIMITS = {
   // Claude models
@@ -526,7 +531,10 @@ export const MODEL_CONTEXT_LIMITS = {
 export type ModelContextLimit = keyof typeof MODEL_CONTEXT_LIMITS;
 
 /**
- * Helper to create config with model preset
+ * Helper to create config with model preset.
+ *
+ * @deprecated Use `createCompactConfigFromModels()` instead, which looks up
+ * context lengths dynamically from OpenRouter data.
  */
 export function createCompactConfig(
   modelId: ModelContextLimit,
@@ -537,6 +545,51 @@ export function createCompactConfig(
 
   return {
     maxTokens,
+    summarizerModel,
+    ...overrides,
+  };
+}
+
+/**
+ * Create a compaction config by looking up the model's context length from
+ * an OpenRouter models map. This replaces the static `MODEL_CONTEXT_LIMITS`
+ * table with dynamic, always-up-to-date values.
+ *
+ * @param modelId - Model ID to look up (e.g., "claude-sonnet-4-5", "anthropic/claude-sonnet-4-5")
+ * @param summarizerModel - Language model to use for summarization
+ * @param modelsMap - Models map from `fetchOpenRouterModels()`
+ * @param overrides - Optional config overrides
+ * @returns CompactConversationConfig
+ * @throws If the model's context length cannot be found in the models map
+ *
+ * @example
+ * ```typescript
+ * import { fetchOpenRouterModels, createCompactConfigFromModels } from 'bashkit';
+ *
+ * const models = await fetchOpenRouterModels();
+ * const config = createCompactConfigFromModels(
+ *   'claude-sonnet-4-5',
+ *   anthropic('claude-haiku-4'),
+ *   models,
+ * );
+ * ```
+ */
+export function createCompactConfigFromModels(
+  modelId: string,
+  summarizerModel: LanguageModel,
+  modelsMap: Map<string, ModelInfo>,
+  overrides?: Partial<Omit<CompactConversationConfig, "summarizerModel">>,
+): CompactConversationConfig {
+  const contextLength = getModelContextLength(modelId, modelsMap);
+  if (contextLength === undefined) {
+    throw new Error(
+      `[bashkit] No context length found for model "${modelId}" in OpenRouter data. ` +
+        `Provide maxTokens manually via overrides or use createCompactConfig() with a known model.`,
+    );
+  }
+
+  return {
+    maxTokens: contextLength,
     summarizerModel,
     ...overrides,
   };
