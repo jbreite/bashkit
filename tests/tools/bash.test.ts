@@ -97,7 +97,13 @@ describe("Bash Tool", () => {
 
       assertSuccess<BashOutput>(result);
       expect(result.stdout.length).toBeLessThan(longOutput.length);
-      expect(result.stdout).toContain("[output truncated,");
+      expect(result.stdout).toContain("chars truncated");
+      // Middle truncation preserves the tail
+      expect(result.stdout).toContain(
+        longOutput.slice(longOutput.length - 500),
+      );
+      // Header shows total line count
+      expect(result.stdout).toContain("[Total output lines:");
     });
 
     it("should truncate stderr when exceeding maxOutputLength", async () => {
@@ -118,7 +124,9 @@ describe("Bash Tool", () => {
 
       assertSuccess<BashOutput>(result);
       expect(result.stderr.length).toBeLessThan(longError.length);
-      expect(result.stderr).toContain("[output truncated,");
+      expect(result.stderr).toContain("chars truncated");
+      // Middle truncation preserves the tail
+      expect(result.stderr).toContain(longError.slice(longError.length - 500));
     });
 
     it("should use default maxOutputLength of 30000", async () => {
@@ -139,7 +147,7 @@ describe("Bash Tool", () => {
 
       assertSuccess<BashOutput>(result);
       // Exactly at limit shouldn't truncate
-      expect(result.stdout).not.toContain("[output truncated,");
+      expect(result.stdout).not.toContain("chars truncated");
     });
   });
 

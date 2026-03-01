@@ -29,3 +29,31 @@ export function isToolResultPart(part: unknown): part is ToolResultPart {
     "output" in part
   );
 }
+
+/**
+ * Middle-truncates text, keeping the first half and last half with a
+ * marker in between. Preserves both the beginning context and the
+ * actionable end (error summaries, test failures).
+ *
+ * Inspired by OpenAI Codex's truncate.rs — 50/50 head/tail split.
+ */
+export function middleTruncate(text: string, maxLength: number): string {
+  if (!Number.isFinite(maxLength) || maxLength < 0) return text;
+  if (text.length <= maxLength) return text;
+
+  const headLength = Math.floor(maxLength / 2);
+  const tailLength = maxLength - headLength;
+  const omitted = text.length - headLength - tailLength;
+
+  let totalLines = 1;
+  for (let i = 0; i < text.length; i++) {
+    if (text.charCodeAt(i) === 10) totalLines++;
+  }
+
+  return (
+    `[Total output lines: ${totalLines}]\n\n` +
+    text.slice(0, headLength) +
+    `\n\n…${omitted} chars truncated…\n\n` +
+    text.slice(text.length - tailLength)
+  );
+}

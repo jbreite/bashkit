@@ -8,6 +8,7 @@ import {
   debugStart,
   isDebugEnabled,
 } from "../utils/debug";
+import { middleTruncate } from "../utils/helpers";
 
 export interface BashOutput {
   stdout: string;
@@ -125,24 +126,9 @@ export function createBashTool(sandbox: Sandbox, config?: ToolConfig) {
           timeout: effectiveTimeout,
         });
 
-        // Truncate output if needed
-        let stdout = result.stdout;
-        let stderr = result.stderr;
-
-        if (stdout.length > maxOutputLength) {
-          stdout =
-            stdout.slice(0, maxOutputLength) +
-            `\n[output truncated, ${
-              stdout.length - maxOutputLength
-            } chars omitted]`;
-        }
-        if (stderr.length > maxOutputLength) {
-          stderr =
-            stderr.slice(0, maxOutputLength) +
-            `\n[output truncated, ${
-              stderr.length - maxOutputLength
-            } chars omitted]`;
-        }
+        // Middle-truncate output if needed (preserves head + tail)
+        const stdout = middleTruncate(result.stdout, maxOutputLength);
+        const stderr = middleTruncate(result.stderr, maxOutputLength);
 
         const durationMs = Math.round(performance.now() - startTime);
 
