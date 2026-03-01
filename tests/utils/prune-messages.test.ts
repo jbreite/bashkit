@@ -158,8 +158,7 @@ describe("prune-messages", () => {
               type: "tool-call",
               toolCallId: "1",
               toolName: "Read",
-              // Using 'args' to match what the pruning code expects
-              args: largeArgs,
+              input: largeArgs,
             } as unknown as ModelMessage["content"] extends (infer T)[]
               ? T
               : never,
@@ -172,8 +171,7 @@ describe("prune-messages", () => {
               type: "tool-result",
               toolCallId: "1",
               toolName: "Read",
-              // Using 'result' to match what the pruning code expects
-              result: { content: "file contents" },
+              output: { content: "file contents" },
             } as unknown as ModelMessage["content"] extends (infer T)[]
               ? T
               : never,
@@ -189,23 +187,22 @@ describe("prune-messages", () => {
         protectLastNUserMessages: 1,
       });
 
-      // The pruned message should have truncated args
+      // The pruned message should have truncated input
       const assistantMsg = pruned.find(
         (m) => m.role === "assistant" && Array.isArray(m.content),
       );
       if (assistantMsg && Array.isArray(assistantMsg.content)) {
         const toolCall = assistantMsg.content.find(
-          (p) => typeof p === "object" && "args" in p,
+          (p) => typeof p === "object" && "input" in p,
         );
-        if (toolCall && "args" in toolCall) {
-          expect((toolCall.args as Record<string, unknown>)._pruned).toBe(true);
+        if (toolCall && "input" in toolCall) {
+          expect((toolCall.input as Record<string, unknown>)._pruned).toBe(true);
         }
       }
     });
 
     it("should prune tool results in older messages", () => {
-      // Note: The pruning code checks for 'result' property (legacy SDK format)
-      const messages: ModelMessage[] = [
+            const messages: ModelMessage[] = [
         { role: "user", content: "First" },
         {
           role: "assistant",
@@ -214,7 +211,7 @@ describe("prune-messages", () => {
               type: "tool-call",
               toolCallId: "1",
               toolName: "Read",
-              args: { path: "/test.ts" },
+              input: { path: "/test.ts" },
             } as unknown as ModelMessage["content"] extends (infer T)[]
               ? T
               : never,
@@ -227,7 +224,7 @@ describe("prune-messages", () => {
               type: "tool-result",
               toolCallId: "1",
               toolName: "Read",
-              result: { content: "x".repeat(50000) },
+              output: { content: "x".repeat(50000) },
             } as unknown as ModelMessage["content"] extends (infer T)[]
               ? T
               : never,
@@ -247,12 +244,11 @@ describe("prune-messages", () => {
       const toolMsg = pruned.find((m) => m.role === "tool");
       if (toolMsg && Array.isArray(toolMsg.content)) {
         const toolResult = toolMsg.content.find(
-          (p) => typeof p === "object" && "result" in p,
+          (p) => typeof p === "object" && "output" in p,
         );
-        if (toolResult && "result" in toolResult) {
-          expect((toolResult.result as Record<string, unknown>)._pruned).toBe(
-            true,
-          );
+        if (toolResult && "output" in toolResult) {
+          expect((toolResult.output as Record<string, unknown>).type).toBe("text");
+          expect((toolResult.output as Record<string, unknown>).value).toBe("pruned");
         }
       }
     });

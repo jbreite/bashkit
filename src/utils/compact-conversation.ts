@@ -7,6 +7,7 @@ import {
 } from "ai";
 import { estimateMessagesTokens } from "./prune-messages";
 import { getContextStatus } from "./context-status";
+import { isToolCallPart, isToolResultPart } from "./helpers";
 
 export class CompactionError extends Error {
   override readonly name = "CompactionError";
@@ -310,15 +311,15 @@ function formatMessagesForSummary(messages: ModelMessage[]): string {
               return part.text;
             }
             if (isToolCallPart(part)) {
-              const argsStr = truncate(JSON.stringify(part.args));
-              return `[Tool Call: ${part.toolName}]\nArgs: ${argsStr}`;
+              const inputStr = truncate(JSON.stringify(part.input));
+              return `[Tool Call: ${part.toolName}]\nInput: ${inputStr}`;
             }
-            if ("result" in part) {
-              const resultStr =
-                typeof part.result === "string"
-                  ? part.result
-                  : JSON.stringify(part.result);
-              return `[Tool Result]\n${truncate(resultStr)}`;
+            if (isToolResultPart(part)) {
+              const outputStr =
+                typeof part.output === "string"
+                  ? part.output
+                  : JSON.stringify(part.output);
+              return `[Tool Result]\n${truncate(outputStr)}`;
             }
             return truncate(JSON.stringify(part));
           })
@@ -332,17 +333,6 @@ function formatMessagesForSummary(messages: ModelMessage[]): string {
       )}\n</message>`;
     })
     .join("\n\n");
-}
-
-function isToolCallPart(
-  part: unknown,
-): part is { toolName: string; args: unknown } {
-  return (
-    typeof part === "object" &&
-    part !== null &&
-    "toolName" in part &&
-    "args" in part
-  );
 }
 
 /**
@@ -429,9 +419,9 @@ function extractFileOps(messages: ModelMessage[]): FileOperations {
       if (!isToolCallPart(part)) continue;
 
       const toolName = String(part.toolName).toLowerCase();
-      const rawArgs = part.args;
-      if (typeof rawArgs !== "object" || rawArgs === null) continue;
-      const args = rawArgs as Record<string, unknown>;
+      const rawInput = part.input;
+      if (typeof rawInput !== "object" || rawInput === null) continue;
+      const args = rawInput as Record<string, unknown>;
 
       switch (toolName) {
         case "read": {
