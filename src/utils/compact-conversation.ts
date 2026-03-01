@@ -493,6 +493,10 @@ export function createAutoCompaction(config: CompactConversationConfig): {
         return {};
       } catch (err) {
         lastError = err;
+        // Brief backoff before retry to help with transient errors (e.g., rate limits)
+        if (attempt < 1) {
+          await new Promise((resolve) => setTimeout(resolve, 1000));
+        }
       }
     }
 
@@ -528,6 +532,9 @@ export const MODEL_CONTEXT_LIMITS = {
   "gemini-2.5-flash": 1_000_000,
 } as const;
 
+/**
+ * @deprecated Use `fetchOpenRouterModels()` + `createCompactConfigFromModels()` instead.
+ */
 export type ModelContextLimit = keyof typeof MODEL_CONTEXT_LIMITS;
 
 /**

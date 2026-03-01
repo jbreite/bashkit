@@ -148,6 +148,10 @@ async function fetchOpenRouterData(
       // OpenRouter has ~500 models today; 10,000 is generous headroom.
       // The 10s fetch timeout also limits total response size at the network level.
       const MAX_MODELS = 10_000;
+      // Sanity cap on context_length to prevent a compromised endpoint from
+      // returning astronomical values that would effectively disable compaction.
+      // Well above Gemini's 1M context window.
+      const MAX_CONTEXT_LENGTH = 10_000_000;
       const modelsMap = new Map<string, ModelInfo>();
       const pricingMap = new Map<string, ModelPricing>();
 
@@ -179,7 +183,8 @@ async function fetchOpenRouterData(
         if (
           typeof contextLength === "number" &&
           Number.isFinite(contextLength) &&
-          contextLength > 0
+          contextLength > 0 &&
+          contextLength <= MAX_CONTEXT_LENGTH
         ) {
           modelsMap.set(key, { pricing, contextLength });
         } else {
@@ -219,7 +224,12 @@ export async function fetchOpenRouterPricing(
   }
   // Delegate to the shared fetch, then return the pricing-only map
   await fetchOpenRouterData(apiKey);
-  return openRouterPricingCache!;
+  if (!openRouterPricingCache) {
+    throw new Error(
+      "[bashkit] Internal error: pricing cache not populated after fetch",
+    );
+  }
+  return openRouterPricingCache;
 }
 
 /**
@@ -275,6 +285,87 @@ export function getModelMatchVariants(model: string): string[] {
 }
 
 /**
+ * Generic 3-tier model ID matching against any map.
+ *
+ * 1. Exact match (case-insensitive key lookup)
+ * 2. Longest contained match: response model variant *contains* a map entry variant
+ * 3. Reverse containment: map entry variant *contains* response model variant
+ *
+ * An optional `filter` predicate skips entries that don't satisfy it
+ * (e.g., entries with `contextLength <= 0`).
+ */
+function searchModelInMap<T>(
+  model: string,
+  map: Map<string, T>,
+  filter?: (value: T) => boolean,
+): T | undefined {
+  if (map.size === 0) return undefined;
+
+  const modelVariants = getModelMatchVariants(model);
+
+  // Build entry variants (lazily, once per invocation)
+  const entryVariantsCache = new Map<string, string[]>();
+  function getEntryVariants(key: string): string[] {
+    let variants = entryVariantsCache.get(key);
+    if (!variants) {
+      variants = getModelMatchVariants(key);
+      entryVariantsCache.set(key, variants);
+    }
+    return variants;
+  }
+
+  // Tier 1: Exact match
+  for (const variant of modelVariants) {
+    const value = map.get(variant);
+    if (value !== undefined && (!filter || filter(value))) return value;
+  }
+
+  // Tier 2: Longest contained match (model variant contains entry variant)
+  let bestMatch: T | undefined;
+  let bestMatchLength = 0;
+
+  for (const [entryKey, value] of map) {
+    if (filter && !filter(value)) continue;
+    const entryVariants = getEntryVariants(entryKey);
+    for (const modelVariant of modelVariants) {
+      for (const entryVariant of entryVariants) {
+        if (
+          modelVariant.includes(entryVariant) &&
+          entryVariant.length > bestMatchLength
+        ) {
+          bestMatch = value;
+          bestMatchLength = entryVariant.length;
+        }
+      }
+    }
+  }
+
+  if (bestMatch !== undefined) return bestMatch;
+
+  // Tier 3: Reverse containment (entry variant contains model variant)
+  let reverseMatch: T | undefined;
+  let reverseMatchLength = Infinity;
+
+  for (const [entryKey, value] of map) {
+    if (filter && !filter(value)) continue;
+    const entryVariants = getEntryVariants(entryKey);
+    for (const modelVariant of modelVariants) {
+      for (const entryVariant of entryVariants) {
+        if (
+          entryVariant.includes(modelVariant) &&
+          entryVariant.length < reverseMatchLength
+        ) {
+          reverseMatch = value;
+          reverseMatchLength = entryVariant.length;
+        }
+      }
+    }
+  }
+
+  return reverseMatch;
+}
+
+/**
  * Searches for a model's pricing in a cost map using 3-tier matching.
  *
  * 1. Exact match (case-insensitive key lookup)
@@ -285,68 +376,7 @@ export function searchModelInCosts(
   model: string,
   costsMap: Map<string, ModelPricing>,
 ): ModelPricing | undefined {
-  if (costsMap.size === 0) return undefined;
-
-  const modelVariants = getModelMatchVariants(model);
-
-  // Build cost entry variants (lazily, once)
-  const costVariantsCache = new Map<string, string[]>();
-  function getCostVariants(key: string): string[] {
-    let variants = costVariantsCache.get(key);
-    if (!variants) {
-      variants = getModelMatchVariants(key);
-      costVariantsCache.set(key, variants);
-    }
-    return variants;
-  }
-
-  // Tier 1: Exact match
-  for (const variant of modelVariants) {
-    const pricing = costsMap.get(variant);
-    if (pricing) return pricing;
-  }
-
-  // Tier 2: Longest contained match (model variant contains cost variant)
-  let bestMatch: ModelPricing | undefined;
-  let bestMatchLength = 0;
-
-  for (const [costKey, pricing] of costsMap) {
-    const costVariants = getCostVariants(costKey);
-    for (const modelVariant of modelVariants) {
-      for (const costVariant of costVariants) {
-        if (
-          modelVariant.includes(costVariant) &&
-          costVariant.length > bestMatchLength
-        ) {
-          bestMatch = pricing;
-          bestMatchLength = costVariant.length;
-        }
-      }
-    }
-  }
-
-  if (bestMatch) return bestMatch;
-
-  // Tier 3: Reverse containment (cost variant contains model variant)
-  let reverseMatch: ModelPricing | undefined;
-  let reverseMatchLength = Infinity;
-
-  for (const [costKey, pricing] of costsMap) {
-    const costVariants = getCostVariants(costKey);
-    for (const modelVariant of modelVariants) {
-      for (const costVariant of costVariants) {
-        if (
-          costVariant.includes(modelVariant) &&
-          costVariant.length < reverseMatchLength
-        ) {
-          reverseMatch = pricing;
-          reverseMatchLength = costVariant.length;
-        }
-      }
-    }
-  }
-
-  return reverseMatch;
+  return searchModelInMap(model, costsMap);
 }
 
 /**
@@ -359,73 +389,8 @@ export function getModelContextLength(
   model: string,
   modelsMap: Map<string, ModelInfo>,
 ): number | undefined {
-  if (modelsMap.size === 0) return undefined;
-
-  // Reuse searchModelInCosts by projecting ModelInfo into a temporary Map<string, ModelPricing>
-  // and then using the matched key to look up context length.
-  // Instead, we duplicate the 3-tier logic inline to avoid building a temporary map.
-
-  const modelVariants = getModelMatchVariants(model);
-
-  const costVariantsCache = new Map<string, string[]>();
-  function getCostVariants(key: string): string[] {
-    let variants = costVariantsCache.get(key);
-    if (!variants) {
-      variants = getModelMatchVariants(key);
-      costVariantsCache.set(key, variants);
-    }
-    return variants;
-  }
-
-  // Tier 1: Exact match
-  for (const variant of modelVariants) {
-    const info = modelsMap.get(variant);
-    if (info && info.contextLength > 0) return info.contextLength;
-  }
-
-  // Tier 2: Longest contained match (model variant contains cost variant)
-  let bestInfo: ModelInfo | undefined;
-  let bestMatchLength = 0;
-
-  for (const [costKey, info] of modelsMap) {
-    if (info.contextLength <= 0) continue;
-    const costVariants = getCostVariants(costKey);
-    for (const modelVariant of modelVariants) {
-      for (const costVariant of costVariants) {
-        if (
-          modelVariant.includes(costVariant) &&
-          costVariant.length > bestMatchLength
-        ) {
-          bestInfo = info;
-          bestMatchLength = costVariant.length;
-        }
-      }
-    }
-  }
-
-  if (bestInfo) return bestInfo.contextLength;
-
-  // Tier 3: Reverse containment (cost variant contains model variant)
-  let reverseInfo: ModelInfo | undefined;
-  let reverseMatchLength = Infinity;
-
-  for (const [costKey, info] of modelsMap) {
-    if (info.contextLength <= 0) continue;
-    const costVariants = getCostVariants(costKey);
-    for (const modelVariant of modelVariants) {
-      for (const costVariant of costVariants) {
-        if (
-          costVariant.includes(modelVariant) &&
-          costVariant.length < reverseMatchLength
-        ) {
-          reverseInfo = info;
-          reverseMatchLength = costVariant.length;
-        }
-      }
-    }
-  }
-
-  return reverseInfo?.contextLength;
+  const info = searchModelInMap(model, modelsMap, (v) => v.contextLength > 0);
+  return info?.contextLength;
 }
 
 /**
