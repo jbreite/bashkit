@@ -53,7 +53,8 @@ Each tool exports `<Name>Output` for success and `<Name>Error` for errors:
 - `ToolConfig` -- Per-tool config (timeout, allowedPaths, maxFileSize, etc.)
 - `AskUserConfig` -- Ask user handlers
 - `SkillConfig` -- Skill metadata and sandbox
-- `TaskToolConfig` -- Sub-agent configuration
+- `TaskToolConfig` -- Sub-agent configuration (includes optional `budget` for auto-wiring cost tracking)
+- `BudgetConfig` -- Budget tracking config (maxUsd, pricingProvider, modelPricing)
 - `WebSearchConfig` / `WebFetchConfig` -- Web tool API keys and providers
 
 ## Architecture
@@ -81,7 +82,8 @@ Each tool exports `<Name>Output` for success and `<Name>Error` for errors:
 1. **Tool Creation**: `createAgentTools()` → individual `create*Tool()` factories → `tool()` from AI SDK
 2. **Execution**: AI model calls tool → `execute()` function → sandbox operation or external API → return Output or Error
 3. **Caching** (optional): `resolveCache()` wraps cacheable tools with `cached()` from cache module
-4. **Export**: Tools surfaced via `src/index.ts` barrel export to package consumers
+4. **Budget** (optional): `createAgentTools()` creates a `BudgetTracker` from config, returns it for wiring into `onStepFinish`/`stopWhen`. Auto-wires into Task tool sub-agents.
+5. **Export**: Tools surfaced via `src/index.ts` barrel export to package consumers
 
 ### Internal Dependencies
 
@@ -94,6 +96,7 @@ Each tool exports `<Name>Output` for success and `<Name>Error` for errors:
 - `../types.ts` -- Config types and DEFAULT_CONFIG
 - `../cache/` -- Caching layer for Read, Glob, Grep, WebFetch, WebSearch
 - `../utils/debug.ts` -- Debug logging for all tools
+- `../utils/budget-tracking.ts` -- Budget tracker creation and OpenRouter pricing fetch (used by index.ts and task.ts)
 - `../skills/types.ts` -- Skill metadata for Skill tool
 - `ai` -- tool(), zodSchema(), generateText(), streamText() from Vercel AI SDK
 - `zod` -- Schema validation for all tool inputs
@@ -231,6 +234,7 @@ Located at `/tests/tools/`:
 - `web-search.test.ts` -- Parallel API search (requires PARALLEL_API_KEY)
 - `web-fetch.test.ts` -- Web content extraction (requires PARALLEL_API_KEY)
 - `index.test.ts` -- Tool factory orchestration, caching
+- `budget-integration.test.ts` -- Budget tracker integration with createAgentTools and Task tool auto-wiring
 
 ### Running Tests
 ```bash

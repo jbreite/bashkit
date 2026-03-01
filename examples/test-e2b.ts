@@ -22,7 +22,7 @@ async function main() {
   });
   console.log("✅ Sandbox ready with tools\n");
 
-  const { tools } = createAgentTools(sandbox);
+  const { tools } = await createAgentTools(sandbox);
   const toolOptions = { toolCallId: "test", messages: [] };
 
   try {

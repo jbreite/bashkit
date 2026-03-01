@@ -20,7 +20,7 @@ async function main() {
   const sandbox = createLocalSandbox({ cwd: "/tmp/bashkit-test" });
 
   // Create sandbox-based tools
-  const { tools: sandboxTools } = createAgentTools(sandbox);
+  const { tools: sandboxTools } = await createAgentTools(sandbox);
 
   // Create state for todos
   const todoState: TodoState = { todos: [] };

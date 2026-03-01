@@ -8,6 +8,7 @@
  * - BASHKIT_DEBUG=file:/path/to/trace.jsonl - Write to file
  */
 
+import { AsyncLocalStorage } from "node:async_hooks";
 import { appendFileSync } from "node:fs";
 
 /** Debug event structure for tool execution tracing */
@@ -41,7 +42,6 @@ interface DebugState {
   filePath?: string;
   logs: DebugEvent[];
   counters: Map<string, number>;
-  parentStack: string[];
 }
 
 // Global debug state
@@ -49,8 +49,15 @@ const state: DebugState = {
   mode: "off",
   logs: [],
   counters: new Map(),
-  parentStack: [],
 };
+
+/** Per-async-context debug parent tracking */
+interface DebugContext {
+  parentId: string;
+  depth: number;
+}
+
+const debugContext = new AsyncLocalStorage<DebugContext>();
 
 // Truncation limits
 const MAX_STRING_LENGTH = 1000;
@@ -184,7 +191,8 @@ function emitEvent(event: DebugEvent): void {
  * Format and output human-readable debug message.
  */
 function formatHumanReadable(event: DebugEvent): void {
-  const indent = "  ".repeat(state.parentStack.length);
+  const ctx = debugContext.getStore();
+  const indent = "  ".repeat(ctx?.depth ?? 0);
 
   if (event.event === "start") {
     const inputSummary = event.input
@@ -221,10 +229,8 @@ export function debugStart(
   if (state.mode === "off") return "";
 
   const id = generateId(tool);
-  const parent =
-    state.parentStack.length > 0
-      ? state.parentStack[state.parentStack.length - 1]
-      : undefined;
+  const ctx = debugContext.getStore();
+  const parent = ctx?.parentId;
 
   const event: DebugEvent = {
     id,
@@ -288,19 +294,16 @@ export function debugError(
 }
 
 /**
- * Push a parent context for nested tool calls (e.g., when Task starts a subagent).
+ * Run a function with a debug parent context.
+ * All tool calls within `fn` (including async continuations) will have
+ * their `parent` field set to `parentId`. Safe for parallel execution —
+ * each call gets its own isolated async context via AsyncLocalStorage.
  */
-export function pushParent(id: string): void {
-  if (state.mode === "off" || !id) return;
-  state.parentStack.push(id);
-}
-
-/**
- * Pop the current parent context.
- */
-export function popParent(): void {
-  if (state.mode === "off") return;
-  state.parentStack.pop();
+export function runWithDebugParent<T>(parentId: string, fn: () => T): T {
+  if (state.mode === "off" || !parentId) return fn();
+  const current = debugContext.getStore();
+  const depth = current ? current.depth + 1 : 1;
+  return debugContext.run({ parentId, depth }, fn);
 }
 
 /**
@@ -318,7 +321,6 @@ export function getDebugLogs(): DebugEvent[] {
 export function clearDebugLogs(): void {
   state.logs = [];
   state.counters.clear();
-  state.parentStack = [];
 }
 
 /**
@@ -328,6 +330,5 @@ export function clearDebugLogs(): void {
 export function reinitDebugMode(): void {
   state.logs = [];
   state.counters.clear();
-  state.parentStack = [];
   initDebugMode();
 }

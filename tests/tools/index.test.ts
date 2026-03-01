@@ -18,8 +18,8 @@ describe("createAgentTools", () => {
   });
 
   describe("default tools", () => {
-    it("should create core sandbox tools by default", () => {
-      const { tools } = createAgentTools(sandbox);
+    it("should create core sandbox tools by default", async () => {
+      const { tools } = await createAgentTools(sandbox);
 
       expect(tools.Bash).toBeDefined();
       expect(tools.Read).toBeDefined();
@@ -29,8 +29,8 @@ describe("createAgentTools", () => {
       expect(tools.Grep).toBeDefined();
     });
 
-    it("should not include optional tools by default", () => {
-      const { tools } = createAgentTools(sandbox);
+    it("should not include optional tools by default", async () => {
+      const { tools } = await createAgentTools(sandbox);
 
       expect(tools.WebSearch).toBeUndefined();
       expect(tools.WebFetch).toBeUndefined();
@@ -40,8 +40,8 @@ describe("createAgentTools", () => {
       expect(tools.Skill).toBeUndefined();
     });
 
-    it("should not return planModeState by default", () => {
-      const result = createAgentTools(sandbox);
+    it("should not return planModeState by default", async () => {
+      const result = await createAgentTools(sandbox);
 
       expect(result.planModeState).toBeUndefined();
     });
@@ -49,7 +49,7 @@ describe("createAgentTools", () => {
 
   describe("tool configuration", () => {
     it("should pass config to Bash tool", async () => {
-      const { tools } = createAgentTools(sandbox, {
+      const { tools } = await createAgentTools(sandbox, {
         tools: {
           Bash: { timeout: 5000 },
         },
@@ -63,7 +63,7 @@ describe("createAgentTools", () => {
     });
 
     it("should pass blockedCommands to Bash tool", async () => {
-      const { tools } = createAgentTools(sandbox, {
+      const { tools } = await createAgentTools(sandbox, {
         tools: {
           Bash: { blockedCommands: ["rm -rf"] },
         },
@@ -79,8 +79,8 @@ describe("createAgentTools", () => {
   });
 
   describe("AskUser tool", () => {
-    it("should include AskUser when configured", () => {
-      const { tools } = createAgentTools(sandbox, {
+    it("should include AskUser when configured", async () => {
+      const { tools } = await createAgentTools(sandbox, {
         askUser: {
           onQuestion: async (q) => `Answer to: ${q}`,
         },
@@ -89,16 +89,16 @@ describe("createAgentTools", () => {
       expect(tools.AskUser).toBeDefined();
     });
 
-    it("should not include AskUser without config", () => {
-      const { tools } = createAgentTools(sandbox);
+    it("should not include AskUser without config", async () => {
+      const { tools } = await createAgentTools(sandbox);
 
       expect(tools.AskUser).toBeUndefined();
     });
   });
 
   describe("plan mode tools", () => {
-    it("should include plan mode tools when enabled", () => {
-      const { tools, planModeState } = createAgentTools(sandbox, {
+    it("should include plan mode tools when enabled", async () => {
+      const { tools, planModeState } = await createAgentTools(sandbox, {
         planMode: true,
       });
 
@@ -108,8 +108,8 @@ describe("createAgentTools", () => {
       expect(planModeState?.isActive).toBe(false);
     });
 
-    it("should not include plan mode tools when disabled", () => {
-      const { tools, planModeState } = createAgentTools(sandbox, {
+    it("should not include plan mode tools when disabled", async () => {
+      const { tools, planModeState } = await createAgentTools(sandbox, {
         planMode: false,
       });
 
@@ -120,8 +120,8 @@ describe("createAgentTools", () => {
   });
 
   describe("skill tool", () => {
-    it("should include Skill tool when configured", () => {
-      const { tools } = createAgentTools(sandbox, {
+    it("should include Skill tool when configured", async () => {
+      const { tools } = await createAgentTools(sandbox, {
         skill: {
           skills: {
             test: {
@@ -136,16 +136,16 @@ describe("createAgentTools", () => {
       expect(tools.Skill).toBeDefined();
     });
 
-    it("should not include Skill tool without config", () => {
-      const { tools } = createAgentTools(sandbox);
+    it("should not include Skill tool without config", async () => {
+      const { tools } = await createAgentTools(sandbox);
 
       expect(tools.Skill).toBeUndefined();
     });
   });
 
   describe("web tools", () => {
-    it("should include WebSearch when configured", () => {
-      const { tools } = createAgentTools(sandbox, {
+    it("should include WebSearch when configured", async () => {
+      const { tools } = await createAgentTools(sandbox, {
         webSearch: {
           apiKey: "test-key",
         },
@@ -154,9 +154,9 @@ describe("createAgentTools", () => {
       expect(tools.WebSearch).toBeDefined();
     });
 
-    it("should include WebFetch when configured", () => {
+    it("should include WebFetch when configured", async () => {
       const mockModel = { modelId: "test" } as WebFetchConfig["model"];
-      const { tools } = createAgentTools(sandbox, {
+      const { tools } = await createAgentTools(sandbox, {
         webFetch: {
           apiKey: "test-key",
           model: mockModel,
@@ -166,8 +166,8 @@ describe("createAgentTools", () => {
       expect(tools.WebFetch).toBeDefined();
     });
 
-    it("should not include web tools without config", () => {
-      const { tools } = createAgentTools(sandbox);
+    it("should not include web tools without config", async () => {
+      const { tools } = await createAgentTools(sandbox);
 
       expect(tools.WebSearch).toBeUndefined();
       expect(tools.WebFetch).toBeUndefined();
@@ -175,8 +175,8 @@ describe("createAgentTools", () => {
   });
 
   describe("caching", () => {
-    it("should apply caching when cache: true", () => {
-      const { tools } = createAgentTools(sandbox, {
+    it("should apply caching when cache: true", async () => {
+      const { tools } = await createAgentTools(sandbox, {
         cache: true,
       });
 
@@ -186,8 +186,8 @@ describe("createAgentTools", () => {
       expect((tools.Grep as CachedTool).getStats).toBeDefined();
     });
 
-    it("should not cache tools that have side effects", () => {
-      const { tools } = createAgentTools(sandbox, {
+    it("should not cache tools that have side effects", async () => {
+      const { tools } = await createAgentTools(sandbox, {
         cache: true,
       });
 
@@ -197,8 +197,8 @@ describe("createAgentTools", () => {
       expect((tools.Bash as CachedTool).getStats).toBeUndefined();
     });
 
-    it("should respect per-tool cache settings", () => {
-      const { tools } = createAgentTools(sandbox, {
+    it("should respect per-tool cache settings", async () => {
+      const { tools } = await createAgentTools(sandbox, {
         cache: {
           Read: true,
           Glob: false,
@@ -209,23 +209,23 @@ describe("createAgentTools", () => {
       expect((tools.Glob as CachedTool).getStats).toBeUndefined();
     });
 
-    it("should not cache when cache: false or undefined", () => {
-      const { tools } = createAgentTools(sandbox);
+    it("should not cache when cache: false or undefined", async () => {
+      const { tools } = await createAgentTools(sandbox);
 
       expect((tools.Read as CachedTool).getStats).toBeUndefined();
     });
   });
 
   describe("return type", () => {
-    it("should return AgentToolsResult shape", () => {
-      const result: AgentToolsResult = createAgentTools(sandbox);
+    it("should return AgentToolsResult shape", async () => {
+      const result: AgentToolsResult = await createAgentTools(sandbox);
 
       expect(result).toHaveProperty("tools");
       expect(typeof result.tools).toBe("object");
     });
 
-    it("should return tools as ToolSet", () => {
-      const { tools } = createAgentTools(sandbox);
+    it("should return tools as ToolSet", async () => {
+      const { tools } = await createAgentTools(sandbox);
 
       // Each tool should have execute function
       for (const tool of Object.values(tools)) {
@@ -236,9 +236,9 @@ describe("createAgentTools", () => {
   });
 
   describe("multiple configurations", () => {
-    it("should support combining multiple optional tools", () => {
+    it("should support combining multiple optional tools", async () => {
       const mockModel = { modelId: "test" } as WebFetchConfig["model"];
-      const { tools, planModeState } = createAgentTools(sandbox, {
+      const { tools, planModeState } = await createAgentTools(sandbox, {
         planMode: true,
         askUser: { onQuestion: async () => "answer" },
         webSearch: { apiKey: "key" },
