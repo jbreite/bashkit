@@ -419,17 +419,17 @@ function extractFileOps(messages: ModelMessage[]): FileOperations {
       const toolName = String(part.toolName).toLowerCase();
       const rawInput = part.input;
       if (typeof rawInput !== "object" || rawInput === null) continue;
-      const args = rawInput as Record<string, unknown>;
+      const input = rawInput as Record<string, unknown>;
 
       switch (toolName) {
         case "read": {
-          const filePath = args.file_path;
+          const filePath = input.file_path;
           if (typeof filePath === "string") ops.read.add(filePath);
           break;
         }
         case "write":
         case "edit": {
-          const filePath = args.file_path;
+          const filePath = input.file_path;
           if (typeof filePath === "string") ops.modified.add(filePath);
           break;
         }

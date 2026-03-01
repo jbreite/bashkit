@@ -342,6 +342,97 @@ describe("compactConversation", () => {
     expect(prompt).toContain("Focus on database schema decisions");
   });
 
+  it("forward-walks when backward walk exhausts all tool results", async () => {
+    // One assistant with many parallel tool calls, followed by their results,
+    // then a safe user/assistant boundary. With protectRecentMessages=3,
+    // naiveSplit lands inside the tool result block, backward walk reaches 0,
+    // and forward walk finds the user message as a safe split point.
+    const toolCallIds = Array.from({ length: 20 }, (_, i) => `tc${i}`);
+    const messages: ModelMessage[] = [
+      // Assistant with 20 parallel tool calls
+      {
+        role: "assistant",
+        content: toolCallIds.map((id) => ({
+          type: "tool-call",
+          toolCallId: id,
+          toolName: "Bash",
+          input: { command: `echo ${"x".repeat(200)}` },
+        })),
+      } as unknown as ModelMessage,
+      // 20 tool results
+      ...toolCallIds.map(
+        (id) =>
+          ({
+            role: "tool",
+            content: [
+              {
+                type: "tool-result",
+                toolCallId: id,
+                toolName: "Bash",
+                output: `result ${"data ".repeat(100)}`,
+              },
+            ],
+          }) as unknown as ModelMessage,
+      ),
+      // Safe boundary: plain user + assistant
+      { role: "user", content: "continue working" },
+      { role: "assistant", content: "ok, continuing" },
+    ];
+
+    const result = await compactConversation(
+      messages,
+      makeConfig({ protectRecentMessages: 3 }),
+    );
+
+    expect(result.didCompact).toBe(true);
+    // Recent portion should start with the user message, not a tool result
+    const recentStart = result.messages[2]; // after summary + ack
+    expect(recentStart.role).toBe("user");
+    expect(recentStart.content).toBe("continue working");
+  });
+
+  it("falls back to naive split when forward walk exhausts all messages", async () => {
+    // All messages are tool call/result — no safe boundary exists.
+    // Backward walk reaches 0, forward walk goes past end,
+    // falls back to naive split (some orphaning is better than no compaction).
+    const toolCallIds = Array.from({ length: 20 }, (_, i) => `tc${i}`);
+    const messages: ModelMessage[] = [
+      // Assistant with 20 parallel tool calls
+      {
+        role: "assistant",
+        content: toolCallIds.map((id) => ({
+          type: "tool-call",
+          toolCallId: id,
+          toolName: "Bash",
+          input: { command: `echo ${"x".repeat(200)}` },
+        })),
+      } as unknown as ModelMessage,
+      // 20 tool results (no safe boundary after)
+      ...toolCallIds.map(
+        (id) =>
+          ({
+            role: "tool",
+            content: [
+              {
+                type: "tool-result",
+                toolCallId: id,
+                toolName: "Bash",
+                output: `result ${"data ".repeat(100)}`,
+              },
+            ],
+          }) as unknown as ModelMessage,
+      ),
+    ];
+
+    const result = await compactConversation(
+      messages,
+      makeConfig({ protectRecentMessages: 1 }),
+    );
+
+    // Should still compact despite no safe boundary (falls back to naive split)
+    expect(result.didCompact).toBe(true);
+  });
+
   it("passes previous summary to the summarizer on subsequent compactions", async () => {
     vi.mocked(generateText).mockResolvedValueOnce({
       text: "Second summary.",
