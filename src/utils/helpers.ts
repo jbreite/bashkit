@@ -38,12 +38,17 @@ export function isToolResultPart(part: unknown): part is ToolResultPart {
  * Inspired by OpenAI Codex's truncate.rs — 50/50 head/tail split.
  */
 export function middleTruncate(text: string, maxLength: number): string {
+  if (!Number.isFinite(maxLength) || maxLength < 0) return text;
   if (text.length <= maxLength) return text;
 
   const headLength = Math.floor(maxLength / 2);
   const tailLength = maxLength - headLength;
   const omitted = text.length - headLength - tailLength;
-  const totalLines = text.split("\n").length;
+
+  let totalLines = 1;
+  for (let i = 0; i < text.length; i++) {
+    if (text.charCodeAt(i) === 10) totalLines++;
+  }
 
   return (
     `[Total output lines: ${totalLines}]\n\n` +

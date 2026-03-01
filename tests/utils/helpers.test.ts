@@ -59,4 +59,20 @@ describe("middleTruncate", () => {
     // omitted = 100 - 25 - 26 = 49
     expect(result).toContain("…49 chars truncated…");
   });
+
+  it("should return text unchanged for negative maxLength", () => {
+    const text = "hello world";
+    expect(middleTruncate(text, -1)).toBe(text);
+    expect(middleTruncate(text, -100)).toBe(text);
+  });
+
+  it("should return text unchanged for NaN maxLength", () => {
+    const text = "hello world";
+    expect(middleTruncate(text, NaN)).toBe(text);
+  });
+
+  it("should return text unchanged for Infinity maxLength", () => {
+    const text = "hello world";
+    expect(middleTruncate(text, Infinity)).toBe(text);
+  });
 });
