@@ -165,6 +165,7 @@ export type AgentConfig = {
     Read?: ToolConfig;
     Write?: ToolConfig;
     Edit?: ToolConfig;
+    Patch?: ToolConfig;
     Glob?: ToolConfig;
     Grep?: GrepToolConfig;
   };

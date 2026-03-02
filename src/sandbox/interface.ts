@@ -19,6 +19,8 @@ export interface Sandbox {
   readDir(path: string): Promise<string[]>;
   fileExists(path: string): Promise<boolean>;
   isDirectory(path: string): Promise<boolean>;
+  deleteFile(path: string): Promise<void>;
+  rename(oldPath: string, newPath: string): Promise<void>;
   destroy(): Promise<void>;
 
   /**

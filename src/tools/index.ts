@@ -18,6 +18,7 @@ import { createEnterPlanModeTool, type PlanModeState } from "./enter-plan-mode";
 import { createExitPlanModeTool } from "./exit-plan-mode";
 import { createGlobTool } from "./glob";
 import { createGrepTool } from "./grep";
+import { createPatchTool } from "./patch";
 import { createReadTool } from "./read";
 import { createSkillTool } from "./skill";
 import { createWebFetchTool } from "./web-fetch";
@@ -179,6 +180,7 @@ export async function createAgentTools(
     Read: createReadTool(sandbox, toolsConfig.Read),
     Write: createWriteTool(sandbox, toolsConfig.Write),
     Edit: createEditTool(sandbox, toolsConfig.Edit),
+    Patch: createPatchTool(sandbox, toolsConfig.Patch),
     Glob: createGlobTool(sandbox, toolsConfig.Glob),
     Grep: createGrepTool(sandbox, toolsConfig.Grep),
   };
@@ -313,6 +315,8 @@ export type { ExitPlanModeError, ExitPlanModeOutput } from "./exit-plan-mode";
 export { createExitPlanModeTool } from "./exit-plan-mode";
 export type { GlobError, GlobOutput } from "./glob";
 export { createGlobTool } from "./glob";
+export type { PatchError, PatchFileResult, PatchOutput } from "./patch";
+export { createPatchTool } from "./patch";
 
 export type {
   GrepContentOutput,

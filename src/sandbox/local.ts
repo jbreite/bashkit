@@ -118,6 +118,25 @@ export function createLocalSandbox(config: LocalSandboxConfig = {}): Sandbox {
       }
     },
 
+    async deleteFile(path: string): Promise<void> {
+      const fullPath = path.startsWith("/")
+        ? path
+        : `${workingDirectory}/${path}`;
+      const fs = await import("fs/promises");
+      await fs.unlink(fullPath);
+    },
+
+    async rename(oldPath: string, newPath: string): Promise<void> {
+      const resolvedOldPath = oldPath.startsWith("/")
+        ? oldPath
+        : `${workingDirectory}/${oldPath}`;
+      const resolvedNewPath = newPath.startsWith("/")
+        ? newPath
+        : `${workingDirectory}/${newPath}`;
+      const fs = await import("fs/promises");
+      await fs.rename(resolvedOldPath, resolvedNewPath);
+    },
+
     async destroy(): Promise<void> {
       // No cleanup needed for local sandbox
     },

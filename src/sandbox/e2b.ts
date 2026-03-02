@@ -159,6 +159,16 @@ export async function createE2BSandbox(
       return result.exitCode === 0;
     },
 
+    async deleteFile(path: string): Promise<void> {
+      const sbx = await sandbox.get();
+      await sbx.files.remove(path);
+    },
+
+    async rename(oldPath: string, newPath: string): Promise<void> {
+      const sbx = await sandbox.get();
+      await sbx.files.rename(oldPath, newPath);
+    },
+
     async destroy(): Promise<void> {
       try {
         const sbx = await sandbox.get();

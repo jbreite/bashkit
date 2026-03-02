@@ -194,6 +194,20 @@ export async function createVercelSandbox(
       return result.exitCode === 0;
     },
 
+    async deleteFile(path: string): Promise<void> {
+      const result = await exec(`rm "${path}"`);
+      if (result.exitCode !== 0) {
+        throw new Error(`Failed to delete: ${result.stderr}`);
+      }
+    },
+
+    async rename(oldPath: string, newPath: string): Promise<void> {
+      const result = await exec(`mv "${oldPath}" "${newPath}"`);
+      if (result.exitCode !== 0) {
+        throw new Error(`Failed to rename: ${result.stderr}`);
+      }
+    },
+
     async destroy(): Promise<void> {
       try {
         const sbx = await sandbox.get();
