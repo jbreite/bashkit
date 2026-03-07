@@ -134,6 +134,7 @@ export function createBashTool(sandbox: Sandbox, config?: ToolConfig) {
 
         if (debugId) {
           debugEnd(debugId, "bash", {
+            output: { stdout, stderr: stderr || undefined },
             summary: {
               exitCode: result.exitCode,
               stdoutLen: result.stdout.length,

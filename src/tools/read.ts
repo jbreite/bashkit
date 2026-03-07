@@ -164,6 +164,7 @@ export function createReadTool(sandbox: Sandbox, config?: ToolConfig) {
         const durationMs = Math.round(performance.now() - startTime);
         if (debugId) {
           debugEnd(debugId, "read", {
+            output: selectedLines.join("\n"),
             summary: {
               type: "text",
               totalLines,

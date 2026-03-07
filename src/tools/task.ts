@@ -389,7 +389,9 @@ export function createTaskTool(
           debugError(debugId, "task", result.error);
         } else {
           debugEnd(debugId, "task", {
+            output: result.result,
             summary: {
+              subagent: result.subagent,
               tokens: result.usage
                 ? {
                     input: result.usage.input_tokens,

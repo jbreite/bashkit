@@ -60,8 +60,8 @@ interface DebugContext {
 const debugContext = new AsyncLocalStorage<DebugContext>();
 
 // Truncation limits
-const MAX_STRING_LENGTH = 1000;
-const MAX_ARRAY_ITEMS = 10;
+const MAX_STRING_LENGTH = 4000;
+const MAX_ARRAY_ITEMS = 20;
 
 /**
  * Initialize debug mode from environment variable.
