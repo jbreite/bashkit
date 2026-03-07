@@ -47,6 +47,7 @@ export const useActiveScrollElement = (
     }
   }, []);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: updateActive is stable via ref
   useEffect(() => {
     if (typeof window === "undefined") return;
 
@@ -86,7 +87,7 @@ export const useActiveScrollElement = (
           return;
         }
 
-        const index = ids.findIndex((i) => i === id);
+        const index = ids.indexOf(id);
         const previous = ids[Math.max(index - 1, 0)];
         updateActive(previous);
       }
@@ -149,7 +150,7 @@ export const useActiveScrollElement = (
     handleResize();
     if (window.scrollY > 0) handleScroll();
 
-    sections.forEach((heading) => scrollObserver.observe(heading));
+    for (const heading of sections) scrollObserver.observe(heading);
     resizeObserver.observe(document.body);
     document.addEventListener("click", handleHash);
     window.addEventListener("scroll", handleScroll, { passive: true });

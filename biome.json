@@ -19,6 +19,12 @@
       "recommended": true,
       "style": {
         "useNodejsImportProtocol": "off"
+      },
+      "a11y": {
+        "noSvgWithoutTitle": "off"
+      },
+      "suspicious": {
+        "noArrayIndexKey": "off"
       }
     }
   },
