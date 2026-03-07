@@ -119,8 +119,8 @@ function truncateString(str: string): string {
 
 /**
  * Summarize data for debug output.
- * - Truncates strings to 1000 chars
- * - Limits arrays to 10 items
+ * - Truncates strings to MAX_STRING_LENGTH chars
+ * - Limits arrays to MAX_ARRAY_ITEMS items
  * - Recursively summarizes nested objects
  */
 export function summarize(data: unknown, depth = 0): unknown {
