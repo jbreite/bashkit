@@ -119,6 +119,7 @@ export function CopyButton({
     }
   };
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: animation refs are stable
   useEffect(() => {
     if (isFirstRender.current) {
       isFirstRender.current = false;
@@ -135,6 +136,7 @@ export function CopyButton({
 
   return (
     <button
+      type="button"
       onClick={handleCopy}
       className={className ?? "copy-button"}
       title="Copy to clipboard"

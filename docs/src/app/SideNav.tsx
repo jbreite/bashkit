@@ -2,8 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState, useRef, useCallback } from "react";
-import { createPortal } from "react-dom";
+import { useEffect, useState, useRef } from "react";
 import { useTheme } from "next-themes";
 import { motion } from "framer-motion";
 import * as Motion from "../components/Motion";
@@ -167,6 +166,7 @@ function ThemePicker() {
   const currentTheme = theme || "system";
 
   return (
+    // biome-ignore lint/a11y/noStaticElementInteractions: hover expand for theme picker
     <div
       className="theme-picker-wrap"
       onMouseEnter={() => setExpanded(true)}
@@ -195,6 +195,7 @@ function ThemePicker() {
             )}
             {themeOrder.map((t) => (
               <button
+                type="button"
                 key={t}
                 className={`theme-picker-option ${currentTheme === t ? "active" : ""}`}
                 onClick={() => setTheme(t)}
@@ -262,7 +263,6 @@ export function SideNav() {
         <div className="nav-links">
           {links.map((link) => {
             const isActive = pathname === link.href;
-            const hasItems = link.items && link.items.length > 0;
 
             return (
               <div key={link.href} className="nav-item-wrapper">
@@ -283,10 +283,10 @@ export function SideNav() {
                   }}
                 >
                   <Motion.Presence mode="sync">
-                    {isActive && hasItems && (
+                    {isActive && link.items && (
                       <Motion.Height>
                         <TOC
-                          headings={link.items!.map((item) => ({
+                          headings={link.items.map((item) => ({
                             id: item.id,
                             level: 1,
                             text: item.text,

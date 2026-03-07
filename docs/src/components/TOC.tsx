@@ -24,11 +24,12 @@ export const TOC: React.FC<TableOfContentsProps> = ({
   const ids = React.useMemo(() => headings.map((h) => h.id), [headings]);
   const activeHeading = useActiveScrollElement(ids);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: reads DOM measurements when active heading changes
   React.useEffect(() => {
     if (activeLink.current) {
       setStyle({
-        top: activeLink.current.offsetTop + "px",
-        height: activeLink.current.offsetHeight + "px",
+        top: `${activeLink.current.offsetTop}px`,
+        height: `${activeLink.current.offsetHeight}px`,
       });
     }
   }, [activeHeading]);

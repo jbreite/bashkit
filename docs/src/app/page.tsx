@@ -76,6 +76,7 @@ export default function Home() {
               rel="noopener noreferrer"
               className="tagline-brand"
             >
+              {/* biome-ignore lint/performance/noImgElement: static export incompatible with next/image */}
               <img
                 src="/claude-logo.jpg"
                 alt="Claude"
@@ -90,6 +91,7 @@ export default function Home() {
               rel="noopener noreferrer"
               className="tagline-brand"
             >
+              {/* biome-ignore lint/performance/noImgElement: static export incompatible with next/image */}
               <img
                 src="/vercel-logo.png"
                 alt="Vercel"

@@ -26,6 +26,7 @@ function MobileThemeToggle() {
 
   return (
     <button
+      type="button"
       onClick={() => setTheme(isDark ? "light" : "dark")}
       aria-label={`Switch to ${isDark ? "light" : "dark"} mode`}
       style={{
@@ -82,6 +83,7 @@ export function MobileNav() {
   const [isOpen, setIsOpen] = useState(false);
   const pathname = usePathname();
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: close nav on route change
   useEffect(() => {
     setIsOpen(false);
   }, [pathname]);
@@ -117,6 +119,7 @@ export function MobileNav() {
             GitHub
           </a>
           <button
+            type="button"
             className={`mobile-nav-toggle ${isOpen ? "open" : ""}`}
             onClick={() => setIsOpen(!isOpen)}
             aria-label="Toggle navigation"
