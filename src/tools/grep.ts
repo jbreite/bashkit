@@ -263,6 +263,7 @@ export function createGrepTool(sandbox: Sandbox, config?: GrepToolConfig) {
           output = parseFilesOutput(result.stdout);
           if (debugId) {
             debugEnd(debugId, "grep", {
+              output: (output as GrepFilesOutput).files,
               summary: {
                 fileCount: (output as GrepFilesOutput).count,
                 exitCode: result.exitCode,
@@ -274,6 +275,7 @@ export function createGrepTool(sandbox: Sandbox, config?: GrepToolConfig) {
           output = parseCountOutput(result.stdout);
           if (debugId) {
             debugEnd(debugId, "grep", {
+              output: (output as GrepCountOutput).counts,
               summary: {
                 total: (output as GrepCountOutput).total,
                 exitCode: result.exitCode,
@@ -285,6 +287,7 @@ export function createGrepTool(sandbox: Sandbox, config?: GrepToolConfig) {
           output = parseContentOutput(result.stdout, head_limit, offset);
           if (debugId) {
             debugEnd(debugId, "grep", {
+              output: (output as GrepContentOutput).matches,
               summary: {
                 matchCount: (output as GrepContentOutput).total_matches,
                 exitCode: result.exitCode,

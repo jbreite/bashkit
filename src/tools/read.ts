@@ -101,6 +101,7 @@ export function createReadTool(sandbox: Sandbox, config?: ToolConfig) {
           const durationMs = Math.round(performance.now() - startTime);
           if (debugId) {
             debugEnd(debugId, "read", {
+              output: entries,
               summary: { type: "directory", count: entries.length },
               duration_ms: durationMs,
             });
@@ -161,9 +162,11 @@ export function createReadTool(sandbox: Sandbox, config?: ToolConfig) {
           content: line,
         }));
 
+        const contentStr = selectedLines.join("\n");
         const durationMs = Math.round(performance.now() - startTime);
         if (debugId) {
           debugEnd(debugId, "read", {
+            output: contentStr,
             summary: {
               type: "text",
               totalLines,
@@ -176,7 +179,7 @@ export function createReadTool(sandbox: Sandbox, config?: ToolConfig) {
 
         return {
           type: "text",
-          content: selectedLines.join("\n"),
+          content: contentStr,
           lines,
           total_lines: totalLines,
         };
