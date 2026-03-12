@@ -7,7 +7,7 @@ The tools module implements all 15 AI agent tools in BashKit. These tools bridge
 | File | Purpose |
 |------|---------|
 | `bash.ts` | Execute shell commands with timeout and output limits |
-| `read.ts` | Read files and list directories with pagination support |
+| `read.ts` | Read files and list directories with pagination, per-line truncation (2000 chars), and total output truncation (60K chars) |
 | `write.ts` | Write files with size limits and path restrictions |
 | `edit.ts` | String-based find/replace editing with uniqueness validation |
 | `glob.ts` | Pattern-based file discovery using find command |
@@ -227,7 +227,7 @@ const DEFAULT_CACHEABLE = [
 ### Test Coverage
 Located at `/tests/tools/`:
 - `bash.test.ts` -- Command execution, timeouts, output truncation
-- `read.test.ts` -- File reading, directory listing, pagination, binary detection
+- `read.test.ts` -- File reading, directory listing, pagination, binary detection, line/output truncation
 - `write.test.ts` -- File creation, overwriting, size limits
 - `edit.test.ts` -- String replacement, uniqueness validation, replace_all
 - `glob.test.ts` -- Pattern matching, path filtering

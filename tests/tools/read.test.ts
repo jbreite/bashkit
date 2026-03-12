@@ -279,6 +279,96 @@ describe("Read Tool", () => {
     });
   });
 
+  describe("per-line truncation", () => {
+    it("should truncate lines exceeding default max line length", async () => {
+      const longLine = "x".repeat(2500);
+      sandbox.setFile("/workspace/long-line.ts", `short\n${longLine}\nshort`);
+
+      const tool = createReadTool(sandbox);
+      const result = await executeTool(tool, {
+        file_path: "/workspace/long-line.ts",
+      });
+
+      assertSuccess<ReadSuccessOutput>(result);
+      if (result.type === "text") {
+        expect(result.lines[1].content).toHaveLength(2001); // 2000 + "…"
+        expect(result.lines[1].content.endsWith("…")).toBe(true);
+        expect(result.lines[0].content).toBe("short");
+        expect(result.lines[2].content).toBe("short");
+      }
+    });
+
+    it("should not truncate lines at exactly max length", async () => {
+      const exactLine = "x".repeat(2000);
+      sandbox.setFile("/workspace/exact.ts", exactLine);
+
+      const tool = createReadTool(sandbox);
+      const result = await executeTool(tool, {
+        file_path: "/workspace/exact.ts",
+      });
+
+      assertSuccess<ReadSuccessOutput>(result);
+      if (result.type === "text") {
+        expect(result.lines[0].content).toHaveLength(2000);
+        expect(result.lines[0].content).not.toContain("…");
+      }
+    });
+
+    it("should respect custom maxLineLength config", async () => {
+      const line = "x".repeat(200);
+      sandbox.setFile("/workspace/custom.ts", line);
+
+      const tool = createReadTool(sandbox, { maxLineLength: 100 });
+      const result = await executeTool(tool, {
+        file_path: "/workspace/custom.ts",
+      });
+
+      assertSuccess<ReadSuccessOutput>(result);
+      if (result.type === "text") {
+        expect(result.lines[0].content).toHaveLength(101); // 100 + "…"
+        expect(result.lines[0].content.endsWith("…")).toBe(true);
+      }
+    });
+  });
+
+  describe("total output truncation", () => {
+    it("should truncate total output exceeding maxOutputLength", async () => {
+      // Create a file with many lines that exceed 500 chars total
+      const fileLines = Array.from({ length: 50 }, (_, i) => `Line ${i + 1}: ${"a".repeat(20)}`);
+      const fileContent = fileLines.join("\n");
+      sandbox.setFile("/workspace/big.ts", fileContent);
+
+      const tool = createReadTool(sandbox, { maxOutputLength: 500 });
+      const result = await executeTool(tool, {
+        file_path: "/workspace/big.ts",
+        limit: 50,
+      });
+
+      assertSuccess<ReadSuccessOutput>(result);
+      if (result.type === "text") {
+        // middleTruncate adds a header + marker, so content will be longer than maxOutputLength
+        // but shorter than the original untruncated content
+        expect(result.content.length).toBeLessThan(fileContent.length);
+        expect(result.content).toContain("truncated");
+      }
+    });
+
+    it("should not truncate output within maxOutputLength", async () => {
+      sandbox.setFile("/workspace/small.ts", "line1\nline2\nline3");
+
+      const tool = createReadTool(sandbox, { maxOutputLength: 60000 });
+      const result = await executeTool(tool, {
+        file_path: "/workspace/small.ts",
+      });
+
+      assertSuccess<ReadSuccessOutput>(result);
+      if (result.type === "text") {
+        expect(result.content).toBe("line1\nline2\nline3");
+        expect(result.content).not.toContain("truncated");
+      }
+    });
+  });
+
   describe("line number formatting", () => {
     it("should return 1-indexed line numbers", async () => {
       sandbox.setFile("/workspace/test.ts", "line1\nline2\nline3");
