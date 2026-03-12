@@ -24,6 +24,7 @@ export type ToolConfig = {
   timeout?: number;
   maxFileSize?: number;
   maxOutputLength?: number;
+  maxLineLength?: number;
   allowedPaths?: string[];
   blockedCommands?: string[];
 } & SDKToolOptions;
