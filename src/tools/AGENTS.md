@@ -12,7 +12,7 @@ The tools module implements all 15 AI agent tools in BashKit. These tools bridge
 | `edit.ts` | String-based find/replace editing with uniqueness validation |
 | `glob.ts` | Pattern-based file discovery using find command |
 | `grep.ts` | Ripgrep-powered content search with context and filtering |
-| `ask-user.ts` | Interactive Q&A with simple and structured question formats |
+| `ask-user.ts` | Deferred structured user Q&A rendered by the client |
 | `enter-plan-mode.ts` | Enter planning mode for explore-then-execute workflows |
 | `exit-plan-mode.ts` | Exit planning mode and submit plan for approval |
 | `skill.ts` | Activate pre-loaded skills from SKILL.md files |
@@ -32,7 +32,7 @@ The tools module implements all 15 AI agent tools in BashKit. These tools bridge
 - `createEditTool(sandbox, config?)` -- String replacement editing
 - `createGlobTool(sandbox, config?)` -- File pattern matching
 - `createGrepTool(sandbox, config?)` -- Content search with ripgrep
-- `createAskUserTool(config?)` -- User interaction tool
+- `createAskUserTool(config?)` -- Deferred user interaction tool
 - `createEnterPlanModeTool(state, onEnter?)` -- Planning mode entry
 - `createExitPlanModeTool(onPlanSubmit?)` -- Planning mode exit
 - `createSkillTool(config)` -- Skill activation
@@ -44,14 +44,14 @@ The tools module implements all 15 AI agent tools in BashKit. These tools bridge
 ### Output Types
 Each tool exports `<Name>Output` for success and `<Name>Error` for errors:
 - Sandbox tools: `BashOutput | BashError`, `ReadOutput | ReadError`, etc.
-- Interactive tools: `AskUserOutput | AskUserError`, etc.
+- Interactive tools: `AskUserOutput`, etc.
 - Workflow tools: `TaskOutput | TaskError`, `TodoWriteOutput | TodoWriteError`
 - Web tools: `WebSearchOutput | WebSearchError`, `WebFetchOutput | WebFetchError`
 
 ### Configuration Types
 - `AgentConfig` -- Top-level config for createAgentTools()
 - `ToolConfig` -- Per-tool config (timeout, allowedPaths, maxFileSize, etc.)
-- `AskUserConfig` -- Ask user handlers
+- `AskUserConfig` -- AskUser AI SDK tool options
 - `SkillConfig` -- Skill metadata and sandbox
 - `TaskToolConfig` -- Sub-agent configuration (includes optional `budget` for auto-wiring cost tracking)
 - `ModelRegistryConfig` -- Model registry config (provider, apiKey) for fetching model info
@@ -66,7 +66,7 @@ Each tool exports `<Name>Output` for success and `<Name>Error` for errors:
 - Bash, Read, Write, Edit, Glob, Grep -- Direct sandbox operations via Sandbox interface
 
 **Interactive Tools** (opt-in via config):
-- AskUser -- User Q&A with simple and structured formats
+- AskUser -- Deferred structured user Q&A rendered by the client
 - EnterPlanMode, ExitPlanMode -- Plan-then-execute workflow
 - Skill -- Load specialized instructions from SKILL.md files
 
@@ -81,7 +81,7 @@ Each tool exports `<Name>Output` for success and `<Name>Error` for errors:
 ### Data Flow
 
 1. **Tool Creation**: `createAgentTools()` → individual `create*Tool()` factories → `tool()` from AI SDK
-2. **Execution**: AI model calls tool → `execute()` function → sandbox operation or external API → return Output or Error
+2. **Execution**: AI model calls tool → `execute()` function or deferred client round-trip → sandbox operation or external API → return Output or Error
 3. **Caching** (optional): `resolveCache()` wraps cacheable tools with `cached()` from cache module
 4. **Model Registry** (optional): `createAgentTools()` fetches model info (pricing + context lengths) from a provider (e.g., OpenRouter). Data is shared with budget tracking and returned as `openRouterModels` in the result.
 5. **Budget** (optional): `createAgentTools()` creates a `BudgetTracker` from config, using pricing derived from model registry or manual overrides. Returns it for wiring into `onStepFinish`/`stopWhen`. Auto-wires into Task tool sub-agents.

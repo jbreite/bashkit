@@ -133,7 +133,7 @@ await sandbox.destroy();
 
 | Tool | Purpose | Config Key |
 |------|---------|------------|
-| `AskUser` | Ask user clarifying questions | `askUser: { onQuestion? }` |
+| `AskUser` | Ask user clarifying questions | `askUser: true` |
 | `EnterPlanMode` | Enter planning/exploration mode | `planMode: true` |
 | `ExitPlanMode` | Exit planning mode with a plan | `planMode: true` |
 | `Skill` | Execute skills | `skill: { skills }` |
@@ -221,12 +221,7 @@ You can configure tools with security restrictions and limits, and enable option
 ```typescript
 const { tools, planModeState } = createAgentTools(sandbox, {
   // Enable optional tools
-  askUser: {
-    onQuestion: async (question) => {
-      // Return user's answer, or undefined to return awaiting_response
-      return await promptUser(question);
-    },
-  },
+  askUser: true,
   planMode: true, // Enables EnterPlanMode and ExitPlanMode
   skill: {
     skills: discoveredSkills, // From discoverSkills()
@@ -917,7 +912,7 @@ Creates a set of agent tools bound to a sandbox instance.
 
 ### Optional Tools (also available via config)
 
-- `createAskUserTool(onQuestion?)` - Ask user for clarification
+- `createAskUserTool(config?)` - Emit a deferred AskUser tool call for the client
 - `createEnterPlanModeTool(state)` - Enter planning/exploration mode
 - `createExitPlanModeTool(state, onPlanSubmit?)` - Exit planning mode with a plan
 - `createSkillTool(skills)` - Execute loaded skills

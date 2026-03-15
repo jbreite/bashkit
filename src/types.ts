@@ -58,10 +58,7 @@ export type WebFetchConfig = {
   model: LanguageModel;
 } & SDKToolOptions;
 
-export type AskUserConfig = {
-  /** Callback to handle questions and return answers */
-  onQuestion?: (question: string) => Promise<string> | string;
-};
+export type AskUserConfig = SDKToolOptions;
 
 export type SkillConfig = {
   /** Map of skill name to metadata */
@@ -170,7 +167,7 @@ export type AgentConfig = {
     Grep?: GrepToolConfig;
   };
   /** Include AskUser tool for user clarification */
-  askUser?: AskUserConfig;
+  askUser?: true | AskUserConfig;
   /** Include EnterPlanMode and ExitPlanMode tools for interactive planning */
   planMode?: boolean;
   /** Include Skill tool with this config */

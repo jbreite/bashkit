@@ -126,7 +126,7 @@ See also `CLAUDE.md` for development workflow and conventions.
 
 | Tool | Purpose | Config Key |
 |------|---------|------------|
-| `AskUser` | Ask user clarifying questions | `askUser: { onQuestion? }` |
+| `AskUser` | Ask user clarifying questions | `askUser: true` |
 | `EnterPlanMode` | Enter planning/exploration mode | `planMode: true` |
 | `ExitPlanMode` | Exit planning mode with a plan | `planMode: true` |
 | `Skill` | Execute skills | `skill: { skills }` |
@@ -656,4 +656,3 @@ const cachedTool = cached(myTool, "MyTool", {
   store: new LRUCacheStore(500),  // Max 500 entries
 });
 ```
-
