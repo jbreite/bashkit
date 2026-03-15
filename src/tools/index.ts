@@ -155,7 +155,7 @@ export interface AgentToolsResult {
  * // Interactive agent with plan mode
  * const { tools, planModeState } = await createAgentTools(sandbox, {
  *   planMode: true,
- *   askUser: { onQuestion: async (q) => await promptUser(q) },
+ *   askUser: true,
  * });
  *
  * @example
@@ -187,7 +187,9 @@ export async function createAgentTools(
 
   // Add AskUser tool if configured
   if (config?.askUser) {
-    tools.AskUser = createAskUserTool(config.askUser.onQuestion);
+    tools.AskUser = createAskUserTool(
+      config.askUser === true ? undefined : config.askUser,
+    );
   }
 
   // Add plan mode tools if configured
@@ -288,11 +290,12 @@ export async function createAgentTools(
 
 // --- Ask User Tool ---
 export type {
-  AskUserError,
+  AskUserAnswers,
+  AskUserInput,
   AskUserOutput,
-  AskUserResponseHandler,
-  QuestionOption,
-  StructuredQuestion,
+  AskUserQuestion,
+  AskUserQuestionOption,
+  AskUserToolConfig,
 } from "./ask-user";
 export { createAskUserTool } from "./ask-user";
 

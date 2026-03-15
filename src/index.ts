@@ -38,11 +38,12 @@ export type {
   // Result type from createAgentTools
   AgentToolsResult,
   // AskUser tool
-  AskUserError,
+  AskUserAnswers,
+  AskUserInput,
   AskUserOutput,
-  AskUserResponseHandler,
-  QuestionOption,
-  StructuredQuestion,
+  AskUserQuestion,
+  AskUserQuestionOption,
+  AskUserToolConfig,
   // Sandbox tools
   BashError,
   BashOutput,
