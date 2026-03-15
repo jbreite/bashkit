@@ -323,7 +323,7 @@ export function SideNav() {
           className="nav-version"
           title="View on npm"
         >
-          v0.5.3
+          v{process.env.BASHKIT_VERSION}
         </a>
         <ThemePicker />
       </div>
