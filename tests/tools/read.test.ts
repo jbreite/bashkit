@@ -334,7 +334,10 @@ describe("Read Tool", () => {
   describe("total output truncation", () => {
     it("should truncate total output exceeding maxOutputLength", async () => {
       // Create a file with many lines that exceed 500 chars total
-      const fileLines = Array.from({ length: 50 }, (_, i) => `Line ${i + 1}: ${"a".repeat(20)}`);
+      const fileLines = Array.from(
+        { length: 50 },
+        (_, i) => `Line ${i + 1}: ${"a".repeat(20)}`,
+      );
       const fileContent = fileLines.join("\n");
       sandbox.setFile("/workspace/big.ts", fileContent);
 

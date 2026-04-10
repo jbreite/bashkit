@@ -163,8 +163,7 @@ export function createReadTool(sandbox: Sandbox, config?: ToolConfig) {
         const selectedLines = allLines.slice(startLine, endLine);
 
         // Per-line truncation (silent, like Claude Code's MAX_LINE_LENGTH)
-        const maxLineLength =
-          config?.maxLineLength ?? DEFAULT_MAX_LINE_LENGTH;
+        const maxLineLength = config?.maxLineLength ?? DEFAULT_MAX_LINE_LENGTH;
         const truncatedLines = selectedLines.map((line) =>
           line.length > maxLineLength
             ? line.slice(0, maxLineLength) + "…"

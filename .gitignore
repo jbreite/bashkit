@@ -177,3 +177,6 @@ dist
 #workflow review
 /todos
 
+# Local reference repos (symlinked by contributors)
+/references
+

@@ -549,6 +549,96 @@ console.log({
 });
 ```
 
+## Context Layer
+
+bashkit ships a context layer that handles two concerns most agent loops end up reinventing:
+
+1. **Static system prompt assembly** — discover project docs (`AGENTS.md` / `CLAUDE.md`), collect environment info (cwd, shell, platform, git branch), and build tool guidance. Runs once at init so the system prompt stays stable for Anthropic prompt caching.
+2. **Dynamic per-step layers** — intercept every tool call with `beforeExecute` gates (plan mode, custom allow/deny) and `afterExecute` transforms (output truncation, redirection hints, optional disk stash). Compose into an AI SDK `prepareStep` with auto-compaction and context-status monitoring.
+
+### Building a System Prompt
+
+```typescript
+import { buildSystemContext, createLocalSandbox } from 'bashkit';
+
+const sandbox = createLocalSandbox({ cwd: process.cwd() });
+
+const context = await buildSystemContext(sandbox, {
+  instructions: true,       // walk up from cwd, load AGENTS.md / CLAUDE.md
+  environment: true,        // inject <environment_context> XML
+  toolGuidance: {
+    tools: ['Bash', 'Read', 'Write', 'Edit', 'Grep', 'Glob'],
+  },
+});
+
+// context.combined -> ready to drop into streamText({ system })
+// context.instructions / context.environment / context.toolGuidance -> individual sections
+// context.meta.instructionSources -> which files were discovered
+```
+
+Call this **once at init**. The output must stay stable across turns for prompt caching to work — never regenerate it mid-conversation.
+
+### Tool Execution Layers
+
+```typescript
+import {
+  applyContextLayers,
+  createExecutionPolicy,
+  createOutputPolicy,
+  createAgentTools,
+  createLocalSandbox,
+} from 'bashkit';
+
+const sandbox = createLocalSandbox({ cwd: '/tmp/workspace' });
+const { tools, planModeState } = createAgentTools(sandbox, { planMode: true });
+
+const wrappedTools = applyContextLayers(tools, [
+  // Gate: block Bash/Write/Edit while plan mode is active
+  createExecutionPolicy(planModeState),
+
+  // Transform: truncate oversized results, inject redirection hints,
+  // optionally stash full output to disk
+  createOutputPolicy({
+    maxOutputLength: 30_000,
+    redirectionThreshold: 20_000,
+    stashOutput: {
+      sandbox,
+      tools: ['Bash', 'Grep'],  // only these get full output stashed
+    },
+  }),
+]);
+```
+
+Layers compose: `beforeExecute` runs in order (first rejection wins), `afterExecute` transforms pipe. Custom layers just implement the `ContextLayer` interface — see `src/context/AGENTS.md` for the full contract.
+
+### prepareStep Composition
+
+```typescript
+import { createPrepareStep, MODEL_CONTEXT_LIMITS } from 'bashkit';
+
+const prepareStep = createPrepareStep({
+  compaction: {
+    maxTokens: MODEL_CONTEXT_LIMITS['claude-sonnet-4-5'],
+    summarizerModel: anthropic('claude-haiku-4'),
+    compactionThreshold: 0.85,
+  },
+  contextStatus: {
+    maxTokens: MODEL_CONTEXT_LIMITS['claude-sonnet-4-5'],
+  },
+  planModeState,   // injects a plan-mode hint as a user message
+});
+
+await streamText({
+  model,
+  tools: wrappedTools,
+  system: context.combined,  // from buildSystemContext
+  messages,
+  prepareStep,
+});
+```
+
+**Important**: `createPrepareStep` never touches `system` — it only modifies `messages`. That's load-bearing for Anthropic prompt caching. If you extend it via the `extend` callback, do not set `system` either.
+
 ## Agent Skills
 
 bashkit supports the [Agent Skills](https://agentskills.io) standard - an open format for giving agents new capabilities and expertise. Skills are folders containing a `SKILL.md` file with instructions that agents can load on-demand.
@@ -938,6 +1028,17 @@ Creates a set of agent tools bound to a sandbox instance.
 
 - `anthropicPromptCacheMiddleware` - Enable prompt caching for Anthropic models (AI SDK v6+)
 - `anthropicPromptCacheMiddlewareV2` - Enable prompt caching for Anthropic models (AI SDK v5)
+
+### Context Layer
+
+- `buildSystemContext(sandbox, config?)` - Assemble instructions + environment + tool guidance into a system prompt
+- `discoverInstructions(sandbox, config?)` - Walk up from cwd loading AGENTS.md / CLAUDE.md files
+- `collectEnvironment(sandbox, config?)` / `formatEnvironment(env)` - Capture and format cwd/shell/platform/git state
+- `buildToolGuidance(config)` - Generate one-line hints for registered tools
+- `withContext(tool, name, layers)` / `applyContextLayers(tools, layers)` - Wrap tools with gate + transform layers
+- `createExecutionPolicy(planModeState, config?)` - Plan-mode + custom gate `ContextLayer`
+- `createOutputPolicy(config?)` - Truncation + redirection hints + optional disk stash `ContextLayer`
+- `createPrepareStep(config)` - Compose compaction + context-status + plan-mode hints into an AI SDK `PrepareStepFunction`
 
 ## Future Roadmap
 
