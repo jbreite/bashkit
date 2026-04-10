@@ -72,7 +72,19 @@ bun run typecheck   # ALWAYS run before bun run build
 bun run build       # Bun bundles to dist/index.js + tsc emits .d.ts
 ```
 
+**Script names are exact — no hyphens.** It's `typecheck`, not `type-check`. Running the wrong name will just error with "Script not found". See `package.json` for the full list.
+
 **Critical**: `bun run build` does **not** fail on type errors during bundling. Run `bun run typecheck` first or type regressions will ship silently.
+
+### Full Pre-Push Check
+
+Before pushing, run all four gates locally — CI will reject otherwise:
+
+```bash
+bun run typecheck && bun run check && bun run test && bun run check:agents
+```
+
+Exact script names (from `package.json`): `typecheck`, `build`, `test`, `test:watch`, `test:coverage`, `format`, `format:check`, `lint`, `lint:check`, `check`, `check:ci`, `link-agents`, `check:agents`.
 
 ### Tests
 
