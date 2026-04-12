@@ -193,19 +193,26 @@ export function createOutputPolicy(config?: OutputPolicyConfig): ContextLayer {
       // Stash full output to disk if configured for this tool
       let stashedPath: string | undefined;
       if (stash && stashTools.has(toolName)) {
-        // Determine file path
-        stashedPath =
-          stash.pathFor?.(toolName, params, result) ??
-          defaultStashPath(stashDir, toolName);
+        try {
+          // Determine file path
+          stashedPath =
+            stash.pathFor?.(toolName, params, result) ??
+            defaultStashPath(stashDir, toolName);
 
-        // Ensure directory exists (once)
-        const dir = stashedPath.replace(/\/[^/]+$/, "");
-        if (!stashDirCreated || dir !== stashDir) {
-          await stash.sandbox.exec(`mkdir -p '${dir.replace(/'/g, "'\\''")}'`);
-          if (dir === stashDir) stashDirCreated = true;
+          // Ensure directory exists (once)
+          const dir = stashedPath.replace(/\/[^/]+$/, "");
+          if (!stashDirCreated || dir !== stashDir) {
+            await stash.sandbox.exec(
+              `mkdir -p '${dir.replace(/'/g, "'\\''")}'`,
+            );
+            if (dir === stashDir) stashDirCreated = true;
+          }
+
+          await stash.sandbox.writeFile(stashedPath, text);
+        } catch (err) {
+          console.warn(`[bashkit] stashOutput failed: ${err}`);
+          stashedPath = undefined;
         }
-
-        await stash.sandbox.writeFile(stashedPath, text);
       }
 
       // Truncate

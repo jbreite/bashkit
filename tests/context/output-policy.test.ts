@@ -541,5 +541,65 @@ describe("createOutputPolicy", () => {
       );
       expect(stashPath).toBeDefined();
     });
+
+    it("degrades gracefully when mkdir fails", async () => {
+      const sandbox = createMockSandbox({
+        execHandler: async () => {
+          throw new Error("Permission denied");
+        },
+      });
+      const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+      const layer = createOutputPolicy({
+        redirectionThreshold: 10,
+        maxOutputLength: 50,
+        stashOutput: {
+          sandbox,
+          tools: ["Bash"],
+        },
+      });
+
+      const result = { stdout: "x".repeat(100) };
+      const transformed = await transform(layer, "Bash", {}, result);
+
+      // Still returns a truncated result instead of throwing
+      expect(typeof transformed.stdout).toBe("string");
+      expect(transformed._hint).toBeDefined();
+      // Hint should not reference a stash file
+      expect((transformed._hint as string)).not.toContain("Full output saved to");
+      // Warning was logged
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining("[bashkit] stashOutput failed"),
+      );
+
+      warnSpy.mockRestore();
+    });
+
+    it("degrades gracefully when writeFile fails", async () => {
+      const sandbox = createMockSandbox();
+      vi.spyOn(sandbox, "writeFile").mockRejectedValue(new Error("Disk full"));
+      const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+      const layer = createOutputPolicy({
+        redirectionThreshold: 10,
+        maxOutputLength: 50,
+        stashOutput: {
+          sandbox,
+          tools: ["Bash"],
+        },
+      });
+
+      const result = { stdout: "x".repeat(100) };
+      const transformed = await transform(layer, "Bash", {}, result);
+
+      expect(typeof transformed.stdout).toBe("string");
+      expect(transformed._hint).toBeDefined();
+      expect((transformed._hint as string)).not.toContain("Full output saved to");
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining("[bashkit] stashOutput failed"),
+      );
+
+      warnSpy.mockRestore();
+    });
   });
 });
