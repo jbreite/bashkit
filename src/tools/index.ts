@@ -251,7 +251,7 @@ export async function createAgentTools(
 
   if (config?.context) {
     // Execution policy (plan-mode gating and/or custom shouldBlock)
-    if (planModeState || config.context.executionPolicy) {
+    if (planModeState || config.context.executionPolicy?.shouldBlock) {
       contextLayers.push(
         createExecutionPolicy(planModeState, config.context.executionPolicy),
       );
