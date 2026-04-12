@@ -426,6 +426,20 @@ describe("buildSystemContext", () => {
     expect(ctx.meta.environmentContext!.cwd).toBe("/project");
   });
 
+  it("forwards custom environment fields into formatted output", async () => {
+    const sandbox = createMockSandbox();
+    Object.defineProperty(sandbox, "workingDirectory", {
+      value: "/project",
+    });
+
+    const ctx = await buildSystemContext(sandbox, {
+      environment: { custom: { app_version: "1.2.3", region: "us-east-1" } },
+    });
+
+    expect(ctx.environment).toContain("<app_version>1.2.3</app_version>");
+    expect(ctx.environment).toContain("<region>us-east-1</region>");
+  });
+
   it("returns empty combined when no sections configured", async () => {
     const sandbox = createMockSandbox();
     const ctx = await buildSystemContext(sandbox);

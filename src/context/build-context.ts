@@ -71,7 +71,11 @@ export async function buildSystemContext(
     ? `# Project Instructions\n<INSTRUCTIONS>\n${instructions.text}\n</INSTRUCTIONS>`
     : null;
 
-  const environmentText = env ? formatEnvironment(env) : null;
+  const envCustom =
+    config?.environment && typeof config.environment === "object"
+      ? config.environment.custom
+      : undefined;
+  const environmentText = env ? formatEnvironment(env, envCustom) : null;
 
   const toolGuidanceText = config?.toolGuidance
     ? buildToolGuidance(config.toolGuidance)
