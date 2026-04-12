@@ -13,9 +13,9 @@ import {
 import { buildToolGuidance, type ToolGuidanceConfig } from "./tool-guidance";
 
 export interface SystemContextConfig {
-  /** Instruction file discovery. true for defaults, or provide config. */
+  /** Instruction file discovery. Pass true for defaults, or provide config. Disabled when omitted. */
   instructions?: boolean | InstructionDiscoveryConfig;
-  /** Environment context. true for defaults, or provide config. */
+  /** Environment context. Pass true for defaults, or provide config. Disabled when omitted. */
   environment?: boolean | EnvironmentContextConfig;
   /** Tool guidance config */
   toolGuidance?: ToolGuidanceConfig;
