@@ -428,6 +428,29 @@ describe("createOutputPolicy", () => {
       expect(history.some((e) => e.command.includes("mkdir -p"))).toBe(true);
     });
 
+    it("quotes stash directory to prevent shell injection", async () => {
+      const sandbox = createMockSandbox();
+      const layer = createOutputPolicy({
+        redirectionThreshold: 10,
+        maxOutputLength: 50,
+        stashOutput: {
+          sandbox,
+          dir: "/tmp/path with spaces/$(whoami)",
+          tools: ["Bash"],
+        },
+      });
+
+      const result = { stdout: "x".repeat(100) };
+      await transform(layer, "Bash", {}, result);
+
+      const history = sandbox.getExecHistory();
+      const mkdirCmd = history.find((e) => e.command.includes("mkdir -p"));
+      expect(mkdirCmd).toBeDefined();
+      // Path must be single-quoted so spaces and $() are not interpreted
+      expect(mkdirCmd!.command).toContain("'");
+      expect(mkdirCmd!.command).not.toMatch(/mkdir -p [^']/);
+    });
+
     it("does not write when output is below threshold", async () => {
       const sandbox = createMockSandbox();
       const layer = createOutputPolicy({

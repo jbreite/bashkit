@@ -201,7 +201,7 @@ export function createOutputPolicy(config?: OutputPolicyConfig): ContextLayer {
         // Ensure directory exists (once)
         const dir = stashedPath.replace(/\/[^/]+$/, "");
         if (!stashDirCreated || dir !== stashDir) {
-          await stash.sandbox.exec(`mkdir -p ${dir}`);
+          await stash.sandbox.exec(`mkdir -p '${dir.replace(/'/g, "'\\''")}'`);
           if (dir === stashDir) stashDirCreated = true;
         }
 
