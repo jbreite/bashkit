@@ -64,6 +64,19 @@ const links: {
     ],
   },
   {
+    href: "/context",
+    label: "Context",
+    items: [
+      { id: "overview", text: "Overview" },
+      { id: "context-layers", text: "Context Layers" },
+      { id: "execution-policy", text: "Execution Policy" },
+      { id: "output-policy", text: "Output Policy" },
+      { id: "system-prompt", text: "System Prompt" },
+      { id: "prepare-step", text: "prepareStep" },
+      { id: "full-example", text: "Full Example" },
+    ],
+  },
+  {
     href: "/api-reference",
     label: "API Reference",
     items: [

@@ -74,6 +74,11 @@ const { tools, budget } = await createAgentTools(sandbox, {
               <code>openRouterModels</code> &mdash; Model registry map (when
               modelRegistry config provided)
             </li>
+            <li>
+              <code>contextLayers</code> &mdash; Applied context layers (empty
+              array when no context config). Use with{" "}
+              <code>applyContextLayers()</code> for late-added tools.
+            </li>
           </ul>
         </section>
 
@@ -103,6 +108,11 @@ const { tools, budget } = await createAgentTools(sandbox, {
             <Prop name="budget" type="BudgetConfig">
               Budget tracking configuration. Requires modelRegistry or
               pricingProvider.
+            </Prop>
+            <Prop name="context" type="ContextConfig">
+              Context layer config. Opt-in &mdash; wraps tools with execution
+              and output policies. See the{" "}
+              <a href="/context">Context</a> page.
             </Prop>
           </div>
 

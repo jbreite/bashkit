@@ -11,6 +11,7 @@ const links = [
   { href: "/getting-started", label: "Getting Started" },
   { href: "/tools", label: "Tools" },
   { href: "/sandboxes", label: "Sandboxes" },
+  { href: "/context", label: "Context" },
   { href: "/api-reference", label: "API Reference" },
 ];
 
