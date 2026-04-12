@@ -127,6 +127,26 @@ describe("createExecutionPolicy", () => {
     expect(shouldBlock).toHaveBeenCalledWith("Read", {});
   });
 
+  it("shouldBlock works without plan mode state", async () => {
+    const shouldBlock = vi.fn((toolName: string) => {
+      if (toolName === "Bash") return "Bash is disabled";
+      return undefined;
+    });
+
+    const layer = createExecutionPolicy(undefined, { shouldBlock });
+
+    expect(await gate(layer, "Bash")).toEqual({ error: "Bash is disabled" });
+    expect(await gate(layer, "Read")).toBeUndefined();
+  });
+
+  it("allows everything when no plan mode and no shouldBlock", async () => {
+    const layer = createExecutionPolicy();
+
+    for (const toolName of ["Bash", "Write", "Edit", "Read"]) {
+      expect(await gate(layer, toolName)).toBeUndefined();
+    }
+  });
+
   it("error message includes guidance about read-only tools", async () => {
     const state: PlanModeState = { isActive: true };
     const layer = createExecutionPolicy(state);

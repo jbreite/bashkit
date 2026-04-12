@@ -21,7 +21,7 @@ const DEFAULT_PLAN_MODE_BLOCKED = ["Bash", "Write", "Edit"];
  * All tools remain registered (prompt cache stable) — only execution is gated.
  */
 export function createExecutionPolicy(
-  planModeState: PlanModeState,
+  planModeState?: PlanModeState,
   config?: ExecutionPolicyConfig,
 ): ContextLayer {
   const blocked = new Set(
@@ -31,7 +31,7 @@ export function createExecutionPolicy(
   return {
     beforeExecute: (toolName, params) => {
       // Plan mode gate
-      if (planModeState.isActive && blocked.has(toolName)) {
+      if (planModeState?.isActive && blocked.has(toolName)) {
         return {
           error: `${toolName} is not available in plan mode. Use read-only tools (Read, Grep, Glob) to gather information, then call ExitPlanMode when your plan is ready.`,
         };

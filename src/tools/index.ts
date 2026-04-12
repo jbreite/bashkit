@@ -250,8 +250,8 @@ export async function createAgentTools(
   const contextLayers: ContextLayer[] = [];
 
   if (config?.context) {
-    // Execution policy (only if planMode is enabled)
-    if (planModeState && config.context.executionPolicy) {
+    // Execution policy (plan-mode gating and/or custom shouldBlock)
+    if (planModeState || config.context.executionPolicy) {
       contextLayers.push(
         createExecutionPolicy(planModeState, config.context.executionPolicy),
       );
