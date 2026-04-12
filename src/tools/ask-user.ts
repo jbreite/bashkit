@@ -28,9 +28,7 @@ const questionSchema = z.object({
     .describe(
       "Short header label shown in the UI (12 or fewer chars). Examples: 'Auth method', 'Library', 'Approach'.",
     ),
-  question: z
-    .string()
-    .describe("Single-sentence prompt shown to the user."),
+  question: z.string().describe("Single-sentence prompt shown to the user."),
   options: z
     .array(questionOptionSchema)
     .min(2)

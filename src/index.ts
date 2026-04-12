@@ -116,6 +116,7 @@ export type {
   AskUserConfig,
   BudgetConfig,
   CacheConfig,
+  ContextConfig,
   ModelRegistryConfig,
   ModelRegistryProvider,
   PricingProvider,
@@ -125,6 +126,34 @@ export type {
   WebSearchConfig,
 } from "./types";
 export { DEFAULT_CONFIG } from "./types";
+
+// Context layer (tool execution gating + output policy + prompt assembly)
+export type {
+  ContextLayer,
+  ExecutionPolicyConfig,
+  OutputPolicyConfig,
+  StashOutputConfig,
+  InstructionDiscoveryConfig,
+  DiscoveredInstructions,
+  EnvironmentContext,
+  EnvironmentContextConfig,
+  ToolGuidanceConfig,
+  SystemContextConfig,
+  SystemContext,
+  PrepareStepConfig,
+} from "./context";
+export {
+  withContext,
+  applyContextLayers,
+  createExecutionPolicy,
+  createOutputPolicy,
+  discoverInstructions,
+  collectEnvironment,
+  formatEnvironment,
+  buildToolGuidance,
+  buildSystemContext,
+  createPrepareStep,
+} from "./context";
 
 // Cache utilities
 export type {

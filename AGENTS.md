@@ -1,658 +1,297 @@
-# AGENTS.md - Using bashkit
+# BashKit — Contributor Guide
 
-bashkit provides agentic coding tools for the Vercel AI SDK. This guide helps AI agents use bashkit when building applications.
+> Agentic coding tools for the Vercel AI SDK.
 
-## Installation
+**Tech Stack**: TypeScript · Bun · Vercel AI SDK · Zod
+**Package**: `bashkit` ([npm](https://www.npmjs.com/package/bashkit) · [GitHub](https://github.com/jbreite/bashkit))
+
+This file is for **agents and humans working ON bashkit**. For consumer-facing API usage (how to *use* bashkit in an app), see `README.md`. For folder-specific internals, see the `AGENTS.md` inside each `src/*` directory.
+
+> **Before editing anything inside `src/<folder>/`, read `src/<folder>/AGENTS.md` first.** Every folder has one. They document internal file layout, key exports, data flows, and per-task modification steps. This root file intentionally does not duplicate them — if you only read this file, you are missing half the picture.
+
+---
+
+## Core Principles
+
+These apply to every PR, no exceptions:
+
+1. **Fully typed.** No `any`. Use `unknown` at untrusted boundaries and narrow with guards. Public APIs must have explicit return types — don't rely on inference for exports. Tool input/output shapes live in Zod schemas + exported TypeScript interfaces that stay in sync.
+2. **Testable and tested.** Every public export has a test. Tests mirror `src/` layout in `tests/`. Bug fixes include a regression test. If a change is hard to test, refactor until it isn't.
+3. **Typecheck and lint before pushing.** `bun run typecheck && bun run check && bun run test` must be green locally. CI will reject otherwise.
+4. **Return errors, don't throw.** Tools return `{ error: string }` objects so the model can see the failure. Only sandbox-layer code throws, and tools catch it.
+5. **Config-driven, not flag-driven.** Optional features are enabled by the *presence* of a config object (e.g. `webSearch: { apiKey }`), not by boolean flags. Defaults live in factories via `config?.field ?? default`.
+6. **No breaking changes without a major bump.** See the Breaking Change Surface section below before touching the `Sandbox` interface, tool schemas, tool names, `ContextLayer`, or `createAgentTools` return shape.
+7. **Docs live next to code.** When you change files in a folder, update that folder's `AGENTS.md` in the same PR.
+
+---
+
+## References
+
+If a `references/` directory exists at the project root, search it for implementation patterns when building new features. It is gitignored — contributors symlink or clone repos locally.
+
+- `references/codex` — OpenAI Codex CLI. Tool designs, agent loop, sandboxing patterns.
+- `references/pi-mono` — pi-mono monorepo. See `packages/coding-agent` for agent loop patterns.
+
+---
+
+## Code Organization
+
+```
+src/
+├── sandbox/       # Execution environments (Local, Vercel, E2B) — src/sandbox/AGENTS.md
+├── tools/         # Tool implementations — src/tools/AGENTS.md
+├── context/       # Prompt assembly + tool execution layers — src/context/AGENTS.md
+├── cache/         # Tool result caching (LRU, Redis) — src/cache/AGENTS.md
+├── middleware/    # AI SDK language model middleware — src/middleware/AGENTS.md
+├── utils/         # Budget, compaction, context status, helpers — src/utils/AGENTS.md
+├── skills/        # Agent Skills standard — src/skills/AGENTS.md
+├── setup/         # Agent environment setup (sandbox bootstrapping) — src/setup/AGENTS.md
+├── cli/           # CLI initialization — src/cli/AGENTS.md
+├── types.ts       # AgentConfig, ToolConfig, DEFAULT_CONFIG
+└── index.ts       # Barrel re-exports (public API surface)
+```
+
+**Each folder has its own `AGENTS.md`** with file listings, exports, internal architecture, and per-task modification guides.
+
+### AGENTS.md Conventions (enforced in CI)
+
+- Every folder under `src/` **must** have an `AGENTS.md`. When you add a new folder, add one.
+- Every `AGENTS.md` (except the root) **must** have a co-located `CLAUDE.md` symlink pointing to it.
+- Automation: `bun run link-agents` creates missing symlinks; `bun run check:agents` fails CI if any are missing.
+- When you **add, remove, or significantly change** files in a folder, update that folder's `AGENTS.md` in the same PR. Stale folder docs are worse than no docs.
+
+---
+
+## Development Workflow
+
+### Build & Typecheck
 
 ```bash
-npm install bashkit ai @ai-sdk/anthropic
-# or
-pnpm add bashkit ai @ai-sdk/anthropic
-# or
-yarn add bashkit ai @ai-sdk/anthropic
-# or
-bun add bashkit ai @ai-sdk/anthropic
+bun install
+bun run typecheck   # ALWAYS run before bun run build
+bun run build       # Bun bundles to dist/index.js + tsc emits .d.ts
 ```
 
-## Quick Setup
+**Script names are exact — no hyphens.** It's `typecheck`, not `type-check`. Running the wrong name will just error with "Script not found". See `package.json` for the full list.
 
-### LocalSandbox (Development)
+**Critical**: `bun run build` does **not** fail on type errors during bundling. Run `bun run typecheck` first or type regressions will ship silently.
 
-Runs commands directly on the local machine. Use for development/testing only.
+### Full Pre-Push Check
 
-```typescript
-import { createAgentTools, createLocalSandbox } from "bashkit";
-
-const sandbox = createLocalSandbox({ cwd: "/tmp/workspace" });
-const { tools } = createAgentTools(sandbox);
-```
-
-### VercelSandbox (Production)
-
-Runs in isolated Firecracker microVMs on Vercel's infrastructure.
-
-```typescript
-import { createAgentTools, createVercelSandbox } from "bashkit";
-
-// Async - automatically installs ripgrep for Grep tool
-const sandbox = await createVercelSandbox({
-  runtime: "node22",
-  resources: { vcpus: 2 },
-  // ensureTools: true (default) - auto-setup ripgrep
-  // ensureTools: false - skip for faster startup if you don't need Grep
-});
-const { tools } = createAgentTools(sandbox);
-
-// Don't forget to cleanup
-await sandbox.destroy();
-```
-
-### E2BSandbox (Production)
-
-Runs in E2B's cloud sandboxes. Requires `@e2b/code-interpreter` peer dependency.
-
-```typescript
-import { createAgentTools, createE2BSandbox } from "bashkit";
-
-// Async - automatically installs ripgrep for Grep tool
-const sandbox = await createE2BSandbox({
-  apiKey: process.env.E2B_API_KEY,
-  // ensureTools: true (default) - auto-setup ripgrep
-  // ensureTools: false - skip for faster startup if you don't need Grep
-});
-const { tools } = createAgentTools(sandbox);
-
-await sandbox.destroy();
-```
-
-### Sandbox Reconnection (Cloud Sandboxes)
-
-Cloud sandboxes (E2B, Vercel) support reconnection via the `id` property and `sandboxId` config:
-
-```typescript
-// Create a new sandbox
-const sandbox = await createE2BSandbox({ apiKey: process.env.E2B_API_KEY });
-
-// Sandbox ID is available immediately after creation
-const sandboxId = sandbox.id; // "sbx_abc123..."
-
-// Store sandboxId in your database (e.g., chat metadata)
-await db.chat.update({ where: { id: chatId }, data: { sandboxId } });
-
-// Later: reconnect to the same sandbox (fast - ripgrep already installed)
-const savedId = chat.sandboxId;
-const reconnected = await createE2BSandbox({
-  apiKey: process.env.E2B_API_KEY,
-  sandboxId: savedId, // Reconnects instead of creating new
-});
-```
-
-This is useful for:
-- Reusing sandboxes across multiple requests in the same conversation
-- Persisting sandbox state between server restarts
-- Reducing sandbox creation overhead
-
-## Internal Architecture
-
-For developers working on bashkit internals, each source folder has its own `AGENTS.md`:
-
-- `src/sandbox/AGENTS.md` -- Execution environment abstractions
-- `src/tools/AGENTS.md` -- Tool implementations
-- `src/cache/AGENTS.md` -- Tool result caching
-- `src/middleware/AGENTS.md` -- AI SDK middleware
-- `src/utils/AGENTS.md` -- Utility functions
-- `src/skills/AGENTS.md` -- Agent Skills support
-- `src/setup/AGENTS.md` -- Environment setup
-- `src/cli/AGENTS.md` -- CLI initialization
-
-See also `CLAUDE.md` for development workflow and conventions.
-
-## Available Tools
-
-### Default Tools (always included)
-
-| Tool | Purpose | Key Inputs |
-|------|---------|------------|
-| `Bash` | Execute shell commands | `command`, `timeout`, `description` |
-| `Read` | Read files or list directories | `file_path`, `offset`, `limit` |
-| `Write` | Create/overwrite files | `file_path`, `content` |
-| `Edit` | Replace strings in files | `file_path`, `old_string`, `new_string`, `replace_all` |
-| `Glob` | Find files by pattern | `pattern`, `path` |
-| `Grep` | Search file contents | `pattern`, `path`, `output_mode`, `-i`, `-C` |
-
-> **Note on nullable types:** Optional parameters use `T | null` (not `T | undefined`) for OpenAI structured outputs compatibility. AI models should send explicit `null` for parameters they don't want to set. This works with both OpenAI and Anthropic models.
-
-### Optional Tools (via config)
-
-| Tool | Purpose | Config Key |
-|------|---------|------------|
-| `AskUser` | Ask user clarifying questions | `askUser: true` |
-| `EnterPlanMode` | Enter planning/exploration mode | `planMode: true` |
-| `ExitPlanMode` | Exit planning mode with a plan | `planMode: true` |
-| `Skill` | Execute skills | `skill: { skills }` |
-| `WebSearch` | Search the web | `webSearch: { apiKey }` |
-| `WebFetch` | Fetch URL and process with AI | `webFetch: { apiKey, model }` |
-
-### Workflow Tools (created separately)
-
-| Tool | Purpose | Factory |
-|------|---------|---------|
-| `Task` | Spawn sub-agents | `createTaskTool({ model, tools, subagentTypes? })` |
-| `TodoWrite` | Track task progress | `createTodoWriteTool(state, config?, onUpdate?)` |
-
-### Web Tools (require `parallel-web` peer dependency)
-
-| Tool | Purpose | Factory |
-|------|---------|---------|
-| `WebSearch` | Search the web | `createWebSearchTool({ apiKey })` |
-| `WebFetch` | Fetch URL and process with AI | `createWebFetchTool({ apiKey, model })` |
-
-## Using with AI SDK generateText
-
-```typescript
-import { generateText, wrapLanguageModel, stepCountIs } from "ai";
-import { anthropic } from "@ai-sdk/anthropic";
-import {
-  createAgentTools,
-  createLocalSandbox,
-  anthropicPromptCacheMiddleware,
-} from "bashkit";
-
-const sandbox = createLocalSandbox({ cwd: "/tmp/workspace" });
-const { tools } = createAgentTools(sandbox);
-
-// Wrap model with prompt caching (recommended)
-const model = wrapLanguageModel({
-  model: anthropic("claude-sonnet-4-20250514"),
-  middleware: anthropicPromptCacheMiddleware,
-});
-
-const result = await generateText({
-  model,
-  tools,
-  system: "You are a helpful coding assistant.",
-  prompt: "Create a hello world TypeScript file and run it",
-  stopWhen: stepCountIs(10), // Allow up to 10 tool-call rounds
-  onStepFinish: ({ finishReason, toolCalls, toolResults, usage }) => {
-    // Log progress
-    console.log(`Step finished: ${finishReason}`);
-    for (const call of toolCalls || []) {
-      console.log(`  Tool: ${call.toolName}`);
-    }
-  },
-});
-
-await sandbox.destroy();
-```
-
-## Sub-agents with Task Tool
-
-The Task tool spawns new agents for complex subtasks:
-
-```typescript
-import { createTaskTool } from "bashkit";
-
-const taskTool = createTaskTool({
-  model: anthropic("claude-sonnet-4-20250514"),
-  tools: sandboxTools,
-  subagentTypes: {
-    research: {
-      model: anthropic("claude-haiku-3"), // Cheaper model for research
-      systemPrompt: "You are a research specialist. Find information only.",
-      tools: ["Read", "Grep", "Glob"], // Limited tools
-    },
-    coding: {
-      systemPrompt: "You are a coding expert. Write clean code.",
-      tools: ["Read", "Write", "Edit", "Bash"],
-    },
-  },
-});
-
-// Add to tools
-const allTools = { ...sandboxTools, Task: taskTool };
-```
-
-The parent agent calls Task like any other tool:
-```typescript
-// Agent decides to delegate:
-{ tool: "Task", args: {
-  description: "Research API patterns",
-  prompt: "Find best practices for REST APIs",
-  subagent_type: "research"
-}}
-```
-
-### Streaming Sub-agent Activity to UI
-
-Pass a `streamWriter` to stream real-time sub-agent activity:
-
-```typescript
-import { createUIMessageStream } from "ai";
-
-const stream = createUIMessageStream({
-  execute: async ({ writer }) => {
-    const taskTool = createTaskTool({
-      model,
-      tools: sandboxTools,
-      streamWriter: writer, // Enable real-time streaming
-      subagentTypes: { ... },
-    });
-
-    const result = streamText({
-      model,
-      tools: { Task: taskTool },
-      ...
-    });
-
-    writer.merge(result.toUIMessageStream());
-  },
-});
-```
-
-When `streamWriter` is provided:
-- Uses `streamText` internally (instead of `generateText`)
-- Emits `data-subagent` events: `start`, `tool-call`, `done`, `complete`
-- Events appear in `message.parts` as `{ type: "data-subagent", data: SubagentEventData }`
-
-**Note:** TaskOutput does NOT include messages (to avoid context bloat). The UI accesses the full conversation via the streamed `complete` event.
-
-## Prompt Caching
-
-Enable Anthropic prompt caching to reduce costs on repeated prefixes:
-
-```typescript
-import { wrapLanguageModel } from "ai";
-import { anthropicPromptCacheMiddleware } from "bashkit";
-
-const model = wrapLanguageModel({
-  model: anthropic("claude-sonnet-4-20250514"),
-  middleware: anthropicPromptCacheMiddleware,
-});
-
-// Check cache stats in result
-console.log({
-  cacheCreation: result.providerMetadata?.anthropic?.cacheCreationInputTokens,
-  cacheRead: result.providerMetadata?.anthropic?.cacheReadInputTokens,
-});
-```
-
-## Web Tools
-
-WebSearch and WebFetch tools provide web access capabilities using the [Parallel API](https://docs.parallel.ai).
-
-### Setup
+Before pushing, run all four gates locally — CI will reject otherwise:
 
 ```bash
-# Install the parallel-web peer dependency
-bun add parallel-web
-
-# Set your API key
-export PARALLEL_API_KEY="your_api_key"
+bun run typecheck && bun run check && bun run test && bun run check:agents
 ```
 
-### WebSearch
+Exact script names (from `package.json`): `typecheck`, `build`, `test`, `test:watch`, `test:coverage`, `format`, `format:check`, `lint`, `lint:check`, `check`, `check:ci`, `link-agents`, `check:agents`.
 
-Search the web and get formatted results:
+### Tests
 
-```typescript
-import { createWebSearchTool } from "bashkit";
+Use Vitest via `bun run test` — **not** `bun test` (which runs Bun's built-in runner and will miss our suite).
 
-const webSearch = createWebSearchTool({
-  apiKey: process.env.PARALLEL_API_KEY!,
+```bash
+bun run test                              # all tests
+bun run test tests/utils/budget.test.ts   # single file
+bun run test:watch                        # watch mode
+bun run test:coverage                     # with coverage
+```
+
+Tests live in `tests/<folder>/` mirroring `src/<folder>/`. Examples in `/examples/` serve as integration tests and require sandbox/API-key env vars.
+
+**Everything non-trivial ships with tests.** New tools, new context layers, new utilities, new sandbox methods — all get unit tests before merging. Bug fixes include a regression test that would have caught the bug. If you can't easily test something, that's a signal the abstraction is wrong, not a reason to skip the test.
+
+### Lint & Format
+
+Biome handles both:
+
+```bash
+bun run check       # lint + format, auto-fix
+bun run check:ci    # lint + format, no writes (CI gate)
+bun run format      # format only
+bun run lint        # lint only
+```
+
+Run `bun run check` before pushing. CI runs `check:ci`, `typecheck`, `test`, and `check:agents` — all four must pass.
+
+### Commits & PRs
+
+- Commits are small, imperative, sentence-case: `Add budget tracking`, `Refactor AskUser tool to deferred client-rendered model`, `Fix lint and typecheck CI failures`.
+- One logical change per commit. Keep refactors separate from feature work.
+- PR titles follow the same style as commits. PR descriptions should explain *why*, link relevant issues, and call out any public API changes.
+- CI gates: `typecheck`, `check:ci` (Biome), `test`, `check:agents`. All four must pass before merge.
+
+### Local Iteration Loop
+
+Use `LocalSandbox` (Bun APIs, no network) for fast iteration. Swap to `VercelSandbox` / `E2BSandbox` when you need to verify production behavior.
+
+```bash
+bun examples/test-tools.ts                # direct tool calls, no AI
+ANTHROPIC_API_KEY=xxx bun examples/basic.ts  # full agentic loop
+```
+
+---
+
+## Code Conventions
+
+### Naming
+
+| Element | Convention | Examples |
+|---|---|---|
+| Tool names | PascalCase | `Bash`, `Read`, `WebSearch` |
+| Factories | `createX` | `createBashTool`, `createLocalSandbox` |
+| Output types | `XOutput` | `BashOutput`, `ReadOutput` |
+| Error types | `XError` | `BashError`, `ReadError` |
+| Config types | `XConfig` | `ToolConfig`, `AgentConfig` |
+| Files | kebab-case | `bash.ts`, `anthropic-cache.ts` |
+
+### Type Organization
+
+- **Input schemas**: colocated with tool implementation (`src/tools/bash.ts` defines `bashInputSchema`).
+- **Output/Error types**: exported from the tool file; tools return `Output | Error` unions.
+- **Config types**: centralized in `src/types.ts`.
+- **Error handling**: tools **return** `{ error: string }` objects — they do not throw. Sandbox methods may throw; tools catch them.
+
+### `.nullable()` over `.optional()` for tool inputs
+
+All optional tool parameters use `z.nullable()`, **not** `z.optional()`. OpenAI structured outputs require every property in the `required` array; `.optional()` removes them and breaks OpenAI. `.nullable()` keeps them required but allows `null`, and works on both Anthropic and OpenAI.
+
+```ts
+const schema = z.object({
+  timeout: z.number().nullable(),
+  replace_all: z.boolean().nullable(),
 });
 
-// Add to your tools
-const tools = {
-  ...sandboxTools,
-  WebSearch: webSearch,
-};
+// Destructuring defaults (= value) only fire on undefined, NOT null.
+// Always use ?? for defaults with nullable fields:
+const { timeout, replace_all: rawReplaceAll } = input;
+const effectiveTimeout = timeout ?? 120000;
+const replaceAll = rawReplaceAll ?? false;
 ```
 
-**Input:**
-- `query` - The search query
-- `allowed_domains?` - Only include results from these domains
-- `blocked_domains?` - Exclude results from these domains
+### Configuration Pattern
 
-**Output:**
-```typescript
-{
-  results: Array<{ title: string; url: string; snippet: string; metadata?: Record<string, any> }>;
-  total_results: number;
-  query: string;
+Tool factories accept an optional `ToolConfig` and merge with defaults inline:
+
+```ts
+export function createBashTool(sandbox: Sandbox, config?: ToolConfig) {
+  const timeout = config?.timeout ?? 120000;
+  // ...
 }
 ```
 
-### WebFetch
+Optional features (WebSearch, WebFetch, cache, budget, context layers) are enabled by **config presence** in `createAgentTools` — don't gate them on feature flags.
 
-Fetch a URL and process the content with an AI model:
+---
 
-```typescript
-import { createWebFetchTool } from "bashkit";
-import { anthropic } from "@ai-sdk/anthropic";
+## Core Abstractions
 
-const webFetch = createWebFetchTool({
-  apiKey: process.env.PARALLEL_API_KEY!,
-  model: anthropic("claude-haiku-3"), // Use a fast/cheap model for processing
-});
+### Sandbox Interface
 
-// Add to your tools
-const tools = {
-  ...sandboxTools,
-  WebFetch: webFetch,
-};
-```
+All tools depend on `Sandbox` from `src/sandbox/interface.ts`, not concrete implementations. Adding a method is a breaking change for every implementer.
 
-**Input:**
-- `url` - The URL to fetch
-- `prompt` - The prompt to run on the fetched content
-
-**Output:**
-```typescript
-{
-  response: string;      // AI model's response to the prompt
-  url: string;
-  final_url?: string;    // Final URL after redirects
-  status_code?: number;
+```ts
+interface Sandbox {
+  exec(command: string, options?: ExecOptions): Promise<ExecResult>;
+  readFile(path: string): Promise<string>;
+  writeFile(path: string, content: string): Promise<void>;
+  readDir(path: string): Promise<string[]>;
+  fileExists(path: string): Promise<boolean>;
+  isDirectory(path: string): Promise<boolean>;
+  destroy(): Promise<void>;
+  readonly id?: string;   // for cloud reconnection
+  rgPath?: string;        // set by ensureSandboxTools
 }
 ```
 
-## Agent Skills
+`createVercelSandbox()` and `createE2BSandbox()` are **async** and auto-run `ensureSandboxTools` to install ripgrep so `Grep` works immediately. `createLocalSandbox()` is sync.
 
-bashkit supports the [Agent Skills](https://agentskills.io) standard for progressive skill loading.
+### Context Layer
 
-> **Note:** Skill discovery is for **LocalSandbox** use cases where the agent has filesystem access. For cloud sandboxes, bundle skills with your app directly.
+`src/context/` provides two separate concerns:
 
-### Discovering Skills (LocalSandbox)
+1. **Static system prompt assembly** (`buildSystemContext`) — discovers `AGENTS.md` / `CLAUDE.md` files, collects environment info (cwd, git branch, platform), builds tool guidance. Called **once at init**, must stay stable across turns for Anthropic prompt caching.
+2. **Dynamic per-step layers** (`withContext`, `applyContextLayers`, `createExecutionPolicy`, `createOutputPolicy`) — intercept every tool call (`beforeExecute` gate, `afterExecute` transform). `createPrepareStep` composes compaction + context-status + plan-mode hints into an AI SDK `prepareStep` callback.
 
-When using LocalSandbox, discover project and user-global skills:
+Never mutate `system` from `prepareStep` — it will break prompt caching. Dynamic hints go in `messages` as user content.
 
-```typescript
-import { discoverSkills, skillsToXml } from "bashkit";
+### Tool Composition
 
-// Discovers from .skills/ (project) and ~/.bashkit/skills/ (user-global)
-const skills = await discoverSkills();
-```
+`createAgentTools(sandbox, config)` is the single entry point that wires tools + cache + budget + context layers from a config object. Everything else is either internal or a lower-level primitive.
 
-### Using Skills with Agents
-
-```typescript
-import { discoverSkills, skillsToXml, createAgentTools, createLocalSandbox } from "bashkit";
-import { generateText, stepCountIs } from "ai";
-import { anthropic } from "@ai-sdk/anthropic";
-
-const skills = await discoverSkills();
-const sandbox = createLocalSandbox({ cwd: "/tmp/workspace" });
-const { tools } = createAgentTools(sandbox);
-
-const result = await generateText({
-  model: anthropic("claude-sonnet-4-20250514"),
-  tools,
-  system: `You are a coding assistant.
-
-${skillsToXml(skills)}
-
-When a task matches a skill, use the Read tool to load its full instructions from the location path.`,
-  prompt: "Extract text from invoice.pdf",
-  stopWhen: stepCountIs(10),
-});
-```
-
-### How It Works
-
-1. `discoverSkills()` loads only metadata (name, description, path) - ~50-100 tokens per skill
-2. `skillsToXml()` generates XML listing available skills
-3. Agent decides when to activate a skill by reading its SKILL.md with the Read tool
-4. Full instructions enter context only when the skill is actually used
-
-### Creating Skills
-
-Create `.skills/<skill-name>/SKILL.md`:
-
-```markdown
----
-name: pdf-processing
-description: Extract text and tables from PDF files.
 ---
 
-# PDF Processing
+## Component Interactions
 
-Instructions for the agent...
+```
+User code → Vercel AI SDK → Tool (wrapped w/ context layers + cache)
+                               ↓
+                            Sandbox interface
+                               ↓
+              ┌────────────────┼────────────────┐
+              ↓                ↓                ↓
+         LocalSandbox    VercelSandbox      E2BSandbox
+              ↓                ↓                ↓
+           Bun APIs      Firecracker VM     E2B service
 ```
 
-### Using Remote Skills
+---
 
-Fetch complete skill folders from GitHub repositories (e.g., Anthropic's official skills):
+## Dependencies
 
-```typescript
-import { fetchSkill, fetchSkills, setupAgentEnvironment } from "bashkit";
+**Required peer deps**: `ai` ^5.0.0, `zod` ^4.1.8.
 
-// Fetch a single skill (gets all files: SKILL.md, scripts/, etc.)
-const pdfSkill = await fetchSkill('anthropics/skills/pdf');
+**Optional peer deps** — users pick their execution environment:
+- `@vercel/sandbox` ^1.0.0 — Vercel Firecracker isolation
+- `@e2b/code-interpreter` ^1.0.0 — E2B hosted execution
+- `parallel-web` ^1.0.0 — WebSearch / WebFetch backend
 
-// Or batch fetch multiple
-const remoteSkills = await fetchSkills([
-  'anthropics/skills/pdf',
-  'anthropics/skills/web-research',
-]);
+All deps are marked **external** at build time so consumers don't get a duplicated `ai`/`zod` bundle.
 
-// Use with setupAgentEnvironment
-const config = {
-  skills: {
-    ...remoteSkills,
-    'my-custom': myContent,
-  },
-};
-const { skills } = await setupAgentEnvironment(sandbox, config);
-```
+---
 
-**Format:** `owner/repo/skillName` (fetches entire skill folder from GitHub)
+## Breaking Change Surface
 
-## Setting Up Agent Environments
+Anything in this list requires a **major version bump**:
 
-For cloud sandboxes, use `setupAgentEnvironment` to create workspace directories and seed skills:
+1. **`Sandbox` interface** (`src/sandbox/interface.ts`) — adding methods breaks every implementer.
+2. **Tool input schemas** — AI models see these in prompts; removing or renaming fields breaks live integrations.
+3. **Tool output/error shapes** — consumers pattern-match on them.
+4. **Tool names** — they appear verbatim in prompts ("use the Bash tool").
+5. **`ContextLayer` signature** (`src/context/index.ts`) — changes ripple through every custom layer downstream.
+6. **`SystemContext` shape** (`src/context/build-context.ts`) — consumers read individual sections.
+7. **`createAgentTools` return shape** — `AgentToolsResult` is a public contract.
 
-```typescript
-import { setupAgentEnvironment, skillsToXml, createAgentTools, createVercelSandbox } from "bashkit";
+Safe in minor/patch:
+- Adding new optional config fields
+- Adding new tools or sandbox implementations
+- Internal refactors that preserve public API
+- Bug fixes
 
-const config = {
-  workspace: {
-    notes: 'files/notes/',
-    outputs: 'files/outputs/',
-  },
-  skills: {
-    'web-research': webResearchSkillContent,
-  },
-};
+---
 
-const sandbox = await createVercelSandbox({});
-const { skills } = await setupAgentEnvironment(sandbox, config);
+## Security Reminders
 
-// Use same config in prompt - stays in sync!
-const systemPrompt = `Save notes to: ${config.workspace.notes}
-${skillsToXml(skills)}
-`;
+The `Bash` tool executes arbitrary commands inside the sandbox — that's the whole point, but it means production deployments **must**:
 
-const { tools } = createAgentTools(sandbox);
-```
+- Run inside a real sandbox (Vercel or E2B), not LocalSandbox.
+- Set `blockedCommands` + `timeout` on `Bash`.
+- Set `allowedPaths` on `Read` / `Write` / `Edit`.
+- Set `maxFileSize` on `Write`.
+- Never expose the raw agent loop to untrusted users without an additional auth layer.
 
-## Common Patterns
+See `src/tools/AGENTS.md` for per-tool config details.
 
-### Full Agent Setup
+---
 
-```typescript
-import { generateText, wrapLanguageModel, stepCountIs } from "ai";
-import { anthropic } from "@ai-sdk/anthropic";
-import {
-  createAgentTools,
-  createTaskTool,
-  createTodoWriteTool,
-  createLocalSandbox,
-  anthropicPromptCacheMiddleware,
-  type TodoState,
-} from "bashkit";
+## Common Implementation Tasks
 
-// 1. Create sandbox
-const sandbox = createLocalSandbox({ cwd: "/tmp/workspace" });
-
-// 2. Create sandbox tools
-const { tools: sandboxTools } = createAgentTools(sandbox);
-
-// 3. Create model with caching
-const model = wrapLanguageModel({
-  model: anthropic("claude-sonnet-4-20250514"),
-  middleware: anthropicPromptCacheMiddleware,
-});
-
-// 4. Create workflow tools
-const todoState: TodoState = { todos: [] };
-const todoTool = createTodoWriteTool(todoState);
-const taskTool = createTaskTool({ model, tools: sandboxTools });
-
-// 5. Combine all tools
-const tools = {
-  ...sandboxTools,
-  TodoWrite: todoTool,
-  Task: taskTool,
-};
-
-// 6. Run agent
-const result = await generateText({
-  model,
-  tools,
-  system: "You are a coding assistant. Use TodoWrite to plan tasks.",
-  prompt: "Build a REST API with Express",
-  stopWhen: stepCountIs(15),
-});
-
-// 7. Cleanup
-await sandbox.destroy();
-```
-
-### Tool Configuration
-
-Restrict tools with configuration:
-
-```typescript
-const { tools } = createAgentTools(sandbox, {
-  tools: {
-    Bash: {
-      enabled: true,
-      blockedCommands: ["rm -rf", "sudo"],
-      maxOutputLength: 30000,
-    },
-    Write: {
-      enabled: true,
-      allowedPaths: ["/tmp/workspace"],
-      maxFileSize: 1_000_000,
-    },
-  },
-});
-```
-
-## Tool Result Caching
-
-Cache tool execution results to avoid redundant operations:
-
-```typescript
-import { createAgentTools, createLocalSandbox } from "bashkit";
-
-const sandbox = createLocalSandbox({ cwd: "/tmp/workspace" });
-
-// Enable caching with defaults (LRU, 5min TTL)
-const { tools } = createAgentTools(sandbox, { cache: true });
-
-// Or customize caching behavior
-const { tools } = createAgentTools(sandbox, {
-  cache: {
-    ttl: 10 * 60 * 1000,  // 10 minutes
-    debug: true,          // Log cache hits/misses
-    Read: true,           // Enable for Read
-    Glob: true,           // Enable for Glob
-    Grep: false,          // Disable for Grep
-  },
-});
-```
-
-**Default cached tools:** Read, Glob, Grep, WebFetch, WebSearch
-
-**Not cached by default:** Bash, Write, Edit (have side effects)
-
-### Cache Callbacks
-
-Track cache performance with callbacks:
-
-```typescript
-const { tools } = createAgentTools(sandbox, {
-  cache: {
-    onHit: (toolName, key) => {
-      metrics.increment(`cache.hit.${toolName}`);
-    },
-    onMiss: (toolName, key) => {
-      metrics.increment(`cache.miss.${toolName}`);
-    },
-  },
-});
-```
-
-### Cache Stats
-
-Cached tools have additional methods:
-
-```typescript
-import type { CachedTool } from "bashkit";
-
-const readTool = tools.Read as CachedTool;
-
-// Check cache performance (async for Redis compatibility)
-console.log(await readTool.getStats());
-// { hits: 5, misses: 2, hitRate: 0.71, size: 2 }
-
-// Clear cache
-await readTool.clearCache();        // Clear all
-await readTool.clearCache("key");   // Clear specific entry
-```
-
-### Redis Cache Store
-
-Use your existing Redis client with the helper:
-
-```typescript
-import { createRedisCacheStore, createAgentTools } from "bashkit";
-
-const store = createRedisCacheStore(myRedisClient);
-const { tools } = createAgentTools(sandbox, { cache: store });
-```
-
-Works with `redis`, `ioredis`, or any client with `get`, `set`, `del`, `keys` methods. TTL is handled by the wrapper for consistent behavior across all cache backends.
-
-### Custom Cache Store
-
-For other backends, implement the `CacheStore` interface:
-
-```typescript
-import type { CacheStore } from "bashkit";
-
-const myStore: CacheStore = {
-  get(key) { /* return CacheEntry or undefined */ },
-  set(key, entry) { /* store entry */ },
-  delete(key) { /* remove entry */ },
-  clear() { /* remove all entries */ },
-  size() { /* optional: return count */ },
-};
-
-const { tools } = createAgentTools(sandbox, { cache: myStore });
-```
-
-### Standalone Caching
-
-Wrap individual tools with caching:
-
-```typescript
-import { cached, LRUCacheStore } from "bashkit";
-
-const cachedTool = cached(myTool, "MyTool", {
-  ttl: 60000,       // 1 minute
-  debug: true,      // Log cache activity
-  store: new LRUCacheStore(500),  // Max 500 entries
-});
-```
+| Task | Where to start |
+|---|---|
+| Add a new tool | `src/tools/AGENTS.md` → "Common Modifications" |
+| Add a new sandbox | `src/sandbox/AGENTS.md` → "Common Modifications" |
+| Add middleware | `src/middleware/AGENTS.md` → "Common Modifications" |
+| Add a cache backend | `src/cache/AGENTS.md` → "Common Modifications" |
+| Add a context layer or prompt section | `src/context/AGENTS.md` → "Common Modifications" |
+| Add a skill source | `src/skills/AGENTS.md` → "Common Modifications" |
+| Add a config field | Define in `src/types.ts`, consume in the relevant factory via `config?.yourField ?? default` |
