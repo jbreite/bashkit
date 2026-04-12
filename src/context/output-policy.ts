@@ -149,8 +149,8 @@ function injectTruncatedOutput(
     return { ...result, content: truncated, _hint: hint };
   }
 
-  // For serialized JSON results, return the truncated string + hint
-  return { _truncated: truncated, _hint: hint };
+  // For other structured results, preserve original fields and add truncation metadata
+  return { ...result, _truncated: truncated, _hint: hint };
 }
 
 /**

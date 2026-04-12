@@ -246,6 +246,9 @@ describe("createOutputPolicy", () => {
     const transformed = await transform(layer, "Custom", {}, result);
     expect(transformed._truncated).toBeDefined();
     expect(transformed._hint).toBeDefined();
+    // Original fields are preserved alongside truncation metadata
+    expect(transformed.data).toBe(result.data);
+    expect(transformed.total).toBe(42);
   });
 
   // -----------------------------------------------------------------------
@@ -283,7 +286,7 @@ describe("createOutputPolicy", () => {
     expect(transformed).toEqual(result);
   });
 
-  it("large error results still get truncated", async () => {
+  it("large error results preserve error field after truncation", async () => {
     const layer = createOutputPolicy({
       redirectionThreshold: 10,
       maxOutputLength: 50,
@@ -292,6 +295,8 @@ describe("createOutputPolicy", () => {
     const result = { error: "x".repeat(100) };
     const transformed = await transform(layer, "Bash", {}, result);
     expect(transformed._hint).toBeDefined();
+    // The error field must survive so models can reason about the failure
+    expect(transformed.error).toBe(result.error);
   });
 
   // -----------------------------------------------------------------------

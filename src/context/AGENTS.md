@@ -99,7 +99,7 @@ prepare-step.ts     ──→ ../utils/compact-conversation + ../utils/context-s
 2. If per-tool: add entry to `BUILT_IN_HINTS` in `output-policy.ts:58` or pass `hints`/`buildHint` via config
 3. If shape-specific: extend `extractText` in `output-policy.ts:127` to recognize new result shapes
 
-**Gotchas**: `excludeTools` skips truncation entirely. Truncated output is re-injected into the original field (`stdout` or `content`); for JSON-serialized results, it lands in `_truncated` + `_hint`.
+**Gotchas**: `excludeTools` skips truncation entirely. Truncated output is re-injected into the original field (`stdout` or `content`); for other structured results, original fields are preserved and `_truncated` + `_hint` are added alongside them.
 
 ### Add a new instruction source
 1. Extend `DiscoveredInstructions["sources"][].scope` union in `instructions.ts:19`
