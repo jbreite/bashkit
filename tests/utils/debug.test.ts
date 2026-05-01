@@ -140,7 +140,7 @@ describe("debug", () => {
     });
 
     it("summarizes input data", () => {
-      const longString = "x".repeat(2000);
+      const longString = "x".repeat(5000);
       debugStart("bash", { command: longString });
       const logs = getDebugLogs();
       const input = logs[0].input as Record<string, string>;
@@ -407,7 +407,7 @@ describe("debug", () => {
     });
 
     it("truncates long strings", () => {
-      const long = "x".repeat(2000);
+      const long = "x".repeat(5000);
       const result = summarize(long) as string;
       expect(result.length).toBeLessThan(long.length);
       expect(result).toContain("[truncated");
@@ -428,10 +428,10 @@ describe("debug", () => {
     });
 
     it("truncates long arrays", () => {
-      const arr = Array.from({ length: 20 }, (_, i) => i);
+      const arr = Array.from({ length: 30 }, (_, i) => i);
       const result = summarize(arr) as unknown[];
-      expect(result.length).toBe(11); // 10 items + truncation message
-      expect(result[10]).toContain("10 more items");
+      expect(result.length).toBe(21); // 20 items + truncation message
+      expect(result[20]).toContain("10 more items");
     });
 
     it("keeps short arrays intact", () => {
@@ -440,7 +440,7 @@ describe("debug", () => {
     });
 
     it("recursively summarizes objects", () => {
-      const obj = { name: "test", value: "x".repeat(2000) };
+      const obj = { name: "test", value: "x".repeat(5000) };
       const result = summarize(obj) as Record<string, string>;
       expect(result.name).toBe("test");
       expect(result.value).toContain("[truncated");

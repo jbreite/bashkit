@@ -1,5 +1,8 @@
-import type { LanguageModel, Tool } from "ai";
+import type { LanguageModel, Tool, ToolSet } from "ai";
 import type { CacheStore } from "./cache/types";
+import type { ContextLayer } from "./context/index";
+import type { ExecutionPolicyConfig } from "./context/execution-policy";
+import type { OutputPolicyConfig } from "./context/output-policy";
 import type { SkillMetadata } from "./skills/types";
 import type { ModelPricing } from "./utils/budget-tracking";
 
@@ -24,6 +27,7 @@ export type ToolConfig = {
   timeout?: number;
   maxFileSize?: number;
   maxOutputLength?: number;
+  maxLineLength?: number;
   allowedPaths?: string[];
   blockedCommands?: string[];
 } & SDKToolOptions;
@@ -57,10 +61,7 @@ export type WebFetchConfig = {
   model: LanguageModel;
 } & SDKToolOptions;
 
-export type AskUserConfig = {
-  /** Callback to handle questions and return answers */
-  onQuestion?: (question: string) => Promise<string> | string;
-};
+export type AskUserConfig = SDKToolOptions;
 
 export type SkillConfig = {
   /** Map of skill name to metadata */
@@ -159,6 +160,30 @@ export type BudgetConfig = {
   modelPricing?: Record<string, ModelPricing>;
 };
 
+/**
+ * Context layer configuration. Opt-in — if not provided, tools work as they do today.
+ * When provided, wraps all tools (bashkit + extraTools) with execution and output policies.
+ */
+export interface ContextConfig {
+  /** Execution policy. Controls which tools are blocked based on state (e.g., plan mode). */
+  executionPolicy?: ExecutionPolicyConfig;
+  /**
+   * Output policy. Controls truncation behavior and redirection hints.
+   * Set to false to disable. Enabled by default when context is provided.
+   */
+  outputPolicy?: OutputPolicyConfig | false;
+  /**
+   * Extra tools to include alongside bashkit tools.
+   * All tools (bashkit + extra) get context layers applied.
+   */
+  extraTools?: ToolSet;
+  /**
+   * Custom context layers applied to all tools.
+   * Runs after built-in layers (execution policy, output policy).
+   */
+  layers?: ContextLayer[];
+}
+
 export type AgentConfig = {
   tools?: {
     Bash?: ToolConfig;
@@ -170,7 +195,7 @@ export type AgentConfig = {
     Grep?: GrepToolConfig;
   };
   /** Include AskUser tool for user clarification */
-  askUser?: AskUserConfig;
+  askUser?: true | AskUserConfig;
   /** Include EnterPlanMode and ExitPlanMode tools for interactive planning */
   planMode?: boolean;
   /** Include Skill tool with this config */
@@ -186,6 +211,11 @@ export type AgentConfig = {
   modelRegistry?: ModelRegistryConfig;
   /** Budget tracking configuration */
   budget?: BudgetConfig;
+  /**
+   * Context layer config. Opt-in — if not provided, tools work as they do today.
+   * When provided, wraps all tools (bashkit + extraTools) with execution and output policies.
+   */
+  context?: ContextConfig;
   defaultTimeout?: number;
   workingDirectory?: string;
 };

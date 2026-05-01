@@ -1,86 +1,40 @@
 import { tool, zodSchema } from "ai";
 import { z } from "zod";
-import {
-  debugEnd,
-  debugError,
-  debugStart,
-  isDebugEnabled,
-} from "../utils/debug";
+import type { SDKToolOptions } from "../types";
 
-// Option for structured questions
-export interface QuestionOption {
-  label: string;
-  description: string | null;
-}
+// --- Schemas ---
 
-// Structured question with options
-export interface StructuredQuestion {
-  header: string | null; // Short label (max 12 chars), displayed as chip/tag
-  question: string;
-  options: QuestionOption[] | null;
-  multiSelect: boolean | null;
-}
-
-// Simple question output (backward compatible)
-export interface AskUserSimpleOutput {
-  question: string;
-  awaiting_response: true;
-}
-
-// Structured questions output
-export interface AskUserStructuredOutput {
-  questions: StructuredQuestion[];
-  awaiting_response: true;
-}
-
-export type AskUserOutput = AskUserSimpleOutput | AskUserStructuredOutput;
-
-export interface AskUserError {
-  error: string;
-}
-
-// Answer can be a string (simple) or object with answers keyed by question
-export interface AskUserAnswerOutput {
-  answer: string;
-  answers?: Record<string, string | string[]>;
-}
-
-// Schema for option
 const questionOptionSchema = z.object({
   label: z
     .string()
     .describe(
-      "The display text for this option. Should be concise (1-5 words). Add '(Recommended)' suffix for suggested options.",
+      "User-facing label (1-5 words). Put the recommended option first and suffix its label with '(Recommended)'.",
     ),
   description: z
     .string()
-    .nullable()
-    .default(null)
-    .describe("Explanation of what this option means or its implications."),
+    .describe(
+      "One short sentence explaining the impact or tradeoff if this option is selected.",
+    ),
 });
 
-// Schema for structured question
-const structuredQuestionSchema = z.object({
+const questionSchema = z.object({
+  id: z
+    .string()
+    .describe(
+      "Stable identifier for mapping answers. Use snake_case, e.g. 'time_period' or 'auth_method'.",
+    ),
   header: z
     .string()
-    .nullable()
-    .default(null)
     .describe(
-      "Very short label displayed as a chip/tag (max 12 chars). Examples: 'Auth method', 'Library', 'Approach'.",
+      "Short header label shown in the UI (12 or fewer chars). Examples: 'Auth method', 'Library', 'Approach'.",
     ),
-  question: z
-    .string()
-    .describe(
-      "The complete question to ask the user. Should be clear and specific.",
-    ),
+  question: z.string().describe("Single-sentence prompt shown to the user."),
   options: z
     .array(questionOptionSchema)
     .min(2)
-    .max(4)
-    .nullable()
-    .default(null)
+    .max(3)
     .describe(
-      "Available choices for this question. 2-4 options. An 'Other' option is automatically available to users.",
+      "2-3 mutually exclusive choices. Do not include an 'Other' option; the client adds a free-form 'Other' option automatically.",
     ),
   multiSelect: z
     .boolean()
@@ -91,197 +45,65 @@ const structuredQuestionSchema = z.object({
     ),
 });
 
-// Input schema supports both simple question string and structured questions
 const askUserInputSchema = z.object({
-  question: z
-    .string()
-    .nullable()
-    .default(null)
-    .describe(
-      "Simple question string (for backward compatibility). Use 'questions' for structured multi-choice.",
-    ),
   questions: z
-    .array(structuredQuestionSchema)
+    .array(questionSchema)
     .min(1)
     .max(4)
-    .nullable()
-    .default(null)
-    .describe("Structured questions with options (1-4 questions)."),
+    .describe("1-4 questions to ask the user. Prefer 1, do not exceed 4."),
 });
 
-type AskUserInput = z.infer<typeof askUserInputSchema>;
+// --- Types ---
 
-// Handler for simple questions (backward compatible)
-export type AskUserResponseHandler = (
-  question: string,
-) => Promise<string> | string;
+export type AskUserInput = z.infer<typeof askUserInputSchema>;
+export type AskUserQuestion = z.infer<typeof questionSchema>;
+export type AskUserQuestionOption = z.infer<typeof questionOptionSchema>;
 
-// Handler for structured questions
-export type AskUserStructuredHandler = (
-  questions: StructuredQuestion[],
-) =>
-  | Promise<Record<string, string | string[]>>
-  | Record<string, string | string[]>;
+/** Answers keyed by question id */
+export type AskUserAnswers = Record<string, string | string[]>;
 
-const ASK_USER_DESCRIPTION = `Use this tool when you need to ask the user questions during execution.
+/** Tool output returned later by the client keyed by question id */
+export type AskUserOutput = AskUserAnswers;
 
-**Capabilities:**
-- Gather user preferences or requirements
-- Clarify ambiguous instructions
-- Get decisions on implementation choices
-- Offer choices about what direction to take
+// --- Tool description ---
+
+const ASK_USER_DESCRIPTION = `Request structured user input with 1-4 short questions. Each question must have 2-3 mutually exclusive options. Wait for the response before continuing.
 
 **When to use:**
-- You need clarification on ambiguous requirements
 - Multiple valid approaches exist and user preference matters
 - You're about to make a decision with significant consequences
 - Required information is missing from the context
 
 **When NOT to use:**
-- You can make a reasonable assumption
-- The question is trivial or can be inferred
-- You're just being overly cautious
+- You can make a reasonable assumption or infer the answer
+- You just need to ask a free-form question (use your normal response instead)
 
-**Simple question format:**
-Use the 'question' parameter for a single free-form question.
+**Format:**
+- Prefer 1 question, do not exceed 4
+- Each question needs a unique 'id' (snake_case), a short 'header' (≤12 chars), and 2-3 options
+- Put the recommended option first and suffix its label with "(Recommended)"
+- Do not include an "Other" option; the client adds one automatically
+- Use multiSelect: true only when the user should select multiple options`;
 
-**Structured questions format:**
-Use the 'questions' parameter for multiple-choice questions with options:
-- 1-4 questions allowed
-- Each question can have 2-4 options with labels and descriptions
-- Use multiSelect: true to allow multiple answers
-- Users can always select "Other" to provide custom text input
-- Place recommended option first and add "(Recommended)" to label`;
+// --- Config ---
 
-export interface AskUserToolConfig {
-  /** Handler for simple string questions */
-  onQuestion?: AskUserResponseHandler;
-  /** Handler for structured questions with options */
-  onStructuredQuestions?: AskUserStructuredHandler;
-}
+export type AskUserToolConfig = SDKToolOptions;
 
 /**
  * Creates a tool for asking the user clarifying questions.
  *
- * Supports both simple string questions and structured multi-choice questions.
+ * Always uses a `questions` array (even for a single question).
+ * Each question has a stable `id` so answers are keyed deterministically.
  *
- * @param config - Configuration with optional handlers for questions
+ * This tool is intentionally deferred: it emits a tool call for the client to
+ * render, and the caller is expected to provide the tool output later.
+ *
+ * @param config - Optional AI SDK tool options
  */
-export function createAskUserTool(
-  config?: AskUserToolConfig | AskUserResponseHandler,
-) {
-  // Support both old signature (just handler) and new config object
-  const normalizedConfig: AskUserToolConfig =
-    typeof config === "function" ? { onQuestion: config } : (config ?? {});
-
+export function createAskUserTool(config: AskUserToolConfig = {}) {
   return tool({
     description: ASK_USER_DESCRIPTION,
     inputSchema: zodSchema(askUserInputSchema),
-    execute: async (
-      input: AskUserInput,
-    ): Promise<AskUserOutput | AskUserError | AskUserAnswerOutput> => {
-      const startTime = performance.now();
-      const debugId = isDebugEnabled()
-        ? debugStart("ask-user", {
-            hasQuestion: !!input.question,
-            questionCount: input.questions?.length ?? 0,
-            question: input.question
-              ? input.question.length > 100
-                ? `${input.question.slice(0, 100)}...`
-                : input.question
-              : undefined,
-          })
-        : "";
-
-      try {
-        // Validate input - must have either question or questions
-        if (!input.question && !input.questions) {
-          const error = "Either 'question' or 'questions' must be provided";
-          if (debugId) debugError(debugId, "ask-user", error);
-          return { error };
-        }
-
-        // Handle structured questions
-        if (input.questions && input.questions.length > 0) {
-          if (normalizedConfig.onStructuredQuestions) {
-            const answers = await normalizedConfig.onStructuredQuestions(
-              input.questions,
-            );
-            // Return first answer as 'answer' for compatibility, plus all answers
-            const firstKey = Object.keys(answers)[0];
-            const firstAnswer = answers[firstKey];
-
-            const durationMs = Math.round(performance.now() - startTime);
-            if (debugId) {
-              debugEnd(debugId, "ask-user", {
-                summary: {
-                  type: "structured",
-                  answerCount: Object.keys(answers).length,
-                },
-                duration_ms: durationMs,
-              });
-            }
-
-            return {
-              answer: Array.isArray(firstAnswer)
-                ? firstAnswer.join(", ")
-                : firstAnswer,
-              answers,
-            };
-          }
-
-          // No handler - return awaiting state
-          const durationMs = Math.round(performance.now() - startTime);
-          if (debugId) {
-            debugEnd(debugId, "ask-user", {
-              summary: { type: "structured", awaiting: true },
-              duration_ms: durationMs,
-            });
-          }
-          return {
-            questions: input.questions,
-            awaiting_response: true,
-          };
-        }
-
-        // Handle simple question (backward compatible)
-        if (input.question) {
-          if (normalizedConfig.onQuestion) {
-            const answer = await normalizedConfig.onQuestion(input.question);
-
-            const durationMs = Math.round(performance.now() - startTime);
-            if (debugId) {
-              debugEnd(debugId, "ask-user", {
-                summary: { type: "simple", hasAnswer: true },
-                duration_ms: durationMs,
-              });
-            }
-            return { answer };
-          }
-
-          // No handler - return awaiting state
-          const durationMs = Math.round(performance.now() - startTime);
-          if (debugId) {
-            debugEnd(debugId, "ask-user", {
-              summary: { type: "simple", awaiting: true },
-              duration_ms: durationMs,
-            });
-          }
-          return {
-            question: input.question,
-            awaiting_response: true,
-          };
-        }
-
-        const error = "No question provided";
-        if (debugId) debugError(debugId, "ask-user", error);
-        return { error };
-      } catch (error) {
-        const errorMessage =
-          error instanceof Error ? error.message : "Unknown error";
-        if (debugId) debugError(debugId, "ask-user", errorMessage);
-        return { error: errorMessage };
-      }
-    },
+    ...config,
   });
 }

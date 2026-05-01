@@ -141,7 +141,9 @@ describe("createAgentTools budget integration", () => {
     expect(openRouterModels).toBeInstanceOf(Map);
     expect(openRouterModels!.has("anthropic/claude-sonnet-4-5")).toBe(true);
 
-    const model = openRouterModels!.get("anthropic/claude-sonnet-4-5")!;
+    if (!openRouterModels) throw new Error("expected openRouterModels");
+
+    const model = openRouterModels.get("anthropic/claude-sonnet-4-5")!;
     expect(model.contextLength).toBe(200000);
     expect(model.pricing.inputPerToken).toBe(0.000003);
     expect(model.pricing.outputPerToken).toBe(0.000015);

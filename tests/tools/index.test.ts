@@ -81,9 +81,7 @@ describe("createAgentTools", () => {
   describe("AskUser tool", () => {
     it("should include AskUser when configured", async () => {
       const { tools } = await createAgentTools(sandbox, {
-        askUser: {
-          onQuestion: async (q) => `Answer to: ${q}`,
-        },
+        askUser: true,
       });
 
       expect(tools.AskUser).toBeDefined();
@@ -240,7 +238,7 @@ describe("createAgentTools", () => {
       const mockModel = { modelId: "test" } as WebFetchConfig["model"];
       const { tools, planModeState } = await createAgentTools(sandbox, {
         planMode: true,
-        askUser: { onQuestion: async () => "answer" },
+        askUser: true,
         webSearch: { apiKey: "key" },
         webFetch: { apiKey: "key", model: mockModel },
         skill: {

@@ -8,6 +8,10 @@ import {
   debugStart,
   isDebugEnabled,
 } from "../utils/debug";
+import { middleTruncate } from "../utils/helpers";
+
+const DEFAULT_MAX_LINE_LENGTH = 2000;
+const DEFAULT_MAX_OUTPUT_LENGTH = 60000;
 
 export interface ReadTextOutput {
   type: "text";
@@ -52,6 +56,7 @@ Usage:
 - By default, it reads up to 500 lines starting from the beginning of the file
 - You can optionally specify a line offset and limit (especially handy for long files)
 - Results are returned with line numbers starting at 1
+- Any lines longer than 2000 characters will be truncated
 - This tool can only read text files, not binary files (images, PDFs, etc.)
 - This tool can only read files, not directories. To read a directory, use an ls command via the Bash tool.
 - It is always better to speculatively read multiple potentially useful files in parallel
@@ -101,6 +106,7 @@ export function createReadTool(sandbox: Sandbox, config?: ToolConfig) {
           const durationMs = Math.round(performance.now() - startTime);
           if (debugId) {
             debugEnd(debugId, "read", {
+              output: entries,
               summary: { type: "directory", count: entries.length },
               duration_ms: durationMs,
             });
@@ -156,14 +162,29 @@ export function createReadTool(sandbox: Sandbox, config?: ToolConfig) {
         const endLine = limit ? startLine + limit : allLines.length;
         const selectedLines = allLines.slice(startLine, endLine);
 
-        const lines = selectedLines.map((line, i) => ({
+        // Per-line truncation (silent, like Claude Code's MAX_LINE_LENGTH)
+        const maxLineLength = config?.maxLineLength ?? DEFAULT_MAX_LINE_LENGTH;
+        const truncatedLines = selectedLines.map((line) =>
+          line.length > maxLineLength
+            ? line.slice(0, maxLineLength) + "…"
+            : line,
+        );
+
+        const lines = truncatedLines.map((line, i) => ({
           line_number: startLine + i + 1,
           content: line,
         }));
 
+        let contentStr = truncatedLines.join("\n");
+
+        // Total output cap (silent, prevents context bloat)
+        const maxOutputLength =
+          config?.maxOutputLength ?? DEFAULT_MAX_OUTPUT_LENGTH;
+        contentStr = middleTruncate(contentStr, maxOutputLength);
         const durationMs = Math.round(performance.now() - startTime);
         if (debugId) {
           debugEnd(debugId, "read", {
+            output: contentStr,
             summary: {
               type: "text",
               totalLines,
@@ -176,7 +197,7 @@ export function createReadTool(sandbox: Sandbox, config?: ToolConfig) {
 
         return {
           type: "text",
-          content: selectedLines.join("\n"),
+          content: contentStr,
           lines,
           total_lines: totalLines,
         };

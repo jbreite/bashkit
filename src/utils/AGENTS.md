@@ -143,8 +143,8 @@ Three complementary approaches:
 - Events include `parent` field to reconstruct call hierarchy
 
 **Data Truncation**:
-- Strings truncated to 1000 chars
-- Arrays truncated to 10 items
+- Strings truncated to 4000 chars
+- Arrays truncated to 20 items
 - Recursive summarization for nested objects (max depth: 5)
 
 ## Design Patterns

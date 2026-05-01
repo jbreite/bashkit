@@ -1,6 +1,9 @@
-import type { ToolSet } from "ai";
+import type { ToolSet, Tool } from "ai";
 import type { CacheStore } from "../cache/types";
 import { cached, LRUCacheStore } from "../cache";
+import { applyContextLayers, type ContextLayer } from "../context/index";
+import { createExecutionPolicy } from "../context/execution-policy";
+import { createOutputPolicy } from "../context/output-policy";
 import type { Sandbox } from "../sandbox/interface";
 import type { AgentConfig, CacheConfig } from "../types";
 import { DEFAULT_CONFIG } from "../types";
@@ -129,6 +132,8 @@ export interface AgentToolsResult {
   budget?: BudgetTracker;
   /** Model info from OpenRouter (only present when modelRegistry or budget pricingProvider is configured) */
   openRouterModels?: Map<string, ModelInfo>;
+  /** Context layers applied to tools. Use with applyContextLayers() for late-added tools. */
+  contextLayers: ContextLayer[];
 }
 
 /**
@@ -156,7 +161,7 @@ export interface AgentToolsResult {
  * // Interactive agent with plan mode
  * const { tools, planModeState } = await createAgentTools(sandbox, {
  *   planMode: true,
- *   askUser: { onQuestion: async (q) => await promptUser(q) },
+ *   askUser: true,
  * });
  *
  * @example
@@ -189,7 +194,9 @@ export async function createAgentTools(
 
   // Add AskUser tool if configured
   if (config?.askUser) {
-    tools.AskUser = createAskUserTool(config.askUser.onQuestion);
+    tools.AskUser = createAskUserTool(
+      config.askUser === true ? undefined : config.askUser,
+    );
   }
 
   // Add plan mode tools if configured
@@ -216,7 +223,14 @@ export async function createAgentTools(
     tools.WebFetch = createWebFetchTool(config.webFetch);
   }
 
-  // Apply caching if configured
+  // Merge extra tools from context config
+  if (config?.context?.extraTools) {
+    for (const [name, extraTool] of Object.entries(config.context.extraTools)) {
+      (tools as Record<string, Tool>)[name] = extraTool;
+    }
+  }
+
+  // Apply caching if configured (inner wrapper — cache sits inside context)
   const cacheConfig = resolveCache(config?.cache);
   if (cacheConfig.store) {
     for (const [name, tool] of Object.entries(tools)) {
@@ -230,6 +244,42 @@ export async function createAgentTools(
           onMiss: cacheConfig.onMiss,
           keyGenerator: cacheConfig.keyGenerator,
         });
+      }
+    }
+  }
+
+  // Build and apply context layers (outer wrapper — wraps outside cache)
+  const contextLayers: ContextLayer[] = [];
+
+  if (config?.context) {
+    // Execution policy (plan-mode gating and/or custom shouldBlock)
+    if (planModeState || config.context.executionPolicy?.shouldBlock) {
+      contextLayers.push(
+        createExecutionPolicy(planModeState, config.context.executionPolicy),
+      );
+    }
+
+    // Output policy (enabled by default, unless explicitly false)
+    if (config.context.outputPolicy !== false) {
+      contextLayers.push(
+        createOutputPolicy(
+          config.context.outputPolicy === undefined
+            ? undefined
+            : config.context.outputPolicy,
+        ),
+      );
+    }
+
+    // Custom layers (run after built-in layers)
+    if (config.context.layers) {
+      contextLayers.push(...config.context.layers);
+    }
+
+    // Apply all layers to all tools
+    if (contextLayers.length > 0) {
+      const wrapped = applyContextLayers(tools, contextLayers);
+      for (const [name, wrappedTool] of Object.entries(wrapped)) {
+        (tools as Record<string, Tool>)[name] = wrappedTool;
       }
     }
   }
@@ -285,16 +335,17 @@ export async function createAgentTools(
     });
   }
 
-  return { tools, planModeState, budget, openRouterModels };
+  return { tools, planModeState, budget, openRouterModels, contextLayers };
 }
 
 // --- Ask User Tool ---
 export type {
-  AskUserError,
+  AskUserAnswers,
+  AskUserInput,
   AskUserOutput,
-  AskUserResponseHandler,
-  QuestionOption,
-  StructuredQuestion,
+  AskUserQuestion,
+  AskUserQuestionOption,
+  AskUserToolConfig,
 } from "./ask-user";
 export { createAskUserTool } from "./ask-user";
 
