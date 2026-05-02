@@ -151,10 +151,9 @@ const policy = createOutputPolicy({
           />
           <p>
             When output exceeds <code>redirectionThreshold</code>, it gets
-            truncated to <code>maxOutputLength</code> and a{" "}
-            <code>_hint</code> field is added with tool-specific guidance (e.g.,
-            &quot;use <code>head</code>/<code>tail</code> to see specific
-            parts&quot;).
+            truncated to <code>maxOutputLength</code> and a <code>_hint</code>{" "}
+            field is added with tool-specific guidance (e.g., &quot;use{" "}
+            <code>head</code>/<code>tail</code> to see specific parts&quot;).
           </p>
 
           <h3>Custom Hints</h3>
@@ -198,8 +197,8 @@ const policy = createOutputPolicy({
         <section>
           <h2 id="system-prompt">System Prompt Assembly</h2>
           <p>
-            <code>buildSystemContext</code> assembles a static system prompt from
-            three sources: discovered project instructions (AGENTS.md /
+            <code>buildSystemContext</code> assembles a static system prompt
+            from three sources: discovered project instructions (AGENTS.md /
             CLAUDE.md files), environment info (cwd, platform, git branch), and
             tool guidance.
           </p>
@@ -230,8 +229,8 @@ ctx.environment   // environment XML block
 ctx.toolGuidance  // tool hint list`}
           />
           <p>
-            Call once at init &mdash; the output is deterministic and designed to
-            stay stable across turns for Anthropic prompt caching.
+            Call once at init &mdash; the output is deterministic and designed
+            to stay stable across turns for Anthropic prompt caching.
           </p>
         </section>
 

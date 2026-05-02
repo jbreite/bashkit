@@ -566,7 +566,7 @@ describe("createOutputPolicy", () => {
       expect(typeof transformed.stdout).toBe("string");
       expect(transformed._hint).toBeDefined();
       // Hint should not reference a stash file
-      expect((transformed._hint as string)).not.toContain("Full output saved to");
+      expect(transformed._hint as string).not.toContain("Full output saved to");
       // Warning was logged
       expect(warnSpy).toHaveBeenCalledWith(
         expect.stringContaining("[bashkit] stashOutput failed"),
@@ -594,7 +594,7 @@ describe("createOutputPolicy", () => {
 
       expect(typeof transformed.stdout).toBe("string");
       expect(transformed._hint).toBeDefined();
-      expect((transformed._hint as string)).not.toContain("Full output saved to");
+      expect(transformed._hint as string).not.toContain("Full output saved to");
       expect(warnSpy).toHaveBeenCalledWith(
         expect.stringContaining("[bashkit] stashOutput failed"),
       );

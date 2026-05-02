@@ -51,7 +51,7 @@ describe("createPrepareStep", () => {
     });
 
     expect(result?.messages).toBeDefined();
-    const lastMsg = result!.messages![result!.messages!.length - 1];
+    const lastMsg = result.messages![result.messages!.length - 1];
     expect(lastMsg.role).toBe("user");
     expect(lastMsg.content).toContain("PLAN MODE ACTIVE");
   });
@@ -143,7 +143,7 @@ describe("createPrepareStep", () => {
     const result = await prepareStep({ ...defaultArgs, messages });
 
     expect(result?.messages).toBeDefined();
-    const injected = result!.messages!.slice(messages.length);
+    const injected = result.messages!.slice(messages.length);
     const contents = injected.map((m) =>
       typeof m.content === "string" ? m.content : "",
     );
@@ -180,7 +180,7 @@ describe("createPrepareStep", () => {
     state.isActive = true;
     const r2 = await prepareStep({ ...defaultArgs, messages });
     expect(r2?.messages).toBeDefined();
-    const hasHint = r2!.messages!.some(
+    const hasHint = r2.messages!.some(
       (m) =>
         m.role === "user" &&
         typeof m.content === "string" &&
