@@ -19,8 +19,16 @@ export interface Sandbox {
   readDir(path: string): Promise<string[]>;
   fileExists(path: string): Promise<boolean>;
   isDirectory(path: string): Promise<boolean>;
-  deleteFile(path: string): Promise<void>;
-  rename(oldPath: string, newPath: string): Promise<void>;
+  /**
+   * Optional. When unimplemented, callers should fall back to `exec("rm -- ...")`.
+   * Built-in sandboxes (LocalSandbox, VercelSandbox, E2BSandbox) implement this.
+   */
+  deleteFile?(path: string): Promise<void>;
+  /**
+   * Optional. When unimplemented, callers should fall back to `exec("mv -- ...")`.
+   * Built-in sandboxes implement this.
+   */
+  rename?(oldPath: string, newPath: string): Promise<void>;
   destroy(): Promise<void>;
 
   /**
