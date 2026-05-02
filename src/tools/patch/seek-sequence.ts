@@ -21,7 +21,10 @@ const UNICODE_REPLACEMENTS: [RegExp, string][] = [
   // Double quotes: \u201C–\u201F → "
   [/[\u201C\u201D\u201E\u201F]/g, '"'],
   // Non-breaking and other special spaces → regular space
-  [/[\u00A0\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200A\u202F\u205F\u3000]/g, " "],
+  [
+    /[\u00A0\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200A\u202F\u205F\u3000]/g,
+    " ",
+  ],
 ];
 
 /**

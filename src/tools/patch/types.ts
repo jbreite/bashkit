@@ -53,7 +53,9 @@ export class PatchParseError extends Error {
     message: string,
     public readonly lineNumber?: number,
   ) {
-    super(lineNumber !== undefined ? `Line ${lineNumber}: ${message}` : message);
+    super(
+      lineNumber !== undefined ? `Line ${lineNumber}: ${message}` : message,
+    );
     this.name = "PatchParseError";
   }
 }

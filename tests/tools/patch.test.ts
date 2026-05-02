@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach } from "vitest";
+import type { Sandbox } from "@/sandbox/interface";
 import { createPatchTool, type PatchOutput } from "@/tools/patch";
 import { parsePatch, parseUpdateFileChunk } from "@/tools/patch/parser";
 import { seekSequence, normalizeUnicode } from "@/tools/patch/seek-sequence";
@@ -123,9 +124,7 @@ describe("parsePatch", () => {
 
   it("should reject empty Update file hunk", () => {
     expect(() =>
-      parsePatch(
-        "*** Begin Patch\n*** Update File: test.py\n*** End Patch",
-      ),
+      parsePatch("*** Begin Patch\n*** Update File: test.py\n*** End Patch"),
     ).toThrow("Update file hunk for path 'test.py' is empty");
   });
 
@@ -857,6 +856,144 @@ describe("Patch Tool", () => {
       const files = sandbox.getFiles();
       expect(files["/workspace/src/utils.ts"]).toContain("a + b + 0");
       expect(files["/workspace/src/utils.ts"]).toContain("a - b - 0");
+    });
+  });
+
+  describe("Pre-flight atomicity", () => {
+    it("does not apply earlier hunks when a later update has bad context", async () => {
+      const originalMain = sandbox.getFiles()["/workspace/src/main.ts"];
+      const originalUtils = sandbox.getFiles()["/workspace/src/utils.ts"];
+      const tool = createPatchTool(sandbox);
+
+      // Hunk 1 is valid; hunk 2 has a context line that doesn't exist.
+      const result = await executeTool(tool, {
+        patch: `*** Begin Patch
+*** Update File: /workspace/src/main.ts
+@@
+ export function hello() {
+-  return "world";
++  return "universe";
+*** Update File: /workspace/src/utils.ts
+@@
+ export function add(a: number, b: number) {
+-  return a + b + nope;
++  return 999;
+*** End Patch`,
+      });
+
+      assertError(result);
+      const files = sandbox.getFiles();
+      expect(files["/workspace/src/main.ts"]).toBe(originalMain);
+      expect(files["/workspace/src/utils.ts"]).toBe(originalUtils);
+    });
+
+    it("does not delete a file when a later add violates maxFileSize", async () => {
+      const originalOld = sandbox.getFiles()["/workspace/src/old.ts"];
+      const tool = createPatchTool(sandbox, { maxFileSize: 5 });
+
+      const result = await executeTool(tool, {
+        patch: `*** Begin Patch
+*** Delete File: /workspace/src/old.ts
+*** Add File: /workspace/src/big.ts
++this content is way more than five bytes
+*** End Patch`,
+      });
+
+      assertError(result);
+      const files = sandbox.getFiles();
+      expect(files["/workspace/src/old.ts"]).toBe(originalOld);
+      expect(files["/workspace/src/big.ts"]).toBeUndefined();
+    });
+  });
+
+  describe("Move target collision", () => {
+    it("errors when the move target already exists", async () => {
+      sandbox.setFile("/workspace/src/already-here.ts", "// existing\n");
+      const tool = createPatchTool(sandbox);
+
+      const result = await executeTool(tool, {
+        patch: `*** Begin Patch
+*** Update File: /workspace/src/main.ts
+*** Move to: /workspace/src/already-here.ts
+@@
+ export function hello() {
+-  return "world";
++  return "universe";
+*** End Patch`,
+      });
+
+      assertError(result);
+      expect(result.error).toContain("Move target already exists");
+
+      const files = sandbox.getFiles();
+      expect(files["/workspace/src/main.ts"]).toContain('"world"');
+      expect(files["/workspace/src/already-here.ts"]).toBe("// existing\n");
+    });
+  });
+
+  describe("Sandbox method fallbacks", () => {
+    it("falls back to exec(rm) when sandbox.deleteFile is undefined", async () => {
+      const rmCalls: string[] = [];
+      sandbox.setExecHandler((command) => {
+        if (command.startsWith("rm -- ")) {
+          rmCalls.push(command);
+        }
+        return {
+          stdout: "",
+          stderr: "",
+          exitCode: 0,
+          durationMs: 1,
+          interrupted: false,
+        };
+      });
+
+      // Wrap the mock sandbox with deleteFile/rename omitted so the patch tool
+      // exercises its exec-based fallback path. The wrapper proxies every other
+      // method (including readFile/fileExists/writeFile) to the mock.
+      const { deleteFile: _omitDelete, rename: _omitRename, ...rest } = sandbox;
+      const sandboxWithoutOptionalMethods: Sandbox = rest;
+
+      const tool = createPatchTool(sandboxWithoutOptionalMethods);
+      const result = await executeTool(tool, {
+        patch: `*** Begin Patch
+*** Delete File: /workspace/src/old.ts
+*** End Patch`,
+      });
+
+      assertSuccess<PatchOutput>(result);
+      expect(rmCalls).toEqual(["rm -- '/workspace/src/old.ts'"]);
+    });
+
+    it("quotes paths with single quotes when falling back to exec", async () => {
+      const tricky = "/workspace/it's a file.ts";
+      sandbox.setFile(tricky, "// content\n");
+
+      const rmCalls: string[] = [];
+      sandbox.setExecHandler((command) => {
+        if (command.startsWith("rm -- ")) rmCalls.push(command);
+        return {
+          stdout: "",
+          stderr: "",
+          exitCode: 0,
+          durationMs: 1,
+          interrupted: false,
+        };
+      });
+
+      const { deleteFile: _omitDelete, rename: _omitRename, ...rest } = sandbox;
+      const sandboxWithoutOptionalMethods: Sandbox = rest;
+
+      const tool = createPatchTool(sandboxWithoutOptionalMethods);
+      const result = await executeTool(tool, {
+        patch: `*** Begin Patch
+*** Delete File: ${tricky}
+*** End Patch`,
+      });
+
+      assertSuccess<PatchOutput>(result);
+      expect(rmCalls).toEqual([
+        String.raw`rm -- '/workspace/it'\''s a file.ts'`,
+      ]);
     });
   });
 });

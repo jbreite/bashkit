@@ -8,6 +8,7 @@
 import { tool, zodSchema } from "ai";
 import { z } from "zod";
 import type { Sandbox } from "../../sandbox/interface";
+import { shellQuote } from "../../sandbox/shell-quote";
 import type { ToolConfig } from "../../types";
 import {
   debugEnd,
@@ -17,7 +18,7 @@ import {
 } from "../../utils/debug";
 import { deriveNewContents } from "./apply";
 import { parsePatch } from "./parser";
-import type { PatchError, PatchFileResult, PatchOutput } from "./types";
+import type { Hunk, PatchError, PatchFileResult, PatchOutput } from "./types";
 
 const patchInputSchema = z.object({
   patch: z.string().describe(
@@ -60,6 +61,30 @@ Supports adding new files, deleting files, and updating existing files with cont
 - Use **Edit** for simple single-string replacements in one file
 - Use **Patch** for multi-hunk edits, multi-file changes, file additions/deletions, or when you need context-based matching`;
 
+/**
+ * A pre-flight-validated operation, ready to apply.
+ * Updates carry their derived content so we don't read+derive twice.
+ */
+type PreparedOp =
+  | { kind: "add"; path: string; content: string }
+  | { kind: "delete"; path: string }
+  | { kind: "modify"; path: string; content: string }
+  | { kind: "move"; fromPath: string; toPath: string; content: string };
+
+async function deleteFileWithFallback(
+  sandbox: Sandbox,
+  path: string,
+): Promise<void> {
+  if (sandbox.deleteFile) {
+    await sandbox.deleteFile(path);
+    return;
+  }
+  const result = await sandbox.exec(`rm -- ${shellQuote(path)}`);
+  if (result.exitCode !== 0) {
+    throw new Error(`Failed to delete ${path}: ${result.stderr}`);
+  }
+}
+
 export function createPatchTool(sandbox: Sandbox, config?: ToolConfig) {
   return tool({
     description: PATCH_DESCRIPTION,
@@ -78,7 +103,7 @@ export function createPatchTool(sandbox: Sandbox, config?: ToolConfig) {
         : "";
 
       try {
-        // Step 1: Parse the patch
+        // Step 1: Parse
         const parsed = parsePatch(patch);
 
         if (parsed.hunks.length === 0) {
@@ -87,94 +112,54 @@ export function createPatchTool(sandbox: Sandbox, config?: ToolConfig) {
           return { error };
         }
 
-        // Step 2: Validate all paths against allowedPaths
+        // Step 2: Validate paths against allowedPaths
         if (config?.allowedPaths) {
-          for (const hunk of parsed.hunks) {
-            const paths = [hunk.path];
-            if (hunk.type === "update" && hunk.movePath) {
-              paths.push(hunk.movePath);
-            }
-            for (const p of paths) {
-              const isAllowed = config.allowedPaths.some((allowed) =>
-                p.startsWith(allowed),
-              );
-              if (!isAllowed) {
-                const error = `Path not allowed: ${p}`;
-                if (debugId) debugError(debugId, "patch", error);
-                return { error };
-              }
-            }
+          const pathError = validateAllowedPaths(
+            parsed.hunks,
+            config.allowedPaths,
+          );
+          if (pathError) {
+            if (debugId) debugError(debugId, "patch", pathError);
+            return { error: pathError };
           }
         }
 
-        // Step 3: Apply operations sequentially (non-atomic, like Codex)
-        const files: PatchFileResult[] = [];
-
+        // Step 3: Pre-flight — validate every hunk and derive new contents
+        // before any sandbox writes. This avoids partial application when a
+        // mid-patch hunk fails (bad context, missing file, size limit, etc).
+        const prepared: PreparedOp[] = [];
         for (const hunk of parsed.hunks) {
-          switch (hunk.type) {
-            case "add": {
-              // Check file size limit
-              if (
-                config?.maxFileSize &&
-                hunk.content.length > config.maxFileSize
-              ) {
-                const error = `File too large: ${hunk.path} (${hunk.content.length} bytes, max ${config.maxFileSize})`;
-                if (debugId) debugError(debugId, "patch", error);
-                return { error };
-              }
-              await sandbox.writeFile(hunk.path, hunk.content);
-              files.push({ status: "added", path: hunk.path });
+          const op = await prepareHunk(sandbox, hunk, config);
+          if ("error" in op) {
+            if (debugId) debugError(debugId, "patch", op.error);
+            return op;
+          }
+          prepared.push(op.op);
+        }
+
+        // Step 4: Apply prepared ops sequentially. By this point parsing,
+        // context-matching, and size limits have all passed; only raw I/O
+        // errors (disk full, permission denied) can still fail here.
+        const files: PatchFileResult[] = [];
+        for (const op of prepared) {
+          switch (op.kind) {
+            case "add":
+              await sandbox.writeFile(op.path, op.content);
+              files.push({ status: "added", path: op.path });
               break;
-            }
-
-            case "delete": {
-              const exists = await sandbox.fileExists(hunk.path);
-              if (!exists) {
-                const error = `File not found for deletion: ${hunk.path}`;
-                if (debugId) debugError(debugId, "patch", error);
-                return { error };
-              }
-              await sandbox.deleteFile(hunk.path);
-              files.push({ status: "deleted", path: hunk.path });
+            case "delete":
+              await deleteFileWithFallback(sandbox, op.path);
+              files.push({ status: "deleted", path: op.path });
               break;
-            }
-
-            case "update": {
-              const exists = await sandbox.fileExists(hunk.path);
-              if (!exists) {
-                const error = `File not found: ${hunk.path}`;
-                if (debugId) debugError(debugId, "patch", error);
-                return { error };
-              }
-
-              const originalContent = await sandbox.readFile(hunk.path);
-              const newContent = deriveNewContents(
-                originalContent,
-                hunk.chunks,
-                hunk.path,
-              );
-
-              // Check file size limit
-              if (
-                config?.maxFileSize &&
-                newContent.length > config.maxFileSize
-              ) {
-                const error = `File too large after patch: ${hunk.path} (${newContent.length} bytes, max ${config.maxFileSize})`;
-                if (debugId) debugError(debugId, "patch", error);
-                return { error };
-              }
-
-              if (hunk.movePath) {
-                // Write to new path, delete old
-                await sandbox.writeFile(hunk.movePath, newContent);
-                await sandbox.deleteFile(hunk.path);
-                files.push({ status: "modified", path: hunk.movePath });
-              } else {
-                await sandbox.writeFile(hunk.path, newContent);
-                files.push({ status: "modified", path: hunk.path });
-              }
+            case "modify":
+              await sandbox.writeFile(op.path, op.content);
+              files.push({ status: "modified", path: op.path });
               break;
-            }
+            case "move":
+              await sandbox.writeFile(op.toPath, op.content);
+              await deleteFileWithFallback(sandbox, op.fromPath);
+              files.push({ status: "modified", path: op.toPath });
+              break;
           }
         }
 
@@ -203,4 +188,91 @@ export function createPatchTool(sandbox: Sandbox, config?: ToolConfig) {
       }
     },
   });
+}
+
+/**
+ * Run pre-flight validation for a single hunk and produce a PreparedOp.
+ * On any validation failure, returns `{ error }` and the caller aborts
+ * before any writes have happened.
+ */
+async function prepareHunk(
+  sandbox: Sandbox,
+  hunk: Hunk,
+  config: ToolConfig | undefined,
+): Promise<{ op: PreparedOp } | { error: string }> {
+  switch (hunk.type) {
+    case "add": {
+      if (config?.maxFileSize && hunk.content.length > config.maxFileSize) {
+        return {
+          error: `File too large: ${hunk.path} (${hunk.content.length} bytes, max ${config.maxFileSize})`,
+        };
+      }
+      return { op: { kind: "add", path: hunk.path, content: hunk.content } };
+    }
+
+    case "delete": {
+      if (!(await sandbox.fileExists(hunk.path))) {
+        return { error: `File not found for deletion: ${hunk.path}` };
+      }
+      return { op: { kind: "delete", path: hunk.path } };
+    }
+
+    case "update": {
+      if (!(await sandbox.fileExists(hunk.path))) {
+        return { error: `File not found: ${hunk.path}` };
+      }
+      const original = await sandbox.readFile(hunk.path);
+      let newContent: string;
+      try {
+        newContent = deriveNewContents(original, hunk.chunks, hunk.path);
+      } catch (e) {
+        return {
+          error:
+            e instanceof Error
+              ? e.message
+              : `Failed to apply update to ${hunk.path}`,
+        };
+      }
+      if (config?.maxFileSize && newContent.length > config.maxFileSize) {
+        return {
+          error: `File too large after patch: ${hunk.path} (${newContent.length} bytes, max ${config.maxFileSize})`,
+        };
+      }
+      if (hunk.movePath && hunk.movePath !== hunk.path) {
+        if (await sandbox.fileExists(hunk.movePath)) {
+          return {
+            error: `Move target already exists: ${hunk.movePath}`,
+          };
+        }
+        return {
+          op: {
+            kind: "move",
+            fromPath: hunk.path,
+            toPath: hunk.movePath,
+            content: newContent,
+          },
+        };
+      }
+      return { op: { kind: "modify", path: hunk.path, content: newContent } };
+    }
+  }
+}
+
+function validateAllowedPaths(
+  hunks: Hunk[],
+  allowedPaths: string[],
+): string | null {
+  for (const hunk of hunks) {
+    const paths = [hunk.path];
+    if (hunk.type === "update" && hunk.movePath) {
+      paths.push(hunk.movePath);
+    }
+    for (const p of paths) {
+      const isAllowed = allowedPaths.some((allowed) => p.startsWith(allowed));
+      if (!isAllowed) {
+        return `Path not allowed: ${p}`;
+      }
+    }
+  }
+  return null;
 }
