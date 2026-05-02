@@ -38,6 +38,7 @@ describe("createAgentTools", () => {
       expect(tools.EnterPlanMode).toBeUndefined();
       expect(tools.ExitPlanMode).toBeUndefined();
       expect(tools.Skill).toBeUndefined();
+      expect(tools.Patch).toBeUndefined();
     });
 
     it("should not return planModeState by default", async () => {
@@ -91,6 +92,30 @@ describe("createAgentTools", () => {
       const { tools } = await createAgentTools(sandbox);
 
       expect(tools.AskUser).toBeUndefined();
+    });
+  });
+
+  describe("Patch tool", () => {
+    it("should include Patch when enabled with patch: true", async () => {
+      const { tools } = await createAgentTools(sandbox, {
+        patch: true,
+      });
+
+      expect(tools.Patch).toBeDefined();
+    });
+
+    it("should include Patch when given a ToolConfig", async () => {
+      const { tools } = await createAgentTools(sandbox, {
+        patch: { allowedPaths: ["/tmp"] },
+      });
+
+      expect(tools.Patch).toBeDefined();
+    });
+
+    it("should not include Patch without config", async () => {
+      const { tools } = await createAgentTools(sandbox);
+
+      expect(tools.Patch).toBeUndefined();
     });
   });
 

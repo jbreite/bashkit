@@ -190,12 +190,13 @@ export type AgentConfig = {
     Read?: ToolConfig;
     Write?: ToolConfig;
     Edit?: ToolConfig;
-    Patch?: ToolConfig;
     Glob?: ToolConfig;
     Grep?: GrepToolConfig;
   };
   /** Include AskUser tool for user clarification */
   askUser?: true | AskUserConfig;
+  /** Include Patch tool for multi-hunk / multi-file apply-patch edits */
+  patch?: true | ToolConfig;
   /** Include EnterPlanMode and ExitPlanMode tools for interactive planning */
   planMode?: boolean;
   /** Include Skill tool with this config */

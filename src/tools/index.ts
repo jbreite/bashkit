@@ -144,6 +144,7 @@ export interface AgentToolsResult {
  *
  * **Optional tools (via config):**
  * - `askUser` — AskUser tool for clarifying questions
+ * - `patch` — Patch tool for multi-hunk / multi-file apply-patch edits
  * - `planMode` — EnterPlanMode, ExitPlanMode for interactive planning
  * - `skill` — Skill tool for skill execution
  * - `webSearch` — WebSearch tool
@@ -185,7 +186,6 @@ export async function createAgentTools(
     Read: createReadTool(sandbox, toolsConfig.Read),
     Write: createWriteTool(sandbox, toolsConfig.Write),
     Edit: createEditTool(sandbox, toolsConfig.Edit),
-    Patch: createPatchTool(sandbox, toolsConfig.Patch),
     Glob: createGlobTool(sandbox, toolsConfig.Glob),
     Grep: createGrepTool(sandbox, toolsConfig.Grep),
   };
@@ -196,6 +196,14 @@ export async function createAgentTools(
   if (config?.askUser) {
     tools.AskUser = createAskUserTool(
       config.askUser === true ? undefined : config.askUser,
+    );
+  }
+
+  // Add Patch tool if configured
+  if (config?.patch) {
+    tools.Patch = createPatchTool(
+      sandbox,
+      config.patch === true ? undefined : config.patch,
     );
   }
 

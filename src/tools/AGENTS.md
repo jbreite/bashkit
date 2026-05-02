@@ -1,15 +1,18 @@
 # Tools Module
 
-The tools module implements all 15 AI agent tools in BashKit. These tools bridge AI models with sandbox execution environments, enabling agents to perform file operations, run commands, search code, fetch web content, manage workflows, and interact with users. Each tool follows the Vercel AI SDK tool() pattern with Zod schemas for input validation and structured error handling.
+The tools module implements all 16 AI agent tools in BashKit. These tools bridge AI models with sandbox execution environments, enabling agents to perform file operations, run commands, search code, fetch web content, manage workflows, and interact with users. Each tool follows the Vercel AI SDK tool() pattern with Zod schemas for input validation and structured error handling.
+
+Most tools are a single file. **Tools with non-trivial internals live in their own folder with their own `AGENTS.md`** (e.g. `patch/`). When a single-file tool grows past ~3 files of supporting modules, promote it to a folder.
 
 ## Files
 
-| File | Purpose |
-|------|---------|
+| File / Folder | Purpose |
+|---------------|---------|
 | `bash.ts` | Execute shell commands with timeout and output limits |
 | `read.ts` | Read files and list directories with pagination, per-line truncation (2000 chars), and total output truncation (60K chars) |
 | `write.ts` | Write files with size limits and path restrictions |
 | `edit.ts` | String-based find/replace editing with uniqueness validation |
+| `patch/` | Multi-hunk / multi-file patches in OpenAI Codex `apply-patch` format. See `patch/AGENTS.md`. |
 | `glob.ts` | Pattern-based file discovery using find command |
 | `grep.ts` | Ripgrep-powered content search with context and filtering |
 | `ask-user.ts` | Deferred structured user Q&A rendered by the client |
@@ -30,6 +33,7 @@ The tools module implements all 15 AI agent tools in BashKit. These tools bridge
 - `createReadTool(sandbox, config?)` -- File/directory reading
 - `createWriteTool(sandbox, config?)` -- File writing
 - `createEditTool(sandbox, config?)` -- String replacement editing
+- `createPatchTool(sandbox, config?)` -- Multi-hunk apply-patch editing (see `patch/AGENTS.md`)
 - `createGlobTool(sandbox, config?)` -- File pattern matching
 - `createGrepTool(sandbox, config?)` -- Content search with ripgrep
 - `createAskUserTool(config?)` -- Deferred user interaction tool
@@ -64,6 +68,9 @@ Each tool exports `<Name>Output` for success and `<Name>Error` for errors:
 
 **Core Sandbox Tools** (always enabled):
 - Bash, Read, Write, Edit, Glob, Grep -- Direct sandbox operations via Sandbox interface
+
+**Editing Tools** (opt-in via config):
+- Patch -- Multi-hunk / multi-file apply-patch edits (overlaps with Edit; opt in via `patch: true`)
 
 **Interactive Tools** (opt-in via config):
 - AskUser -- Deferred structured user Q&A rendered by the client
@@ -193,6 +200,8 @@ All tool factories and types exported via `src/index.ts`:
 5. Add to `index.ts`: import factory, add to `tools` object in `createAgentTools()`
 6. Export types and factory from `index.ts`
 7. Re-export from `src/index.ts`
+
+If the tool grows beyond a single file (parser + applier + helpers), promote it to its own folder under `src/tools/your-tool/` with a barrel `index.ts` and a folder-scoped `AGENTS.md` (see `patch/` for the canonical example). Don't forget to run `bun run link-agents` after adding the AGENTS.md so CI's `check:agents` passes.
 
 ### Adding a New Web-Based Tool
 Similar to sandbox tools but:
