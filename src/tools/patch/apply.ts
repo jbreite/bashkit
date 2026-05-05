@@ -43,7 +43,7 @@ export function computeReplacements(
       );
       if (idx === null) {
         throw new PatchApplicationError(
-          `Failed to find context '${chunk.changeContext}' in ${filePath}`,
+          `Failed to find context '${chunk.changeContext}' in ${filePath} searched from line ${lineIndex + 1}. Read the file to verify current content before retrying.`,
           filePath,
         );
       }
@@ -98,7 +98,7 @@ export function computeReplacements(
       lineIndex = found + pattern.length;
     } else {
       throw new PatchApplicationError(
-        `Failed to find expected lines in ${filePath}:\n${chunk.oldLines.join("\n")}`,
+        `Failed to find expected lines in ${filePath} searched from line ${lineIndex + 1}:\n${chunk.oldLines.join("\n")}\nRead the file to verify current content before retrying.`,
         filePath,
       );
     }

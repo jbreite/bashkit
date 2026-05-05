@@ -451,7 +451,7 @@ describe("deriveNewContents", () => {
       },
     ];
     expect(() => deriveNewContents(original, chunks, "test.ts")).toThrow(
-      "Failed to find context",
+      "Failed to find context 'nonexistent' in test.ts searched from line 1. Read the file to verify current content before retrying.",
     );
   });
 
@@ -466,7 +466,7 @@ describe("deriveNewContents", () => {
       },
     ];
     expect(() => deriveNewContents(original, chunks, "test.ts")).toThrow(
-      "Failed to find expected lines",
+      "Failed to find expected lines in test.ts searched from line 1:\nnonexistent\nRead the file to verify current content before retrying.",
     );
   });
 });
