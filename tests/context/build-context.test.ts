@@ -338,6 +338,13 @@ describe("buildToolGuidance", () => {
     expect(text).not.toContain("Prefer Read/Grep/Glob");
   });
 
+  it("includes default Patch guidance when Patch is registered", () => {
+    const text = buildToolGuidance({ tools: ["Patch"] });
+    expect(text).toContain("**Patch**");
+    expect(text).toContain("multi-hunk, multi-file edits");
+    expect(text).toContain("file additions/deletions, and renames");
+  });
+
   it("includes custom guidelines", () => {
     const text = buildToolGuidance({
       tools: ["Bash"],

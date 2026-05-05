@@ -156,8 +156,18 @@ export function createMockSandbox(
       files[path] = content;
     },
 
-    deleteFile(path: string): void {
+    async deleteFile(path: string): Promise<void> {
       delete files[path];
+    },
+
+    async rename(oldPath: string, newPath: string): Promise<void> {
+      if (!(oldPath in files)) {
+        throw new Error(
+          `ENOENT: no such file or directory, rename '${oldPath}'`,
+        );
+      }
+      files[newPath] = files[oldPath];
+      delete files[oldPath];
     },
 
     getExecHistory(): ExecHistoryEntry[] {
@@ -189,7 +199,9 @@ export interface MockSandbox extends Sandbox {
   /** Set a file or directory */
   setFile(path: string, content: MockFileEntry): void;
   /** Delete a file or directory */
-  deleteFile(path: string): void;
+  deleteFile(path: string): Promise<void>;
+  /** Rename/move a file */
+  rename(oldPath: string, newPath: string): Promise<void>;
   /** Get command execution history */
   getExecHistory(): ExecHistoryEntry[];
   /** Clear command execution history */

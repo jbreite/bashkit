@@ -12,6 +12,8 @@ const DEFAULT_HINTS: Record<string, string> = {
   Read: "Read files or list directories. Use offset/limit for large files.",
   Write: "Create or overwrite files. Read first before overwriting.",
   Edit: "Replace exact strings in files. Prefer over Write for modifications.",
+  Patch:
+    "Apply multi-hunk, multi-file edits in apply-patch format. Use for bulk edits, file additions/deletions, and renames.",
   Glob: "Find files by pattern. Faster than bash find.",
   Grep: "Search file contents with regex. Faster than bash grep.",
   WebSearch: "Search the web. Use for current information.",

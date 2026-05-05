@@ -21,6 +21,7 @@ import { createEnterPlanModeTool, type PlanModeState } from "./enter-plan-mode";
 import { createExitPlanModeTool } from "./exit-plan-mode";
 import { createGlobTool } from "./glob";
 import { createGrepTool } from "./grep";
+import { createPatchTool } from "./patch";
 import { createReadTool } from "./read";
 import { createSkillTool } from "./skill";
 import { createWebFetchTool } from "./web-fetch";
@@ -143,6 +144,7 @@ export interface AgentToolsResult {
  *
  * **Optional tools (via config):**
  * - `askUser` — AskUser tool for clarifying questions
+ * - `patch` — Patch tool for multi-hunk / multi-file apply-patch edits
  * - `planMode` — EnterPlanMode, ExitPlanMode for interactive planning
  * - `skill` — Skill tool for skill execution
  * - `webSearch` — WebSearch tool
@@ -194,6 +196,14 @@ export async function createAgentTools(
   if (config?.askUser) {
     tools.AskUser = createAskUserTool(
       config.askUser === true ? undefined : config.askUser,
+    );
+  }
+
+  // Add Patch tool if configured
+  if (config?.patch) {
+    tools.Patch = createPatchTool(
+      sandbox,
+      config.patch === true ? undefined : config.patch,
     );
   }
 
@@ -364,6 +374,8 @@ export type { ExitPlanModeError, ExitPlanModeOutput } from "./exit-plan-mode";
 export { createExitPlanModeTool } from "./exit-plan-mode";
 export type { GlobError, GlobOutput } from "./glob";
 export { createGlobTool } from "./glob";
+export type { PatchError, PatchFileResult, PatchOutput } from "./patch";
+export { createPatchTool } from "./patch";
 
 export type {
   GrepContentOutput,

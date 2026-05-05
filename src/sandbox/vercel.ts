@@ -2,6 +2,7 @@ import type { Sandbox as VercelSandboxType } from "@vercel/sandbox";
 import type { ExecOptions, ExecResult, Sandbox } from "./interface";
 import { createLazySingleton } from "./lazy-singleton";
 import { ensureSandboxTools } from "./ensure-tools";
+import { shellQuote } from "./shell-quote";
 
 export interface VercelSandboxConfig {
   runtime?: "node22" | "python3.13";
@@ -177,7 +178,7 @@ export async function createVercelSandbox(
     },
 
     async readDir(path: string): Promise<string[]> {
-      const result = await exec(`ls -1 ${path}`);
+      const result = await exec(`ls -1 -- ${shellQuote(path)}`);
       if (result.exitCode !== 0) {
         throw new Error(`Failed to read directory: ${result.stderr}`);
       }
@@ -185,13 +186,29 @@ export async function createVercelSandbox(
     },
 
     async fileExists(path: string): Promise<boolean> {
-      const result = await exec(`test -e ${path}`);
+      const result = await exec(`test -e ${shellQuote(path)}`);
       return result.exitCode === 0;
     },
 
     async isDirectory(path: string): Promise<boolean> {
-      const result = await exec(`test -d ${path}`);
+      const result = await exec(`test -d ${shellQuote(path)}`);
       return result.exitCode === 0;
+    },
+
+    async deleteFile(path: string): Promise<void> {
+      const result = await exec(`rm -- ${shellQuote(path)}`);
+      if (result.exitCode !== 0) {
+        throw new Error(`Failed to delete: ${result.stderr}`);
+      }
+    },
+
+    async rename(oldPath: string, newPath: string): Promise<void> {
+      const result = await exec(
+        `mv -- ${shellQuote(oldPath)} ${shellQuote(newPath)}`,
+      );
+      if (result.exitCode !== 0) {
+        throw new Error(`Failed to rename: ${result.stderr}`);
+      }
     },
 
     async destroy(): Promise<void> {

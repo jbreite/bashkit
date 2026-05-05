@@ -111,8 +111,7 @@ const { tools, budget } = await createAgentTools(sandbox, {
             </Prop>
             <Prop name="context" type="ContextConfig">
               Context layer config. Opt-in &mdash; wraps tools with execution
-              and output policies. See the{" "}
-              <a href="/context">Context</a> page.
+              and output policies. See the <a href="/context">Context</a> page.
             </Prop>
           </div>
 
