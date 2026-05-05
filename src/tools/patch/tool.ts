@@ -44,9 +44,11 @@ Rules:
 - Delete files: \`*** Delete File: <path>\`
 - Update files: \`*** Update File: <path>\` then diff chunks
   - Context lines: space prefix (used for seeking position)
+  - Empty context lines may be blank lines with no prefix
   - Remove lines: \`-\` prefix
   - Add lines: \`+\` prefix
-  - Use \`@@\` to start a new chunk within the same file
+  - The first chunk may omit \`@@\`; subsequent chunks must start with \`@@\`
+  - Use \`@@ context text\` to narrow the search before applying that chunk
   - Use \`*** End of File\` to anchor a chunk at file end
 - Move/rename: \`*** Move to: <new-path>\` after Update header
 - Multiple files in one patch supported`,

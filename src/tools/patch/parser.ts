@@ -143,7 +143,7 @@ function parseAddFileHunk(
 
   for (const addLine of lines.slice(1)) {
     if (addLine.startsWith("+")) {
-      contents += addLine.slice(1) + "\n";
+      contents += `${addLine.slice(1)}\n`;
       parsedLines++;
     } else {
       break;
