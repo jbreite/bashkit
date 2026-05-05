@@ -111,22 +111,33 @@ export function computeReplacements(
 }
 
 /**
- * Apply replacements to lines in reverse order to avoid index shifting.
- * Faithful port of Codex apply_replacements.
+ * Apply replacements to lines without spreading large arrays into a function call.
+ * Replacements are sorted ascending by computeReplacements.
  */
 export function applyReplacements(
   lines: string[],
   replacements: Replacement[],
 ): string[] {
-  const result = [...lines];
-
-  // Apply in reverse order (descending start index)
-  for (let i = replacements.length - 1; i >= 0; i--) {
-    const [startIdx, oldLen, newLines] = replacements[i];
-    result.splice(startIdx, oldLen, ...newLines);
+  if (replacements.length === 0) {
+    return [...lines];
   }
 
-  return result;
+  const segments: string[][] = [];
+  let cursor = 0;
+
+  for (const [startIdx, oldLen, newLines] of replacements) {
+    if (startIdx > cursor) {
+      segments.push(lines.slice(cursor, startIdx));
+    }
+    segments.push(newLines);
+    cursor = startIdx + oldLen;
+  }
+
+  if (cursor < lines.length) {
+    segments.push(lines.slice(cursor));
+  }
+
+  return segments.flat();
 }
 
 /**

@@ -52,7 +52,7 @@ The applier (`deriveNewContents`) is pure — it takes original content + chunks
 
 ### Sandbox method fallbacks
 
-`Sandbox.deleteFile` and `Sandbox.rename` are optional on the interface. When a custom sandbox doesn't implement them, the tool falls back to `sandbox.exec("rm -- ...")` / `mv -- ...`, with paths quoted via `src/sandbox/shell-quote.ts`. Built-in sandboxes (Local, Vercel, E2B) always implement them, so the fallback is only relevant for third-party `Sandbox` implementers.
+`Sandbox.deleteFile` is optional on the interface. When a custom sandbox doesn't implement it, the tool falls back to `sandbox.exec("rm -- ...")`, with paths quoted via `src/sandbox/shell-quote.ts`. Move operations are implemented as write-new-content plus delete-old-file (not `rename` / `mv`) because update chunks may modify the file content during the move. Built-in sandboxes (Local, Vercel, E2B) implement `deleteFile`, so the fallback is only relevant for third-party `Sandbox` implementers.
 
 ## Common Modifications
 

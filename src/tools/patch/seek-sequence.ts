@@ -88,10 +88,11 @@ export function seekSequence(
   }
 
   // Pass 2: Trailing whitespace trimmed (trimEnd)
+  const trimEndPattern = pattern.map((line) => line.trimEnd());
   for (let i = searchStart; i <= maxIdx; i++) {
     let ok = true;
     for (let j = 0; j < pattern.length; j++) {
-      if (lines[i + j].trimEnd() !== pattern[j].trimEnd()) {
+      if (lines[i + j].trimEnd() !== trimEndPattern[j]) {
         ok = false;
         break;
       }
@@ -100,10 +101,11 @@ export function seekSequence(
   }
 
   // Pass 3: Both sides trimmed (trim)
+  const trimPattern = pattern.map((line) => line.trim());
   for (let i = searchStart; i <= maxIdx; i++) {
     let ok = true;
     for (let j = 0; j < pattern.length; j++) {
-      if (lines[i + j].trim() !== pattern[j].trim()) {
+      if (lines[i + j].trim() !== trimPattern[j]) {
         ok = false;
         break;
       }
@@ -112,10 +114,11 @@ export function seekSequence(
   }
 
   // Pass 4: Unicode normalization
+  const normalizedPattern = pattern.map(normalizeUnicode);
   for (let i = searchStart; i <= maxIdx; i++) {
     let ok = true;
     for (let j = 0; j < pattern.length; j++) {
-      if (normalizeUnicode(lines[i + j]) !== normalizeUnicode(pattern[j])) {
+      if (normalizeUnicode(lines[i + j]) !== normalizedPattern[j]) {
         ok = false;
         break;
       }

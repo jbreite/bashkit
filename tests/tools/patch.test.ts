@@ -440,6 +440,28 @@ describe("deriveNewContents", () => {
     );
   });
 
+  it("should handle update hunks that insert more than V8 argument limits", () => {
+    const insertedLines = Array.from(
+      { length: 70_000 },
+      (_, i) => `inserted-${i}`,
+    );
+    const result = deriveNewContents(
+      "before\nafter\n",
+      [
+        {
+          changeContext: null,
+          oldLines: ["before", "after"],
+          newLines: ["before", ...insertedLines, "after"],
+          isEndOfFile: false,
+        },
+      ],
+      "large.ts",
+    );
+
+    expect(result.startsWith("before\ninserted-0\n")).toBe(true);
+    expect(result).toContain("\ninserted-69999\nafter\n");
+  });
+
   it("should throw when context not found", () => {
     const original = "line1\nline2\n";
     const chunks = [
