@@ -20,6 +20,7 @@ Most tools are a single file. **Tools with non-trivial internals live in their o
 | `enter-plan-mode.ts` | Enter planning mode for explore-then-execute workflows |
 | `exit-plan-mode.ts` | Exit planning mode and submit plan for approval |
 | `skill.ts` | Activate pre-loaded skills from SKILL.md files |
+| `subagents/` | Controller-backed multi-agent control tools |
 | `task.ts` | Spawn sub-agents for autonomous multi-step tasks |
 | `todo-write.ts` | Manage structured task lists with state tracking |
 | `web-search.ts` | Search the web via Parallel API with domain filtering |
@@ -42,6 +43,7 @@ Most tools are a single file. **Tools with non-trivial internals live in their o
 - `createEnterPlanModeTool(state, onEnter?)` -- Planning mode entry
 - `createExitPlanModeTool(onPlanSubmit?)` -- Planning mode exit
 - `createSkillTool(config)` -- Skill activation
+- `createSubagentControlTools(controller, config?)` -- Create Spawn/List/Wait/Message/Interrupt subagent control tools
 - `createTaskTool(config)` -- Sub-agent spawning
 - `createTodoWriteTool(state, onUpdate?)` -- Task list management
 - `createWebSearchTool(config)` -- Web search
@@ -86,6 +88,7 @@ Each tool exports `<Name>Output` for success and `<Name>Error` for errors:
 **Workflow Tools** (require Task tool config):
 - Task -- Spawn sub-agents with custom system prompts and tool restrictions
 - TodoWrite -- Shared state management for task tracking
+- Subagent control tools -- First-class controller adapters for SpawnAgent, ListAgents, WaitAgent, SendMessage, FollowupTask, and InterruptAgent
 
 **Web Tools** (opt-in via config, require parallel-web):
 - WebSearch -- Search via Parallel API

@@ -452,6 +452,25 @@ export { createSkillTool } from "./skill";
 
 // --- Task Tool ---
 export type {
+  CompactSubagentRecord,
+  InterruptAgentOutput,
+  ListAgentsOutput,
+  MessageAgentOutput,
+  SpawnAgentOutput,
+  SubagentControlToolConfig,
+  SubagentToolError,
+  WaitAgentOutput,
+} from "./subagents";
+export {
+  createFollowupTaskTool,
+  createInterruptAgentTool,
+  createListAgentsTool,
+  createSendMessageTool,
+  createSpawnAgentTool,
+  createSubagentControlTools,
+  createWaitAgentTool,
+} from "./subagents";
+export type {
   SubagentEventData,
   SubagentStepEvent,
   SubagentTypeConfig,
