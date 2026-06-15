@@ -19,6 +19,7 @@ export { createInMemorySubagentStore } from "./store";
 export {
   createMemorySubagentEventSink,
   emitSubagentEvent,
+  subagentEventToRuntimeEvent,
 } from "./events";
 export { createMailboxMessage } from "./mailbox";
 export {

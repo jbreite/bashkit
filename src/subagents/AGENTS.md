@@ -1,6 +1,6 @@
 # Subagents Module
 
-Foundation for controller-managed subagents. This module owns identity, path resolution, profile resolution, tool filtering, lifecycle status, mailbox records, event contracts, stores, runners, controller orchestration, and guardrail policies.
+Foundation for controller-managed subagents. This module owns identity, path resolution, profile resolution, tool filtering, lifecycle status, mailbox records, subagent event contracts, stores, runners, controller orchestration, runtime event bridging, and guardrail policies.
 
 ## Files
 
@@ -15,7 +15,7 @@ Foundation for controller-managed subagents. This module owns identity, path res
 | `tool-filter.ts` | Tool allowlist/denylist filtering |
 | `registry.ts` | In-memory identity and path registry factory |
 | `store.ts` | Store factory for in-memory metadata, events, and mailbox records |
-| `events.ts` | Event sink factory and helpers |
+| `events.ts` | Subagent event sink factory, helpers, and runtime event bridge |
 | `mailbox.ts` | Mailbox helpers |
 | `runner.ts` | Runner capability helpers and fake test runner utilities |
 | `execution-limits.ts` | Active/total/depth/mailbox/wait limit policy |
@@ -25,7 +25,7 @@ Foundation for controller-managed subagents. This module owns identity, path res
 
 ## Architecture
 
-`createSubagentController` owns orchestration through closure state. It resolves profiles, reserves identity, checks guardrails, writes store records, emits events, invokes lifecycle hooks, and delegates actual child execution to a `SubagentRunner`.
+`createSubagentController` owns orchestration through closure state. It resolves profiles, reserves identity, checks guardrails, writes store records, emits subagent events, optionally emits normalized runtime events, invokes lifecycle hooks, and delegates actual child execution to a `SubagentRunner`.
 
 The default foundation does not put subagent methods on `Sandbox`. Child agents use sandbox-backed tools through their runner/tool surface.
 

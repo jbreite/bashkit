@@ -3,6 +3,7 @@ import type { CacheStore } from "./cache/types";
 import type { ContextLayer } from "./context/index";
 import type { ExecutionPolicyConfig } from "./context/execution-policy";
 import type { OutputPolicyConfig } from "./context/output-policy";
+import type { PlanState, PlanUpdateContext, RuntimeEventSink } from "./runtime";
 import type { SkillMetadata } from "./skills/types";
 import type { CodemodeConfig } from "./tools/codemode";
 import type { ModelPricing } from "./utils/budget-tracking";
@@ -73,6 +74,15 @@ export type SkillConfig = {
     instructions: string,
   ) => void | Promise<void>;
 };
+
+export interface RuntimeConfig {
+  /** Receives normalized runtime events for host UIs, logs, persistence, or streaming. */
+  eventSink?: RuntimeEventSink;
+  /** Initial canonical UpdatePlan state. */
+  initialPlan?: Partial<PlanState>;
+  /** Default event identity for main-agent plan updates. */
+  planContext?: PlanUpdateContext;
+}
 
 /**
  * Cache configuration for tool result caching.
@@ -208,6 +218,8 @@ export type AgentConfig = {
   webFetch?: WebFetchConfig;
   /** Include a Cloudflare Codemode tool that can orchestrate selected tools */
   codemode?: CodemodeConfig;
+  /** Host-facing runtime state and event stream configuration. */
+  runtime?: RuntimeConfig;
   /** Enable tool result caching */
   cache?: CacheConfig;
   /** Fetch model info (pricing + context lengths) from a provider.

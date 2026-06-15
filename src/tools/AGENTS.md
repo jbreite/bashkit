@@ -1,6 +1,6 @@
 # Tools Module
 
-The tools module implements all 16 AI agent tools in BashKit. These tools bridge AI models with sandbox execution environments, enabling agents to perform file operations, run commands, search code, fetch web content, manage workflows, and interact with users. Each tool follows the Vercel AI SDK tool() pattern with Zod schemas for input validation and structured error handling.
+The tools module implements AI agent tools in BashKit. These tools bridge AI models with sandbox execution environments, enabling agents to perform file operations, run commands, search code, fetch web content, manage workflows, update progress, and interact with users. Each tool follows the Vercel AI SDK tool() pattern with Zod schemas for input validation and structured error handling.
 
 Most tools are a single file. **Tools with non-trivial internals live in their own folder with their own `AGENTS.md`** (e.g. `patch/`). When a single-file tool grows past ~3 files of supporting modules, promote it to a folder.
 
@@ -21,8 +21,9 @@ Most tools are a single file. **Tools with non-trivial internals live in their o
 | `exit-plan-mode.ts` | Exit planning mode and submit plan for approval |
 | `skill.ts` | Activate pre-loaded skills from SKILL.md files |
 | `subagents/` | Controller-backed multi-agent control tools |
+| `update-plan.ts` | Codex-style canonical checklist/progress tool backed by runtime `PlanState` |
 | `task.ts` | Spawn sub-agents for autonomous multi-step tasks |
-| `todo-write.ts` | Manage structured task lists with state tracking |
+| `todo-write.ts` | Legacy task-list compatibility tool |
 | `web-search.ts` | Search the web via Parallel API with domain filtering |
 | `web-fetch.ts` | Fetch and process web content with AI model |
 | `index.ts` | Tool factory orchestration and caching layer |
@@ -44,8 +45,9 @@ Most tools are a single file. **Tools with non-trivial internals live in their o
 - `createExitPlanModeTool(onPlanSubmit?)` -- Planning mode exit
 - `createSkillTool(config)` -- Skill activation
 - `createSubagentControlTools(controller, config?)` -- Create Spawn/List/Wait/Message/Interrupt subagent control tools
+- `createUpdatePlanTool(state, config?)` -- Codex-style checklist/progress updates backed by runtime `PlanState`
 - `createTaskTool(config)` -- Sub-agent spawning
-- `createTodoWriteTool(state, onUpdate?)` -- Task list management
+- `createTodoWriteTool(state, onUpdate?)` -- Legacy task list management
 - `createWebSearchTool(config)` -- Web search
 - `createWebFetchTool(config)` -- Web content fetching
 
@@ -85,9 +87,12 @@ Each tool exports `<Name>Output` for success and `<Name>Error` for errors:
 **Code Orchestration** (opt-in via config):
 - codemode -- A Cloudflare Codemode tool that lets the model write code to orchestrate a filtered set of BashKit tools, codemode-only extra tools, and optional named providers. Client-intervention tools (`AskUser`, `EnterPlanMode`, `ExitPlanMode`), tools without `execute`, and tools with `needsApproval` are excluded from every inner tool set. Thrown codemode execution failures are converted to `{ error }` tool results like other BashKit tools.
 
-**Workflow Tools** (require Task tool config):
+**Progress Tools** (default):
+- UpdatePlan -- Canonical Codex-style checklist/progress tool. Updates runtime `PlanState` and emits `plan.updated` events when a runtime event sink is configured.
+
+**Workflow Tools** (require Task tool config or explicit factory use):
 - Task -- Spawn sub-agents with custom system prompts and tool restrictions
-- TodoWrite -- Shared state management for task tracking
+- TodoWrite -- Legacy shared state management for task tracking
 - Subagent control tools -- First-class controller adapters for SpawnAgent, ListAgents, WaitAgent, SendMessage, FollowupTask, and InterruptAgent
 
 **Web Tools** (opt-in via config, require parallel-web):
@@ -96,7 +101,7 @@ Each tool exports `<Name>Output` for success and `<Name>Error` for errors:
 
 ### Data Flow
 
-1. **Tool Creation**: `createAgentTools()` → individual `create*Tool()` factories → `tool()` from AI SDK
+1. **Tool Creation**: `createAgentTools()` → individual `create*Tool()` factories → `tool()` from AI SDK. `UpdatePlan` is included by default with a canonical runtime `PlanState`.
 2. **Execution**: AI model calls tool → `execute()` function or deferred client round-trip → sandbox operation or external API → return Output or Error
 3. **Caching** (optional): `resolveCache()` wraps cacheable tools with `cached()` from cache module
 4. **Model Registry** (optional): `createAgentTools()` fetches model info (pricing + context lengths) from a provider (e.g., OpenRouter). Data is shared with budget tracking and returned as `openRouterModels` in the result.
@@ -113,6 +118,7 @@ Each tool exports `<Name>Output` for success and `<Name>Error` for errors:
 - `../sandbox/interface.ts` -- Sandbox abstraction for Bash/Read/Write/Edit/Glob/Grep
 - `../types.ts` -- Config types and DEFAULT_CONFIG
 - `../cache/` -- Caching layer for Read, Glob, Grep, WebFetch, WebSearch
+- `../runtime/` -- Runtime event sink and canonical plan state for UpdatePlan
 - `../utils/debug.ts` -- Debug logging for all tools
 - `../utils/budget-tracking.ts` -- Budget tracker creation and OpenRouter model/pricing fetch (used by index.ts and task.ts)
 - `../skills/types.ts` -- Skill metadata for Skill tool
@@ -251,6 +257,7 @@ Located at `/tests/tools/`:
 - `edit.test.ts` -- String replacement, uniqueness validation, replace_all
 - `glob.test.ts` -- Pattern matching, path filtering
 - `grep.test.ts` -- Content search, output modes, context lines, pagination
+- `update-plan.test.ts` -- Canonical plan updates and runtime event emission
 - `todo-write.test.ts` -- Task state management
 - `web-search.test.ts` -- Parallel API search (requires PARALLEL_API_KEY)
 - `web-fetch.test.ts` -- Web content extraction (requires PARALLEL_API_KEY)

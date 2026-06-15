@@ -25,6 +25,8 @@ import { createGrepTool } from "./grep";
 import { createPatchTool } from "./patch";
 import { createReadTool } from "./read";
 import { createSkillTool } from "./skill";
+import { createPlanState, type PlanState } from "../runtime";
+import { createUpdatePlanTool } from "./update-plan";
 import { createWebFetchTool } from "./web-fetch";
 import { createWebSearchTool } from "./web-search";
 import { createWriteTool } from "./write";
@@ -129,6 +131,8 @@ export interface AgentToolsResult {
   tools: ToolSet;
   /** Shared plan mode state (only present when planMode is enabled) */
   planModeState?: PlanModeState;
+  /** Canonical Codex-style task plan state, updated by the default UpdatePlan tool. */
+  planState: PlanState;
   /** Budget tracker (only present when budget config is set) */
   budget?: BudgetTracker;
   /** Model info from OpenRouter (only present when modelRegistry or budget pricingProvider is configured) */
@@ -181,6 +185,11 @@ export async function createAgentTools(
     ...config?.tools,
   };
 
+  const planModeState: PlanModeState | undefined = config?.planMode
+    ? { isActive: false }
+    : undefined;
+  const planState = createPlanState(config?.runtime?.initialPlan);
+
   const tools: ToolSet = {
     // Core sandbox tools (always included)
     Bash: createBashTool(sandbox, toolsConfig.Bash),
@@ -189,9 +198,12 @@ export async function createAgentTools(
     Edit: createEditTool(sandbox, toolsConfig.Edit),
     Glob: createGlobTool(sandbox, toolsConfig.Glob),
     Grep: createGrepTool(sandbox, toolsConfig.Grep),
+    UpdatePlan: createUpdatePlanTool(planState, {
+      eventSink: config?.runtime?.eventSink,
+      context: config?.runtime?.planContext,
+      planModeState,
+    }),
   };
-
-  let planModeState: PlanModeState | undefined;
 
   // Add AskUser tool if configured
   if (config?.askUser) {
@@ -209,8 +221,7 @@ export async function createAgentTools(
   }
 
   // Add plan mode tools if configured
-  if (config?.planMode) {
-    planModeState = { isActive: false };
+  if (planModeState) {
     tools.EnterPlanMode = createEnterPlanModeTool(planModeState);
     tools.ExitPlanMode = createExitPlanModeTool();
   }
@@ -383,7 +394,14 @@ export async function createAgentTools(
     });
   }
 
-  return { tools, planModeState, budget, openRouterModels, contextLayers };
+  return {
+    tools,
+    planModeState,
+    planState,
+    budget,
+    openRouterModels,
+    contextLayers,
+  };
 }
 
 // --- Ask User Tool ---
@@ -479,6 +497,13 @@ export type {
   TaskToolConfig,
 } from "./task";
 export { createTaskTool } from "./task";
+// --- UpdatePlan Tool ---
+export type {
+  UpdatePlanError,
+  UpdatePlanOutput,
+  UpdatePlanToolConfig,
+} from "./update-plan";
+export { createUpdatePlanTool } from "./update-plan";
 // State/workflow tool types
 export type {
   TodoItem,

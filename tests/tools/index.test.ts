@@ -37,6 +37,7 @@ describe("createAgentTools", () => {
       expect(tools.Edit).toBeDefined();
       expect(tools.Glob).toBeDefined();
       expect(tools.Grep).toBeDefined();
+      expect(tools.UpdatePlan).toBeDefined();
     });
 
     it("should not include optional tools by default", async () => {
@@ -56,6 +57,7 @@ describe("createAgentTools", () => {
       const result = await createAgentTools(sandbox);
 
       expect(result.planModeState).toBeUndefined();
+      expect(result.planState).toBeDefined();
     });
   });
 

@@ -1,5 +1,6 @@
 import { checkSubagentCostPolicy } from "./cost-control";
 import { clampSubagentWaitTimeout } from "./execution-limits";
+import { subagentEventToRuntimeEvent } from "./events";
 import { createMailboxMessage } from "./mailbox";
 import { createSubagentProfileRegistry } from "./profiles";
 import { createSubagentRegistry } from "./registry";
@@ -25,6 +26,7 @@ import type {
   SubagentSpawnRequest,
   SubagentSpawnResult,
   SubagentStatus,
+  SubagentUsage,
   SubagentWaitRequest,
   SubagentWaitResult,
 } from "./types";
@@ -50,6 +52,16 @@ function eventFromMetadata(
   };
 }
 
+function usagePayload(usage: SubagentUsage): SubagentEvent["payload"] {
+  return {
+    totalCostUsd: usage.totalCostUsd ?? null,
+    stepsCompleted: usage.stepsCompleted ?? null,
+    unpricedSteps: usage.unpricedSteps ?? null,
+    inputTokens: usage.inputTokens ?? null,
+    outputTokens: usage.outputTokens ?? null,
+  };
+}
+
 export function createSubagentController(
   config: SubagentControllerConfig,
 ): SubagentController {
@@ -63,12 +75,15 @@ export function createSubagentController(
   const runner = config.runner;
   const tools = config.tools ?? {};
   const eventSink = config.eventSink;
+  const runtimeEventSink = config.runtimeEventSink;
   const lifecycle = config.lifecycle;
   const budget = config.budget;
 
   async function emit(event: SubagentEvent): Promise<void> {
     await store.appendEvent(event);
     await eventSink?.emit(event);
+    const runtimeEvent = subagentEventToRuntimeEvent(event);
+    if (runtimeEvent) await runtimeEventSink?.emit(runtimeEvent);
   }
 
   async function setStatus(
@@ -146,6 +161,16 @@ export function createSubagentController(
           },
           onUsage: async (usage) => {
             await store.update(handle, { usage });
+            const metadata = registry.get(handle);
+            if (metadata) {
+              await emit(
+                eventFromMetadata(
+                  metadata,
+                  "subagent.usage",
+                  usagePayload(usage),
+                ),
+              );
+            }
           },
         },
       });
@@ -200,6 +225,7 @@ export function createSubagentController(
       eventFromMetadata(record.metadata, "subagent.message_queued", {
         message_id: mailboxMessage.id,
         kind,
+        message,
       }),
     );
     return {

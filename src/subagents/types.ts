@@ -1,4 +1,5 @@
 import type { LanguageModel, ModelMessage, ToolSet } from "ai";
+import type { RuntimeEventSink } from "../runtime";
 import type { BudgetStatus, BudgetTracker } from "../utils/budget-tracking";
 
 export type JsonPrimitive = string | number | boolean | null;
@@ -363,6 +364,7 @@ export interface SubagentControllerConfig {
   runner: SubagentRunner;
   tools?: ToolSet;
   eventSink?: SubagentEventSink;
+  runtimeEventSink?: RuntimeEventSink;
   lifecycle?: SubagentLifecycleHooks;
   budget?: BudgetTracker;
   cost?: SubagentCostPolicyInput;
