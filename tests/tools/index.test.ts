@@ -1,5 +1,9 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { createAgentTools, type AgentToolsResult } from "@/tools/index";
+import {
+  createAgentTools,
+  type AgentToolsResult,
+  type CodemodeExecutor,
+} from "@/tools/index";
 import type { WebFetchConfig } from "@/types";
 import type { CachedTool } from "@/cache/cached";
 import {
@@ -16,6 +20,12 @@ describe("createAgentTools", () => {
       rgPath: "/usr/bin/rg",
     });
   });
+
+  function createExecutor(): CodemodeExecutor {
+    return {
+      execute: async () => ({ result: null }),
+    };
+  }
 
   describe("default tools", () => {
     it("should create core sandbox tools by default", async () => {
@@ -39,6 +49,7 @@ describe("createAgentTools", () => {
       expect(tools.ExitPlanMode).toBeUndefined();
       expect(tools.Skill).toBeUndefined();
       expect(tools.Patch).toBeUndefined();
+      expect(tools.codemode).toBeUndefined();
     });
 
     it("should not return planModeState by default", async () => {
@@ -163,6 +174,32 @@ describe("createAgentTools", () => {
       const { tools } = await createAgentTools(sandbox);
 
       expect(tools.Skill).toBeUndefined();
+    });
+  });
+
+  describe("codemode tool", () => {
+    it("should include codemode when configured", async () => {
+      const { tools } = await createAgentTools(sandbox, {
+        codemode: {
+          executor: createExecutor(),
+          createCodeTool: async ({ tools: innerTools }) => {
+            if (Array.isArray(innerTools)) {
+              const readTool = innerTools[0]?.tools.Read;
+              if (!readTool) throw new Error("expected Read tool");
+              return readTool;
+            }
+            return innerTools.Read;
+          },
+        },
+      });
+
+      expect(tools.codemode).toBeDefined();
+    });
+
+    it("should not include codemode without config", async () => {
+      const { tools } = await createAgentTools(sandbox);
+
+      expect(tools.codemode).toBeUndefined();
     });
   });
 

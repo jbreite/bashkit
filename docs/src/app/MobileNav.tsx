@@ -10,6 +10,7 @@ const links = [
   { href: "/", label: "Overview" },
   { href: "/getting-started", label: "Getting Started" },
   { href: "/tools", label: "Tools" },
+  { href: "/codemode", label: "Codemode" },
   { href: "/sandboxes", label: "Sandboxes" },
   { href: "/context", label: "Context" },
   { href: "/api-reference", label: "API Reference" },

@@ -136,6 +136,7 @@ await sandbox.destroy();
 | `AskUser` | Ask user clarifying questions | `askUser: true` |
 | `EnterPlanMode` | Enter planning/exploration mode | `planMode: true` |
 | `ExitPlanMode` | Exit planning mode with a plan | `planMode: true` |
+| `codemode` | Write code to orchestrate selected tools via Cloudflare Codemode | `codemode: { executor }` |
 | `Skill` | Execute skills | `skill: { skills }` |
 | `WebSearch` | Search the web | `webSearch: { apiKey }` |
 | `WebFetch` | Fetch URL and process with AI | `webFetch: { apiKey, model }` |
@@ -233,6 +234,10 @@ const { tools, planModeState } = createAgentTools(sandbox, {
     apiKey: process.env.PARALLEL_API_KEY,
     model: anthropic('claude-haiku-4'),
   },
+  codemode: {
+    executor: new DynamicWorkerExecutor({ loader: env.LOADER }),
+    includeTools: ['Read', 'Glob', 'Grep'], // Opt into write tools explicitly
+  },
 
   // Tool-specific config
   tools: {
@@ -250,6 +255,49 @@ const { tools, planModeState } = createAgentTools(sandbox, {
   },
 });
 ```
+
+### Codemode
+
+BashKit can expose a Cloudflare Codemode tool so the model writes code that orchestrates BashKit tools instead of making many individual tool calls. Install `@cloudflare/codemode`, provide an executor, and enable `codemode`:
+
+Cloudflare Codemode currently targets AI SDK v6. BashKit's codemode adapter follows that path; AI SDK v5 support is intentionally not a compatibility goal for codemode.
+
+```typescript
+import { DynamicWorkerExecutor } from '@cloudflare/codemode';
+import { createAgentTools, createPrepareStep } from 'bashkit';
+import { streamText } from 'ai';
+
+const { tools, planModeState } = await createAgentTools(sandbox, {
+  planMode: true,
+  context: { executionPolicy: {} },
+  codemode: {
+    executor: new DynamicWorkerExecutor({ loader: env.LOADER }),
+    includeTools: ['Read', 'Glob', 'Grep', 'Bash'],
+    tools: {
+      // Extra AI SDK tools exposed inside the default bashkit.* namespace
+    },
+    providers: [
+      {
+        name: 'repo',
+        tools: {
+          // Extra tools exposed as repo.*
+        },
+      },
+    ],
+  },
+});
+
+await streamText({
+  model,
+  tools,
+  messages,
+  prepareStep: createPrepareStep({ planModeState }),
+});
+```
+
+By default, generated code calls BashKit tools through BashKit's `bashkit.*` namespace, for example `await bashkit.Grep(...)`. Use `providers` when you want additional named tool groups such as `repo.SummarizeFile(...)`.
+
+Client-intervention tools are excluded from codemode automatically: `AskUser`, `EnterPlanMode`, `ExitPlanMode`, tools without `execute`, and tools with `needsApproval`. Top-level `includeTools` narrows the default `bashkit.*` namespace. Named providers can define their own `includeTools` or `excludeTools`.
 
 ### Configuration Options
 
@@ -1003,6 +1051,7 @@ Creates a set of agent tools bound to a sandbox instance.
 ### Optional Tools (also available via config)
 
 - `createAskUserTool(config?)` - Emit a deferred AskUser tool call for the client
+- `createCodemodeTool(tools, config)` - Create a Cloudflare Codemode tool from a filtered tool set
 - `createEnterPlanModeTool(state)` - Enter planning/exploration mode
 - `createExitPlanModeTool(state, onPlanSubmit?)` - Exit planning mode with a plan
 - `createSkillTool(skills)` - Execute loaded skills

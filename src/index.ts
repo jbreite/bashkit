@@ -47,6 +47,15 @@ export type {
   // Sandbox tools
   BashError,
   BashOutput,
+  CodemodeConfig,
+  CodemodeConnectorBinding,
+  CodemodeExecuteOptions,
+  CodemodeExecuteResult,
+  CodemodeExecutor,
+  CodemodeResolvedProvider,
+  CodemodeToolProvider,
+  CodemodeToolExclusionReason,
+  CreateCodeTool,
   EditError,
   EditOutput,
   // Plan mode tools
@@ -100,6 +109,7 @@ export {
   createAgentTools,
   createAskUserTool,
   createBashTool,
+  createCodemodeTool,
   createEditTool,
   createEnterPlanModeTool,
   createExitPlanModeTool,
@@ -113,6 +123,7 @@ export {
   createWebFetchTool,
   createWebSearchTool,
   createWriteTool,
+  selectCodemodeTools,
 } from "./tools";
 // Configuration types
 export type {

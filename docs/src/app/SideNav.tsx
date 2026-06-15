@@ -54,6 +54,17 @@ const links: {
     ],
   },
   {
+    href: "/codemode",
+    label: "Codemode",
+    items: [
+      { id: "overview", text: "Overview" },
+      { id: "setup", text: "Setup" },
+      { id: "batched-workflows", text: "Batched Workflows" },
+      { id: "tool-selection", text: "Tool Selection" },
+      { id: "policy", text: "Policy" },
+    ],
+  },
+  {
     href: "/sandboxes",
     label: "Sandboxes",
     items: [

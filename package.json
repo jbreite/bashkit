@@ -1,6 +1,6 @@
 {
   "name": "bashkit",
-  "version": "0.7.1",
+  "version": "0.7.2",
   "description": "Agentic coding tools for the Vercel AI SDK",
   "type": "module",
   "main": "./dist/index.js",
@@ -22,7 +22,7 @@
   "scripts": {
     "dev": "bun run src/index.ts",
     "build": "bun run build:js && bun run build:cli && bun run build:types",
-    "build:js": "bun build src/index.ts --outdir dist --target node --format esm --external ai --external zod --external @ai-sdk/* --external @vercel/sandbox --external @e2b/code-interpreter --external parallel-web --external @vscode/ripgrep",
+    "build:js": "bun build src/index.ts --outdir dist --target node --format esm --external ai --external zod --external @ai-sdk/* --external @vercel/sandbox --external @e2b/code-interpreter --external parallel-web --external @cloudflare/codemode --external @vscode/ripgrep",
     "build:cli": "bun build src/cli/init.ts --outdir dist/cli --target node --format esm --external @clack/prompts && chmod +x dist/cli/init.js",
     "build:types": "tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit",
@@ -77,7 +77,8 @@
     "zod": "^4.1.8",
     "@vercel/sandbox": "^1.0.0",
     "@e2b/code-interpreter": "^1.0.0",
-    "parallel-web": "^0.2.4"
+    "parallel-web": "^0.2.4",
+    "@cloudflare/codemode": "^0.4.0"
   },
   "peerDependenciesMeta": {
     "@vercel/sandbox": {
@@ -87,6 +88,9 @@
       "optional": true
     },
     "parallel-web": {
+      "optional": true
+    },
+    "@cloudflare/codemode": {
       "optional": true
     }
   }

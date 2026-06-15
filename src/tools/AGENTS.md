@@ -16,6 +16,7 @@ Most tools are a single file. **Tools with non-trivial internals live in their o
 | `glob.ts` | Pattern-based file discovery using find command |
 | `grep.ts` | Ripgrep-powered content search with context and filtering |
 | `ask-user.ts` | Deferred structured user Q&A rendered by the client |
+| `codemode.ts` | Cloudflare Codemode adapter and safe tool-selection helper |
 | `enter-plan-mode.ts` | Enter planning mode for explore-then-execute workflows |
 | `exit-plan-mode.ts` | Exit planning mode and submit plan for approval |
 | `skill.ts` | Activate pre-loaded skills from SKILL.md files |
@@ -37,6 +38,7 @@ Most tools are a single file. **Tools with non-trivial internals live in their o
 - `createGlobTool(sandbox, config?)` -- File pattern matching
 - `createGrepTool(sandbox, config?)` -- Content search with ripgrep
 - `createAskUserTool(config?)` -- Deferred user interaction tool
+- `createCodemodeTool(tools, config)` -- Create a Cloudflare Codemode tool from a filtered AI SDK tool set
 - `createEnterPlanModeTool(state, onEnter?)` -- Planning mode entry
 - `createExitPlanModeTool(onPlanSubmit?)` -- Planning mode exit
 - `createSkillTool(config)` -- Skill activation
@@ -58,6 +60,7 @@ Each tool exports `<Name>Output` for success and `<Name>Error` for errors:
 - `AskUserConfig` -- AskUser AI SDK tool options
 - `SkillConfig` -- Skill metadata and sandbox
 - `TaskToolConfig` -- Sub-agent configuration (includes optional `budget` for auto-wiring cost tracking)
+- `CodemodeConfig` -- Optional Cloudflare Codemode adapter config (executor, tool filters, extra tools). Executor typing follows Cloudflare Codemode / AI SDK v6.
 - `ModelRegistryConfig` -- Model registry config (provider, apiKey) for fetching model info
 - `BudgetConfig` -- Budget tracking config (maxUsd, modelPricing; pricing provider via top-level `modelRegistry`)
 - `WebSearchConfig` / `WebFetchConfig` -- Web tool API keys and providers
@@ -76,6 +79,9 @@ Each tool exports `<Name>Output` for success and `<Name>Error` for errors:
 - AskUser -- Deferred structured user Q&A rendered by the client
 - EnterPlanMode, ExitPlanMode -- Plan-then-execute workflow
 - Skill -- Load specialized instructions from SKILL.md files
+
+**Code Orchestration** (opt-in via config):
+- codemode -- A Cloudflare Codemode tool that lets the model write code to orchestrate a filtered set of BashKit tools, codemode-only extra tools, and optional named providers. Client-intervention tools (`AskUser`, `EnterPlanMode`, `ExitPlanMode`), tools without `execute`, and tools with `needsApproval` are excluded from every inner tool set. Thrown codemode execution failures are converted to `{ error }` tool results like other BashKit tools.
 
 **Workflow Tools** (require Task tool config):
 - Task -- Spawn sub-agents with custom system prompts and tool restrictions
@@ -110,6 +116,7 @@ Each tool exports `<Name>Output` for success and `<Name>Error` for errors:
 - `ai` -- tool(), zodSchema(), generateText(), streamText() from Vercel AI SDK
 - `zod` -- Schema validation for all tool inputs
 - `parallel-web` -- Dynamic import for WebSearch and WebFetch (peer dependency)
+- `@cloudflare/codemode` -- Dynamic import for Codemode when `codemode` config is enabled (optional peer dependency)
 
 ## Design Patterns
 
