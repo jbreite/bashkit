@@ -18,6 +18,10 @@ const DEFAULT_HINTS: Record<string, string> = {
   Grep: "Search file contents with regex. Faster than bash grep.",
   WebSearch: "Search the web. Use for current information.",
   WebFetch: "Fetch and analyze a URL.",
+  codemode:
+    "Run generated JavaScript once to batch and orchestrate selected BashKit/provider tools.",
+  Codemode:
+    "Run generated JavaScript once to batch and orchestrate selected BashKit/provider tools.",
   Task: "Spawn sub-agents for complex parallel work.",
   TodoWrite: "Track multi-step task progress.",
 };

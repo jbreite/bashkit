@@ -16,6 +16,7 @@ import {
 } from "../utils/budget-tracking";
 import { createAskUserTool } from "./ask-user";
 import { createBashTool } from "./bash";
+import { createCodemodeTool } from "./codemode";
 import { createEditTool } from "./edit";
 import { createEnterPlanModeTool, type PlanModeState } from "./enter-plan-mode";
 import { createExitPlanModeTool } from "./exit-plan-mode";
@@ -292,6 +293,45 @@ export async function createAgentTools(
     }
   }
 
+  // Add Cloudflare Codemode tool after cache/context wrapping so generated code
+  // orchestrates the same policy-wrapped tools a model would call directly.
+  if (config?.codemode) {
+    const codemodeOnlyTools =
+      config.codemode.tools && contextLayers.length > 0
+        ? applyContextLayers(config.codemode.tools, contextLayers)
+        : (config.codemode.tools ?? {});
+    const codemodeProviders = config.codemode.providers?.map((provider) => ({
+      ...provider,
+      tools:
+        contextLayers.length > 0
+          ? applyContextLayers(provider.tools, contextLayers)
+          : provider.tools,
+    }));
+    const codemodeConfig = {
+      ...config.codemode,
+      tools: codemodeOnlyTools,
+      providers: codemodeProviders,
+    };
+
+    const { name, tool: rawCodemodeTool } = await createCodemodeTool(
+      tools,
+      codemodeConfig,
+    );
+
+    if (tools[name]) {
+      throw new Error(
+        `[bashkit] Codemode tool name "${name}" conflicts with an existing tool.`,
+      );
+    }
+
+    const codemodeTool =
+      contextLayers.length > 0
+        ? applyContextLayers({ [name]: rawCodemodeTool }, contextLayers)[name]
+        : rawCodemodeTool;
+
+    tools[name] = codemodeTool;
+  }
+
   // Fetch model info from provider (hoisted before budget so both can share the data)
   let openRouterModels: Map<string, ModelInfo> | undefined;
 
@@ -361,6 +401,18 @@ export { createAskUserTool } from "./ask-user";
 export type { BashError, BashOutput } from "./bash";
 // Sandbox-based tool factories (for custom configurations)
 export { createBashTool } from "./bash";
+export type {
+  CodemodeConfig,
+  CodemodeConnectorBinding,
+  CodemodeExecuteOptions,
+  CodemodeExecuteResult,
+  CodemodeExecutor,
+  CodemodeResolvedProvider,
+  CodemodeToolProvider,
+  CodemodeToolExclusionReason,
+  CreateCodeTool,
+} from "./codemode";
+export { createCodemodeTool, selectCodemodeTools } from "./codemode";
 export type { EditError, EditOutput } from "./edit";
 export { createEditTool } from "./edit";
 // --- Plan Mode Tools ---

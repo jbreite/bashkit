@@ -4,6 +4,7 @@ import type { ContextLayer } from "./context/index";
 import type { ExecutionPolicyConfig } from "./context/execution-policy";
 import type { OutputPolicyConfig } from "./context/output-policy";
 import type { SkillMetadata } from "./skills/types";
+import type { CodemodeConfig } from "./tools/codemode";
 import type { ModelPricing } from "./utils/budget-tracking";
 
 /**
@@ -205,6 +206,8 @@ export type AgentConfig = {
   webSearch?: WebSearchConfig;
   /** Include WebFetch tool with this config */
   webFetch?: WebFetchConfig;
+  /** Include a Cloudflare Codemode tool that can orchestrate selected tools */
+  codemode?: CodemodeConfig;
   /** Enable tool result caching */
   cache?: CacheConfig;
   /** Fetch model info (pricing + context lengths) from a provider.

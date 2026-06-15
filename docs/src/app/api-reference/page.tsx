@@ -98,6 +98,13 @@ const { tools, budget } = await createAgentTools(sandbox, {
               Web search configuration. Presence enables WebSearch and WebFetch
               tools.
             </Prop>
+            <Prop name="codemode" type="CodemodeConfig">
+              Cloudflare Codemode adapter. Adds a single <code>codemode</code>{" "}
+              tool that can orchestrate selected executable tools. Excludes
+              client-intervention tools and tools with{" "}
+              <code>needsApproval</code>. Supports extra default-namespace tools
+              and named providers.
+            </Prop>
             <Prop name="cache" type="boolean | CacheConfig">
               Enable tool result caching. Pass <code>true</code> for defaults or
               an object for fine-grained control.

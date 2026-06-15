@@ -345,6 +345,13 @@ describe("buildToolGuidance", () => {
     expect(text).toContain("file additions/deletions, and renames");
   });
 
+  it("includes default codemode guidance when codemode is registered", () => {
+    const text = buildToolGuidance({ tools: ["codemode"] });
+    expect(text).toContain("**codemode**");
+    expect(text).toContain("generated JavaScript");
+    expect(text).toContain("BashKit/provider tools");
+  });
+
   it("includes custom guidelines", () => {
     const text = buildToolGuidance({
       tools: ["Bash"],
