@@ -140,6 +140,77 @@ Do not copy Codex's Rust thread manager, TUI implementation, cloud task APIs, or
 
 ---
 
+## Codex Reference File Map
+
+When implementing this plan, use these paths relative to a local Codex checkout. The file map is intentionally explicit because the BashKit implementation should borrow Codex's shape, not rediscover it from scratch.
+
+### Read First
+
+| Codex file | Reference purpose | BashKit design area |
+| --- | --- | --- |
+| `codex-rs/core/src/agent/control.rs` | Main control-plane contract for listing agents, sending input, interrupting, and waiting for completion | `SubagentController` public API and ownership boundaries |
+| `codex-rs/core/src/agent/registry.rs` | Agent identity, path/name registration, reservations, and max-thread constraints | `SubagentRegistry`, path resolution, duplicate-name behavior |
+| `codex-rs/core/src/agent/role.rs` | Role resolution, built-in roles, locked settings, model/tool visibility, and role metadata | `SubagentProfileRegistry` and generated profile descriptions |
+| `codex-rs/core/src/tools/handlers/multi_agents_spec.rs` | Model-facing tool schemas and descriptions for multi-agent controls | BashKit control tool schemas and model-facing wording |
+| `codex-rs/core/src/tools/handlers/multi_agents_v2.rs` | Tool registration and dispatch split for the newer multi-agent API | `src/tools/subagents/index.ts` and adapter boundaries |
+
+### Control Plane Internals
+
+| Codex file | Reference purpose | BashKit design area |
+| --- | --- | --- |
+| `codex-rs/core/src/agent/control/spawn.rs` | Spawn orchestration, role resolution, context forking, and child setup | `SubagentController.spawn` and `SubagentRunner` setup |
+| `codex-rs/core/src/agent/control/execution.rs` | Active execution accounting and concurrency limiting | `SubagentExecutionPolicy` and pre-spawn rejection |
+| `codex-rs/core/src/agent/control/residency.rs` | Residency and lifecycle tracking for active agents | Store boundary and active-vs-terminal metadata |
+| `codex-rs/core/src/agent/status.rs` | Agent status representation and status updates | `SubagentStatus`, terminal states, control panel projection |
+| `codex-rs/core/src/agent/agent_resolver.rs` | Resolving agent references from names and paths | `SubagentPath` parsing and relative lookup |
+| `codex-rs/core/src/agent/agent_names.txt` | Human-readable generated agent names | Optional nickname generation and display metadata |
+
+### Tool Adapter Split
+
+| Codex file | Reference purpose | BashKit design area |
+| --- | --- | --- |
+| `codex-rs/core/src/tools/handlers/multi_agents_v2/spawn.rs` | Thin spawn tool adapter over the control plane | `SpawnAgent` adapter |
+| `codex-rs/core/src/tools/handlers/multi_agents_v2/list_agents.rs` | Compact list output and status display | `ListAgents` output and control panel summaries |
+| `codex-rs/core/src/tools/handlers/multi_agents_v2/wait.rs` | Bounded wait behavior and terminal result formatting | `WaitAgent` timeout and result shape |
+| `codex-rs/core/src/tools/handlers/multi_agents_v2/send_message.rs` | Message delivery to an existing agent | `SendMessage` mailbox behavior |
+| `codex-rs/core/src/tools/handlers/multi_agents_v2/followup_task.rs` | Follow-up task routing to a child agent | `FollowupTask` turn-triggering semantics |
+| `codex-rs/core/src/tools/handlers/multi_agents_v2/interrupt_agent.rs` | Interrupt request behavior | `InterruptAgent` best-effort cancellation |
+| `codex-rs/core/src/tools/handlers/multi_agents_v2/message_tool.rs` | Shared helper behavior for message-like tools | Shared message adapter utilities |
+
+### Role and Profile Examples
+
+| Codex file | Reference purpose | BashKit design area |
+| --- | --- | --- |
+| `codex-rs/core/src/agent/builtins/explorer.toml` | Built-in exploratory role configuration | BashKit `researcher` or `reviewer` profile defaults |
+| `codex-rs/core/src/agent/builtins/awaiter.toml` | Built-in role with specific coordination behavior | BashKit specialized coordination profiles |
+| `codex-rs/core/src/agent/role_tests.rs` | Role resolution edge cases | Profile registry tests |
+| `codex-rs/core/src/agent/registry_tests.rs` | Registry reservations and path behavior | Registry and identity tests |
+| `codex-rs/core/src/agent/control_tests.rs` | Control-plane behavior coverage | Controller tests with fake runners |
+
+### Integration and Regression Tests
+
+| Codex file | Reference purpose | BashKit design area |
+| --- | --- | --- |
+| `codex-rs/core/tests/suite/subagent_notifications.rs` | Parent notification when subagents finish | Completion events and control panel updates |
+| `codex-rs/core/tests/suite/spawn_agent_description.rs` | Model-facing descriptions for spawnable agents | Generated profile descriptions |
+| `codex-rs/core/tests/suite/agent_execution.rs` | Execution lifecycle and active execution behavior | Runner lifecycle and execution limits |
+| `codex-rs/core/tests/suite/hierarchical_agents.rs` | Nested agents and parent/child relationships | Depth policy and hierarchical identity |
+| `codex-rs/core/tests/suite/agent_jobs.rs` | Batch-style agent work | Future workflow harness inspiration, not first milestone scope |
+| `codex-rs/core/tests/suite/agent_websocket.rs` | Event streaming and status visibility | Host event sink and UI state projection |
+
+### Read Later or Treat as Non-Goals
+
+| Codex file | Why it is secondary |
+| --- | --- |
+| `codex-rs/core/src/tools/handlers/multi_agents.rs` | Older multi-agent API; useful for migration comparison but not the target shape. |
+| `codex-rs/core/src/tools/handlers/multi_agents_common.rs` | Shared older helpers; inspect only when porting a specific behavior. |
+| `codex-rs/core/src/tools/handlers/agent_jobs.rs` | Batch agent jobs are useful workflow inspiration, but BashKit should first land the subagent foundation. |
+| `codex-rs/core/src/tools/handlers/agent_jobs_spec.rs` | Same as above; do not let batch jobs expand the first milestone. |
+
+Recommended implementation reading order: start with `control.rs`, `registry.rs`, `role.rs`, and `multi_agents_spec.rs`; then inspect the `multi_agents_v2/` adapters; then read the test files that correspond to the BashKit unit being implemented.
+
+---
+
 ## Architecture Overview
 
 ```mermaid
