@@ -11,6 +11,8 @@ Foundation for controller-managed subagents. This module owns identity, path res
 | `path.ts` | Task-name normalization and relative path resolution |
 | `status.ts` | Status helpers and terminal-state checks |
 | `profiles.ts` | Profile registry factory and profile resolution |
+| `profile-loader.ts` | JSON-safe profile config loading with host-provided model alias resolution |
+| `profile-loader.schema.ts` | Zod schemas and serialized profile config types |
 | `profile-descriptions.ts` | Model-visible profile description generation |
 | `model-info.ts` | Serializable model summary helpers for metadata and host snapshots |
 | `tool-filter.ts` | Tool allowlist filtering plus denied-tool reject/hide policy wrappers |
@@ -66,8 +68,9 @@ Control panel state is a normalized host projection, not a UI framework. It incl
 
 1. Add it to profile input and resolved profile types.
 2. Resolve defaults in `profiles.ts`.
-3. Include model-visible text in `profile-descriptions.ts` when it helps routing.
-4. Add tests for defaulting and override behavior.
+3. Add it to `profile-loader.schema.ts` if the field is safe to serialize.
+4. Include model-visible text in `profile-descriptions.ts` when it helps routing.
+5. Add tests for defaulting, loading, and override behavior.
 
 ### Add a new guardrail
 

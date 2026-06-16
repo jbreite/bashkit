@@ -14,6 +14,23 @@ export {
   resolveSubagentCostPolicy,
 } from "./profiles";
 export { describeSubagentProfile } from "./profile-descriptions";
+export {
+  loadSubagentProfilesFromFile,
+  loadSubagentProfilesFromJson,
+  loadSubagentProfilesFromObject,
+  type LoadedSubagentProfiles,
+  type SubagentProfileFileReader,
+  type SubagentProfileLoaderOptions,
+  type SubagentProfileModelResolver,
+} from "./profile-loader";
+export type {
+  SerializedSubagentCodemodePolicy,
+  SerializedSubagentContextPolicy,
+  SerializedSubagentCostPolicy,
+  SerializedSubagentProfile,
+  SerializedSubagentProfileConfig,
+  SerializedSubagentProfileDefaults,
+} from "./profile-loader.schema";
 export { filterSubagentTools } from "./tool-filter";
 export {
   buildSubagentMessages,
