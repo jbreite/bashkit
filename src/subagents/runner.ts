@@ -25,3 +25,11 @@ export function createStaticSubagentRunner(
     },
   };
 }
+
+export {
+  createAiSdkSubagentRunner,
+  type AiSdkSubagentGenerateOptions,
+  type AiSdkSubagentGenerateResult,
+  type AiSdkSubagentGenerateText,
+  type AiSdkSubagentRunnerConfig,
+} from "./ai-sdk-runner";

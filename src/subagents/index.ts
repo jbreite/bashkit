@@ -14,6 +14,25 @@ export {
 } from "./profiles";
 export { describeSubagentProfile } from "./profile-descriptions";
 export { filterSubagentTools } from "./tool-filter";
+export {
+  buildSubagentMessages,
+  inheritSubagentMessages,
+} from "./context-inheritance";
+export {
+  createSubagentToolSurface,
+  type SubagentCodemodeSurface,
+  type SubagentToolSurface,
+  type SubagentToolSurfaceConfig,
+} from "./tool-surface";
+export {
+  compactSubagentResult,
+  createSubagentResultRef,
+  createSubagentTranscriptRef,
+  jsonObjectFromUnknown,
+  jsonValueFromUnknown,
+  summarizeSubagentTranscript,
+  type SubagentTranscriptSummary,
+} from "./transcripts";
 export { createSubagentRegistry } from "./registry";
 export { createInMemorySubagentStore } from "./store";
 export {
@@ -24,7 +43,12 @@ export {
 export { createMailboxMessage } from "./mailbox";
 export {
   DEFAULT_SUBAGENT_RUNNER_CAPABILITIES,
+  createAiSdkSubagentRunner,
   createStaticSubagentRunner,
+  type AiSdkSubagentGenerateOptions,
+  type AiSdkSubagentGenerateResult,
+  type AiSdkSubagentGenerateText,
+  type AiSdkSubagentRunnerConfig,
 } from "./runner";
 export {
   clampSubagentWaitTimeout,

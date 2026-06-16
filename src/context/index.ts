@@ -33,6 +33,8 @@ export { buildSystemContext } from "./build-context";
 
 export type { PrepareStepConfig } from "./prepare-step";
 export { createPrepareStep } from "./prepare-step";
+export type { RuntimeEventLayerConfig } from "./runtime-events";
+export { createRuntimeEventLayer } from "./runtime-events";
 
 /**
  * Context layer that intercepts tool execution.

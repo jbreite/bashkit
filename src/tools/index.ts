@@ -4,6 +4,7 @@ import { cached, LRUCacheStore } from "../cache";
 import { applyContextLayers, type ContextLayer } from "../context/index";
 import { createExecutionPolicy } from "../context/execution-policy";
 import { createOutputPolicy } from "../context/output-policy";
+import { createRuntimeEventLayer } from "../context/runtime-events";
 import type { Sandbox } from "../sandbox/interface";
 import type { AgentConfig, CacheConfig } from "../types";
 import { DEFAULT_CONFIG } from "../types";
@@ -294,13 +295,24 @@ export async function createAgentTools(
     if (config.context.layers) {
       contextLayers.push(...config.context.layers);
     }
+  }
 
-    // Apply all layers to all tools
-    if (contextLayers.length > 0) {
-      const wrapped = applyContextLayers(tools, contextLayers);
-      for (const [name, wrappedTool] of Object.entries(wrapped)) {
-        (tools as Record<string, Tool>)[name] = wrappedTool;
-      }
+  if (config?.runtime?.eventSink) {
+    contextLayers.push(
+      createRuntimeEventLayer({
+        eventSink: config.runtime.eventSink,
+        agentId: config.runtime.planContext?.agent_id,
+        threadId: config.runtime.planContext?.thread_id,
+        turnId: config.runtime.planContext?.turn_id,
+      }),
+    );
+  }
+
+  // Apply all layers to all tools
+  if (contextLayers.length > 0) {
+    const wrapped = applyContextLayers(tools, contextLayers);
+    for (const [name, wrappedTool] of Object.entries(wrapped)) {
+      (tools as Record<string, Tool>)[name] = wrappedTool;
     }
   }
 

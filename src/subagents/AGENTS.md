@@ -13,6 +13,10 @@ Foundation for controller-managed subagents. This module owns identity, path res
 | `profiles.ts` | Profile registry factory and profile resolution |
 | `profile-descriptions.ts` | Model-visible profile description generation |
 | `tool-filter.ts` | Tool allowlist/denylist filtering |
+| `context-inheritance.ts` | Parent-to-child message inheritance for `none`, `all`, and bounded recent-turn policies |
+| `tool-surface.ts` | Profile-scoped child tool surface construction with Codemode quarantine |
+| `transcripts.ts` | Compact terminal result and transcript reference helpers |
+| `ai-sdk-runner.ts` | Default in-process AI SDK runner for one-shot child agent execution |
 | `registry.ts` | In-memory identity and path registry factory |
 | `store.ts` | Store factory for in-memory metadata, events, and mailbox records |
 | `events.ts` | Subagent event sink factory, helpers, and runtime event bridge |
@@ -28,6 +32,8 @@ Foundation for controller-managed subagents. This module owns identity, path res
 `createSubagentController` owns orchestration through closure state. It resolves profiles, reserves identity, checks guardrails, writes store records, emits subagent events, optionally emits normalized runtime events, invokes lifecycle hooks, and delegates actual child execution to a `SubagentRunner`.
 
 The default foundation does not put subagent methods on `Sandbox`. Child agents use sandbox-backed tools through their runner/tool surface.
+
+`createAiSdkSubagentRunner` is the default in-process runner. It builds child messages from the profile context policy, constructs a profile-scoped tool surface, calls AI SDK `generateText`, reports usage/tool events through runner callbacks, and returns compact terminal results with result/transcript references. It does not maintain durable paused JavaScript execution or follow-up turns.
 
 ## Design Rules
 
@@ -62,3 +68,11 @@ The default foundation does not put subagent methods on `Sandbox`. Child agents 
 2. Implement the check in `execution-limits.ts` or `cost-control.ts`.
 3. Call it from `controller.ts` before expensive runner work starts.
 4. Test rejection and reservation cleanup.
+
+### Change child execution behavior
+
+1. Update `ai-sdk-runner.ts` only for model execution and callback routing.
+2. Update `tool-surface.ts` only for profile-scoped tool/Codemode exposure.
+3. Update `context-inheritance.ts` only for parent message inheritance policy.
+4. Keep full transcripts out of `SubagentRunResult`; return references or compact summaries instead.
+5. Add focused tests in `tests/subagents/`.
