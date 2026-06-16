@@ -106,8 +106,7 @@ export default function Home() {
         <section>
           <h2>What is bashkit?</h2>
           <p>
-            BashKit provides a comprehensive toolkit for building AI coding
-            agents using the{" "}
+            BashKit is a runtime foundation for building AI coding agents on the{" "}
             <a
               href="https://sdk.vercel.ai"
               target="_blank"
@@ -115,55 +114,45 @@ export default function Home() {
             >
               Vercel AI SDK
             </a>
-            . It bridges the gap between AI models and actual code execution
-            environments, giving your agents the ability to run commands, read
-            and modify files, search codebases, and more.
+            . It gives models a coding surface, a sandbox-backed tool layer,
+            Codemode orchestration, Codex-style plans, controller-managed
+            subagents, budget controls, approvals, and host-facing runtime
+            events.
           </p>
           <p>
-            Tool signatures are designed to match{" "}
-            <strong>Claude Code patterns</strong>, so AI models already know how
-            to use them effectively. Bring your own sandbox &mdash; start with{" "}
-            <code>LocalSandbox</code> for development, swap to Vercel or E2B for
-            production.
+            The goal is not just to call <code>Bash</code> from a model. It is
+            to give host apps the primitives they need to build a Codex-like
+            coding experience while still owning their server, storage, UI, and
+            approval flow.
           </p>
         </section>
 
         <section>
-          <h2>10 Tools</h2>
+          <h2>Runtime Primitives</h2>
           <ul>
             <li>
-              <strong>Bash</strong> &mdash; Execute shell commands with timeout
-              control
+              <strong>Codemode</strong> &mdash; Let the model write code that
+              orchestrates BashKit tools in batches
             </li>
             <li>
-              <strong>Read</strong> &mdash; Read files and list directories
+              <strong>Sandbox tools</strong> &mdash; Read, search, edit, write,
+              and run commands through your chosen sandbox
             </li>
             <li>
-              <strong>Write</strong> &mdash; Create or overwrite files
+              <strong>UpdatePlan</strong> &mdash; Maintain Codex-style progress
+              state that host UIs can render
             </li>
             <li>
-              <strong>Edit</strong> &mdash; Replace strings in existing files
+              <strong>Subagents</strong> &mdash; Spawn, list, wait for, and
+              control focused child agents
             </li>
             <li>
-              <strong>Glob</strong> &mdash; Find files by pattern matching
+              <strong>Runtime events</strong> &mdash; Observe tools, commands,
+              plans, approvals, files, and agents through typed event sinks
             </li>
             <li>
-              <strong>Grep</strong> &mdash; Search file contents with regex
-            </li>
-            <li>
-              <strong>WebSearch</strong> &mdash; Web search with domain
-              filtering
-            </li>
-            <li>
-              <strong>WebFetch</strong> &mdash; Fetch and extract web content
-            </li>
-            <li>
-              <strong>UpdatePlan</strong> &mdash; Track progress with a
-              Codex-style plan
-            </li>
-            <li>
-              <strong>SpawnAgent</strong> &mdash; Start controller-managed
-              subagents for separable work
+              <strong>Cost controls</strong> &mdash; Track spend and share
+              budget limits with parent and child runs
             </li>
           </ul>
         </section>
@@ -173,12 +162,27 @@ export default function Home() {
           <CodeBlock
             language="typescript"
             copyable
-            code={`import { createLocalSandbox, createAgentTools } from 'bashkit';
+            code={`import {
+  createAgentTools,
+  createLocalSandbox,
+  createMemoryRuntimeEventSink,
+} from 'bashkit';
 import { generateText } from 'ai';
 import { anthropic } from '@ai-sdk/anthropic';
 
 const sandbox = createLocalSandbox({ workingDirectory: '.' });
-const { tools } = await createAgentTools(sandbox);
+const eventSink = createMemoryRuntimeEventSink();
+
+const { tools, planState } = await createAgentTools(sandbox, {
+  runtime: {
+    eventSink,
+    planContext: {
+      agent_id: 'main',
+      thread_id: 'thread_123',
+      turn_id: 'turn_456',
+    },
+  },
+});
 
 const { text } = await generateText({
   model: anthropic('claude-sonnet-4-5'),
@@ -187,13 +191,32 @@ const { text } = await generateText({
   prompt: 'Read the README and summarize this project.',
 });
 
-console.log(text);`}
+console.log(text);
+console.log(planState.snapshot());
+console.log(eventSink.events.map((event) => event.type));`}
           />
         </section>
 
         <section>
           <h2>Key Features</h2>
           <ul>
+            <li>
+              <strong>AI SDK Native</strong> &mdash; Tools, models, steps, and
+              stop conditions stay in the Vercel AI SDK flow
+            </li>
+            <li>
+              <strong>Codemode Ready</strong> &mdash; Expose one coding tool to
+              the parent model while keeping direct tools inside the runtime
+            </li>
+            <li>
+              <strong>Subagent Control Plane</strong> &mdash; Identity,
+              profiles, lifecycle state, control-panel snapshots, and guardrails
+              for child agents
+            </li>
+            <li>
+              <strong>Runtime Events</strong> &mdash; Feed logs, progress
+              panels, approval UI, and changes views from the same event stream
+            </li>
             <li>
               <strong>Bring Your Own Sandbox</strong> &mdash; LocalSandbox for
               dev, VercelSandbox or E2BSandbox for production
@@ -234,6 +257,11 @@ console.log(text);`}
           <p>
             <Link href="/tools">
               Explore Tools <span className="arrow">&rarr;</span>
+            </Link>
+          </p>
+          <p>
+            <Link href="/runtime">
+              Runtime Events <span className="arrow">&rarr;</span>
             </Link>
           </p>
           <p>
