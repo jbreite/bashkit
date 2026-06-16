@@ -1,10 +1,22 @@
 import type { LanguageModel, Tool, ToolSet } from "ai";
 import type { CacheStore } from "./cache/types";
-import type { ContextLayer } from "./context/index";
+import type { ContextLayer, FileChangeEventLayerConfig } from "./context/index";
 import type { ExecutionPolicyConfig } from "./context/execution-policy";
 import type { OutputPolicyConfig } from "./context/output-policy";
+import type { PlanState, PlanUpdateContext, RuntimeEventSink } from "./runtime";
 import type { SkillMetadata } from "./skills/types";
+import type {
+  AiSdkSubagentRunnerConfig,
+  SubagentCostPolicyInput,
+  SubagentEventSink,
+  SubagentLifecycleHooks,
+  SubagentProfileDefaults,
+  SubagentProfileInput,
+  SubagentRunner,
+  SubagentStore,
+} from "./subagents";
 import type { CodemodeConfig } from "./tools/codemode";
+import type { SubagentControlToolConfig } from "./tools/subagents";
 import type { ModelPricing } from "./utils/budget-tracking";
 
 /**
@@ -73,6 +85,26 @@ export type SkillConfig = {
     instructions: string,
   ) => void | Promise<void>;
 };
+
+export interface RuntimeConfig {
+  /** Receives normalized runtime events for host UIs, logs, persistence, or streaming. */
+  eventSink?: RuntimeEventSink;
+  /** Initial canonical UpdatePlan state. */
+  initialPlan?: Partial<PlanState>;
+  /** Default event identity for main-agent plan updates. */
+  planContext?: PlanUpdateContext;
+  /**
+   * Emit file.changed events after successful mutating tools. Bash changes are
+   * detected by capped watched-root snapshots; Write/Edit/Patch use exact
+   * target paths. Defaults to true when eventSink is configured.
+   */
+  fileChanges?:
+    | boolean
+    | Omit<
+        FileChangeEventLayerConfig,
+        "sandbox" | "eventSink" | "agentId" | "threadId" | "turnId"
+      >;
+}
 
 /**
  * Cache configuration for tool result caching.
@@ -185,6 +217,31 @@ export interface ContextConfig {
   layers?: ContextLayer[];
 }
 
+export interface SubagentConfig {
+  /** Default model for the in-process AI SDK subagent runner. */
+  model?: LanguageModel;
+  /** Named subagent profiles available to SpawnAgent. */
+  profiles?: SubagentProfileInput[];
+  /** Default profile name. Defaults to BashKit's worker profile. */
+  defaultProfile?: string;
+  /** Defaults layered into every profile. */
+  profileDefaults?: SubagentProfileDefaults;
+  /** Host-provided runner. If omitted, BashKit creates the in-process AI SDK runner. */
+  runner?: SubagentRunner;
+  /** Store for subagent metadata/events/mailbox/result records. */
+  store?: SubagentStore;
+  /** Subagent event sink. */
+  eventSink?: SubagentEventSink;
+  /** Lifecycle hooks for host audit, telemetry, or side effects. */
+  lifecycle?: SubagentLifecycleHooks;
+  /** Subagent execution and cost guardrails. */
+  cost?: SubagentCostPolicyInput;
+  /** Tool adapter options, such as currentAgentId for child self-target checks. */
+  controlTools?: SubagentControlToolConfig;
+  /** Extra options for the default AI SDK runner. */
+  runnerConfig?: Omit<AiSdkSubagentRunnerConfig, "model" | "codemode">;
+}
+
 export type AgentConfig = {
   tools?: {
     Bash?: ToolConfig;
@@ -208,6 +265,10 @@ export type AgentConfig = {
   webFetch?: WebFetchConfig;
   /** Include a Cloudflare Codemode tool that can orchestrate selected tools */
   codemode?: CodemodeConfig;
+  /** Include controller-backed subagent tools and state. */
+  subagents?: SubagentConfig;
+  /** Host-facing runtime state and event stream configuration. */
+  runtime?: RuntimeConfig;
   /** Enable tool result caching */
   cache?: CacheConfig;
   /** Fetch model info (pricing + context lengths) from a provider.

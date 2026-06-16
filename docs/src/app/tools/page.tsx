@@ -253,52 +253,93 @@ export default function Tools() {
         </section>
 
         <section>
-          <h2 id="task">Task</h2>
+          <h2 id="updateplan">UpdatePlan</h2>
           <p>
-            Spawn sub-agents for complex, multi-step work. Each sub-agent gets
-            its own tool set and conversation context. When budget tracking is
-            enabled, costs are shared across parent and child agents.
+            Track multi-step progress with the canonical Codex-style plan state.
+            Hosts can observe plan updates through runtime events.
           </p>
           <CodeBlock
             language="typescript"
             copyable
             code={`// Tool input schema
 {
-  description: string,  // Short task description
-  prompt: string        // Detailed instructions for the sub-agent
-}
-
-// The sub-agent runs autonomously and returns its result
-// Budget tracking auto-wires into sub-agents when configured`}
+  explanation: string | null,
+  plan: [
+    {
+      step: string,
+      status: "pending" | "in_progress" | "completed"
+    }
+  ]
+}`}
           />
         </section>
 
         <section>
-          <h2 id="todowrite">TodoWrite</h2>
+          <h2 id="subagents">Subagents</h2>
           <p>
-            Manage structured task lists. Useful for agents that need to track
-            multi-step workflows.
+            Use controller-backed subagent tools for delegation. SpawnAgent
+            starts separable work, ListAgents inspects status, and WaitAgent
+            collects terminal results. Configure subagents through{" "}
+            <code>createAgentTools</code> to expose the control tools to the
+            parent model.
           </p>
           <CodeBlock
             language="typescript"
             copyable
-            code={`// Tool input schema
+            code={`const { tools, getSubagentControlPanelState } = await createAgentTools(
+  sandbox,
+  {
+    subagents: {
+      model,
+      profiles: [
+        {
+          name: 'researcher',
+          allowedTools: ['Read', 'Glob', 'Grep'],
+          deniedTools: ['Write', 'Edit', 'Bash'],
+        },
+      ],
+    },
+  },
+);
+
+// SpawnAgent input schema
 {
-  todos: [
-    {
-      id: string,
-      content: string,
-      status: "pending" | "in_progress" | "done",
-      priority: "high" | "medium" | "low"
-    }
-  ]
+  task: string,
+  profile: string | null,
+  task_name: string | null
 }
 
-// Output
+// WaitAgent input schema
 {
-  todos: [...], // Updated todo list
-  count: 5
+  agent: string,
+  timeout_ms: number | null
 }`}
+          />
+          <p>
+            Profile files can be loaded with{" "}
+            <code>loadSubagentProfilesFromJson</code>,{" "}
+            <code>loadSubagentProfilesFromObject</code>, or{" "}
+            <code>loadSubagentProfilesFromFile</code>. Model names inside the
+            file are aliases that the host maps to live AI SDK model objects.
+          </p>
+          <CodeBlock
+            language="typescript"
+            copyable
+            code={`const loaded = loadSubagentProfilesFromJson(profileJson, {
+  models: {
+    fast: anthropic('claude-haiku-4'),
+  },
+});
+
+if ('error' in loaded) throw new Error(loaded.error);
+
+const { tools } = await createAgentTools(sandbox, {
+  subagents: {
+    profiles: loaded.profiles,
+    profileDefaults: loaded.defaults,
+    defaultProfile: loaded.defaultProfile,
+  },
+});`}
           />
         </section>
       </article>

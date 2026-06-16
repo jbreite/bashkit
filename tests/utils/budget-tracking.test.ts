@@ -727,7 +727,7 @@ describe("createBudgetTracker", () => {
     });
 
     // Simulate 10 parallel tasks each reporting a step concurrently
-    // (like 10 subagents spawned by the Task tool sharing one budget)
+    // (like 10 controller-managed subagents sharing one budget)
     const tasks = Array.from({ length: 10 }, () =>
       Promise.resolve().then(() => {
         tracker.onStepFinish(

@@ -14,14 +14,30 @@ Agentic coding tools for Vercel AI SDK. Give AI agents the ability to execute co
 - Edit existing files with string replacement
 - Search for files by pattern
 - Search file contents with regex
-- Spawn sub-agents for complex tasks
-- Track task progress with todos
+- Coordinate controller-managed subagents
+- Track task progress with UpdatePlan
 - Search the web and fetch URLs
 - Load skills on-demand via the [Agent Skills](https://agentskills.io) standard
 
-## Breaking Changes in v0.4.0
+## Breaking Changes
 
-### Nullable Types for OpenAI Compatibility
+### Next Breaking Release: Codemode, Subagents, and Progress
+
+BashKit is moving to a simpler coding surface:
+
+- If `codemode` is configured, the parent model receives the `codemode` tool as
+  its coding interface. Direct coding tools such as `Bash`, `Read`, `Write`,
+  `Edit`, `Glob`, and `Grep` remain available to Codemode as runtime providers.
+- If `codemode` is not configured, the parent model receives the direct BashKit
+  tools.
+- `Task` has been removed. Use `SpawnAgent` plus `WaitAgent`.
+- `TodoWrite` has been removed. Use `UpdatePlan`, which is included by
+  `createAgentTools()`.
+
+This is intentionally a breaking change. There is no `createAgentTools`
+compatibility switch that exposes direct tools alongside Codemode.
+
+### v0.4.0: Nullable Types for OpenAI Compatibility
 
 All optional tool parameters now use `.nullable()` instead of `.optional()` in Zod schemas. This change enables compatibility with OpenAI's structured outputs, which require all properties to be in the `required` array.
 
@@ -71,7 +87,7 @@ import { generateText, stepCountIs } from 'ai';
 const sandbox = createLocalSandbox({ cwd: '/tmp/workspace' });
 
 // Create tools bound to the sandbox
-const { tools } = createAgentTools(sandbox);
+const { tools } = await createAgentTools(sandbox);
 
 // Use with Vercel AI SDK
 const result = await generateText({
@@ -103,7 +119,7 @@ const sandbox = await createVercelSandbox({
   resources: { vcpus: 2 },
 });
 
-const { tools } = createAgentTools(sandbox);
+const { tools } = await createAgentTools(sandbox);
 
 const result = streamText({
   model: anthropic('claude-sonnet-4-5'),
@@ -118,7 +134,7 @@ await sandbox.destroy();
 
 ## Available Tools
 
-### Default Tools (always included)
+### Direct Coding Tools
 
 | Tool | Purpose | Key Inputs |
 |------|---------|------------|
@@ -128,6 +144,10 @@ await sandbox.destroy();
 | `Edit` | Replace strings in files | `file_path`, `old_string`, `new_string`, `replace_all?` |
 | `Glob` | Find files by pattern | `pattern`, `path?` |
 | `Grep` | Search file contents | `pattern`, `path?`, `output_mode?`, `-i?`, `-C?` |
+
+These tools are parent-visible when `codemode` is not configured. When
+`codemode` is configured, they move behind Codemode as runtime providers instead
+of appearing beside the `codemode` tool.
 
 ### Optional Tools (via config)
 
@@ -141,12 +161,12 @@ await sandbox.destroy();
 | `WebSearch` | Search the web | `webSearch: { apiKey }` |
 | `WebFetch` | Fetch URL and process with AI | `webFetch: { apiKey, model }` |
 
-### Workflow Tools (created separately)
+### Workflow Tools
 
 | Tool | Purpose | Factory |
 |------|---------|---------|
-| `Task` | Spawn sub-agents | `createTaskTool({ model, tools, subagentTypes? })` |
-| `TodoWrite` | Track task progress | `createTodoWriteTool(state, config?, onUpdate?)` |
+| `UpdatePlan` | Track task progress | Included by `createAgentTools()` |
+| `SpawnAgent` / `WaitAgent` | Control subagents | `subagents: { ... }` or `createSubagentControlTools(controller, config?)` |
 
 ### Web Tools (require `parallel-web` peer dependency)
 
@@ -220,7 +240,7 @@ const reconnected = await createE2BSandbox({
 You can configure tools with security restrictions and limits, and enable optional tools:
 
 ```typescript
-const { tools, planModeState } = createAgentTools(sandbox, {
+const { tools, planModeState } = await createAgentTools(sandbox, {
   // Enable optional tools
   askUser: true,
   planMode: true, // Enables EnterPlanMode and ExitPlanMode
@@ -295,6 +315,11 @@ await streamText({
 });
 ```
 
+When `codemode` is configured, `tools` contains `codemode` plus control and
+interactive tools such as `UpdatePlan`, `AskUser`, `EnterPlanMode`,
+`ExitPlanMode`, `Skill`, and subagent controls. Direct coding/file tools are not
+also exposed to the parent model.
+
 By default, generated code calls BashKit tools through BashKit's `bashkit.*` namespace, for example `await bashkit.Grep(...)`. Use `providers` when you want additional named tool groups such as `repo.SummarizeFile(...)`.
 
 Client-intervention tools are excluded from codemode automatically: `AskUser`, `EnterPlanMode`, `ExitPlanMode`, tools without `execute`, and tools with `needsApproval`. Top-level `includeTools` narrows the default `bashkit.*` namespace. Named providers can define their own `includeTools` or `excludeTools`.
@@ -317,7 +342,7 @@ Client-intervention tools are excluded from codemode automatically: `AskUser`, `
 All tools support AI SDK v6 tool options:
 
 ```typescript
-const { tools } = createAgentTools(sandbox, {
+const { tools } = await createAgentTools(sandbox, {
   tools: {
     Bash: {
       timeout: 30000,
@@ -340,102 +365,98 @@ const { tools } = createAgentTools(sandbox, {
 - `strict` (boolean): Enable strict schema validation
 - `providerOptions` (object): Provider-specific tool options
 
-## Sub-agents with Task Tool
+## Subagents
 
-The Task tool spawns new agents for complex subtasks:
+Subagents are controller-managed agents with stable identity, profiles,
+lifecycle events, and explicit supervision tools. Use `SpawnAgent` to start
+separable work, `ListAgents` to inspect running and terminal children, and
+`WaitAgent` to collect the terminal result.
+
+The older one-shot `Task` tool has been removed from the breaking API. Migrate
+`Task(description, prompt)` flows to `SpawnAgent(task, task_name?)` followed by
+`WaitAgent(agent_id)`.
 
 ```typescript
-import { createTaskTool } from 'bashkit';
+import {
+  createAgentTools,
+  createLocalSandbox,
+  createStaticSubagentRunner,
+} from 'bashkit';
 
-const taskTool = createTaskTool({
-  model: anthropic('claude-sonnet-4-5'),
-  tools: sandboxTools,
-  subagentTypes: {
-    research: {
-      model: anthropic('claude-haiku-4'), // Cheaper model for research
-      systemPrompt: 'You are a research specialist. Find information only.',
-      tools: ['Read', 'Grep', 'Glob'], // Limited tools
+const sandbox = createLocalSandbox({ cwd: '/tmp/workspace' });
+
+const { tools, getSubagentControlPanelState } = await createAgentTools(
+  sandbox,
+  {
+    subagents: {
+      profiles: [
+        {
+          name: 'researcher',
+          description: 'Read-only code research',
+          allowedTools: ['Read', 'Glob', 'Grep'],
+          deniedTools: ['Write', 'Edit', 'Bash'],
+        },
+      ],
+      runner: createStaticSubagentRunner({
+        status: 'completed',
+        result: 'Research summary',
+      }),
     },
-    coding: {
-      systemPrompt: 'You are a coding expert. Write clean code.',
-      tools: ['Read', 'Write', 'Edit', 'Bash'],
-    },
+  },
+);
+
+// Parent model can call SpawnAgent, ListAgents, WaitAgent, SendMessage,
+// FollowupTask, and InterruptAgent.
+console.log(Object.keys(tools));
+console.log(await getSubagentControlPanelState?.());
+```
+
+### Subagent Profile Files
+
+Profiles can be loaded from JSON-safe config and then passed to
+`createAgentTools`. Model entries are string aliases in the file; the host maps
+them to live AI SDK model objects.
+
+```json
+{
+  "defaultProfile": "researcher",
+  "defaults": {
+    "model": "fast",
+    "context": { "recent_turns": 3 },
+    "cost": { "maxDepth": 1 }
+  },
+  "profiles": [
+    {
+      "name": "researcher",
+      "description": "Read-only investigation",
+      "system": "Investigate and cite files. Do not edit.",
+      "allowedTools": ["Read", "Glob", "Grep", "WebSearch"],
+      "deniedTools": ["Write", "Edit", "Bash"]
+    }
+  ]
+}
+```
+
+```typescript
+import { loadSubagentProfilesFromJson } from 'bashkit';
+
+const loaded = loadSubagentProfilesFromJson(profileJson, {
+  models: {
+    fast: anthropic('claude-haiku-4'),
   },
 });
 
-// Add to tools
-const allTools = { ...sandboxTools, Task: taskTool };
-```
+if ('error' in loaded) throw new Error(loaded.error);
 
-The parent agent calls Task like any other tool:
-```typescript
-// Agent decides to delegate:
-{ tool: "Task", args: {
-  description: "Research API patterns",
-  prompt: "Find best practices for REST APIs",
-  subagent_type: "research"
-}}
-```
-
-### Dynamic Agents
-
-You can create custom agents on the fly by passing `system_prompt` and/or `tools` directly, without predefined subagent types:
-
-```typescript
-// Agent creates a specialized agent dynamically:
-{ tool: "Task", args: {
-  description: "Analyze security vulnerabilities",
-  prompt: "Review the auth code for security issues",
-  subagent_type: "custom",
-  system_prompt: "You are a security expert. Focus on OWASP top 10 vulnerabilities.",
-  tools: ["Read", "Grep", "Glob"]
-}}
-```
-
-This is useful when:
-- The parent agent needs to create specialized agents based on context
-- You want agents to delegate with custom instructions
-- Predefined subagent types don't fit the task
-
-### Streaming Sub-agent Activity to UI
-
-Pass a `streamWriter` to stream real-time sub-agent activity to the UI:
-
-```typescript
-import { createUIMessageStream } from 'ai';
-
-const stream = createUIMessageStream({
-  execute: async ({ writer }) => {
-    const taskTool = createTaskTool({
-      model,
-      tools: sandboxTools,
-      streamWriter: writer, // Enable real-time streaming
-      subagentTypes: { ... },
-    });
-
-    // Use with streamText
-    const result = streamText({
-      model,
-      tools: { Task: taskTool },
-      ...
-    });
-
-    writer.merge(result.toUIMessageStream());
+const { tools } = await createAgentTools(sandbox, {
+  subagents: {
+    profiles: loaded.profiles,
+    profileDefaults: loaded.defaults,
+    defaultProfile: loaded.defaultProfile,
+    model: anthropic('claude-sonnet-4-5'),
   },
 });
 ```
-
-When `streamWriter` is provided:
-- Uses `streamText` internally (instead of `generateText`)
-- Emits `data-subagent` events to the UI stream:
-  - `start` - Sub-agent begins work
-  - `tool-call` - Each tool the sub-agent uses (with args)
-  - `done` - Sub-agent finished
-  - `complete` - Full messages array for UI access
-
-These appear in `message.parts` on the client as `{ type: "data-subagent", data: SubagentEventData }`.
-
-**Important:** The TaskOutput returned to the lead agent does NOT include messages (to avoid context bloat). The UI accesses the full conversation via the streamed `complete` event.
 
 ## Context Management
 
@@ -484,7 +505,7 @@ if (contextNeedsCompaction(status)) {
 Cache tool execution results to avoid repeated expensive operations:
 
 ```typescript
-const { tools } = createAgentTools(sandbox, {
+const { tools } = await createAgentTools(sandbox, {
   // Enable caching with defaults (LRU, 5min TTL)
   cache: true,
 });
@@ -493,7 +514,7 @@ const { tools } = createAgentTools(sandbox, {
 ### Cache Configuration Options
 
 ```typescript
-const { tools } = createAgentTools(sandbox, {
+const { tools } = await createAgentTools(sandbox, {
   cache: {
     // Custom TTL (default: 5 minutes)
     ttl: 10 * 60 * 1000,
@@ -549,7 +570,7 @@ const redisStore: CacheStore = {
   },
 };
 
-const { tools } = createAgentTools(sandbox, {
+const { tools } = await createAgentTools(sandbox, {
   cache: redisStore,
 });
 ```
@@ -638,7 +659,7 @@ import {
 } from 'bashkit';
 
 const sandbox = createLocalSandbox({ cwd: '/tmp/workspace' });
-const { tools, planModeState } = createAgentTools(sandbox, { planMode: true });
+const { tools, planModeState } = await createAgentTools(sandbox, { planMode: true });
 
 const wrappedTools = applyContextLayers(tools, [
   // Gate: block Bash/Write/Edit while plan mode is active
@@ -729,7 +750,7 @@ import { discoverSkills, skillsToXml, createAgentTools, createLocalSandbox } fro
 
 const skills = await discoverSkills();
 const sandbox = createLocalSandbox({ cwd: '/tmp/workspace' });
-const { tools } = createAgentTools(sandbox);
+const { tools } = await createAgentTools(sandbox);
 
 const result = await generateText({
   model: anthropic('claude-sonnet-4-5'),
@@ -898,7 +919,7 @@ ${skillsToXml(skills)}
 `;
 
 // Create tools and run
-const { tools } = createAgentTools(sandbox);
+const { tools } = await createAgentTools(sandbox);
 
 const result = await generateText({
   model: anthropic('claude-sonnet-4-5'),
@@ -916,25 +937,23 @@ const result = await generateText({
 
 ### Using with Subagents
 
-Use the same config for subagent prompts:
+Use the same config for subagent profiles:
 
 ```typescript
-const taskTool = createTaskTool({
-  model,
-  tools,
-  subagentTypes: {
-    researcher: {
-      systemPrompt: `You are a researcher.
+const profiles = [
+  {
+    name: 'researcher',
+    system: `You are a researcher.
 Save findings to: ${config.workspace.notes}`,
-      tools: ['WebSearch', 'Write'],
-    },
-    'report-writer': {
-      systemPrompt: `Read from: ${config.workspace.notes}
-Save reports to: ${config.workspace.outputs}`,
-      tools: ['Read', 'Glob', 'Write'],
-    },
+    allowedTools: ['WebSearch', 'Write'],
   },
-});
+  {
+    name: 'report-writer',
+    system: `Read from: ${config.workspace.notes}
+Save reports to: ${config.workspace.outputs}`,
+    allowedTools: ['Read', 'Glob', 'Write'],
+  },
+];
 ```
 
 ## Sandbox Interface
@@ -976,7 +995,7 @@ class DockerSandbox implements Sandbox {
 }
 
 const sandbox = new DockerSandbox();
-const { tools } = createAgentTools(sandbox);
+const { tools } = await createAgentTools(sandbox);
 ```
 
 ## Architecture
@@ -1020,7 +1039,9 @@ const { tools } = createAgentTools(sandbox);
 
 See the `examples/` directory for complete working examples:
 
-- `basic.ts` - Full example with todos, sub-agents, and prompt caching
+- `basic.ts` - Full example with UpdatePlan and prompt caching
+- `subagents.ts` - Controller-backed subagent control and control-panel state
+- `codemode-subagents.ts` - Codemode-first parent surface with profile-loaded subagents
 - `test-tools.ts` - Testing individual tools
 - `test-web-tools.ts` - Web search and fetch examples
 
@@ -1034,7 +1055,9 @@ Creates a set of agent tools bound to a sandbox instance.
 - `sandbox` (Sandbox): Sandbox instance for code execution
 - `config` (AgentConfig, optional): Configuration for tools and web tools
 
-**Returns:** Object with tool definitions compatible with Vercel AI SDK
+**Returns:** Promise resolving to tool definitions compatible with Vercel AI SDK,
+plus optional shared state such as `budget`, `planState`,
+`subagentController`, and `getSubagentControlPanelState`.
 
 ### Sandbox Factories
 
@@ -1045,8 +1068,11 @@ Creates a set of agent tools bound to a sandbox instance.
 
 ### Workflow Tools
 
-- `createTaskTool(config)` - Spawn sub-agents for complex tasks
-- `createTodoWriteTool(state, config?, onUpdate?)` - Track task progress
+- `createUpdatePlanTool(state, config?)` - Track progress with the canonical Codex-style plan state
+- `createSubagentControlTools(controller, config?)` - Create Spawn/List/Wait/Message/Interrupt subagent controls
+- `loadSubagentProfilesFromJson(json, options?)` - Load JSON-safe subagent profile configs
+- `loadSubagentProfilesFromObject(input, options?)` - Validate profile config objects
+- `loadSubagentProfilesFromFile(path, reader, options?)` - Load profile config through a host-provided reader
 
 ### Optional Tools (also available via config)
 
@@ -1089,45 +1115,16 @@ Creates a set of agent tools bound to a sandbox instance.
 - `createOutputPolicy(config?)` - Truncation + redirection hints + optional disk stash `ContextLayer`
 - `createPrepareStep(config)` - Compose compaction + context-status + plan-mode hints into an AI SDK `PrepareStepFunction`
 
-## Future Roadmap
+## Migration Notes
 
-The following features are planned for future releases:
-
-### Agent Profiles Loader
-
-Load pre-configured subagent types from JSON/TypeScript configs:
-
-```json
-// .bashkit/agents.json
-{
-  "subagentTypes": {
-    "research": {
-      "systemPrompt": "You are a research specialist...",
-      "tools": ["Read", "Grep", "Glob", "WebSearch"]
-    },
-    "coding": {
-      "systemPrompt": "You are a coding expert...",
-      "tools": ["Read", "Write", "Edit", "Bash"]
-    }
-  }
-}
-```
-
-Helper function to auto-load profiles:
-```typescript
-import { createTaskToolWithProfiles } from 'bashkit';
-
-const taskTool = createTaskToolWithProfiles({
-  model,
-  tools,
-  profilesPath: '.bashkit/agents.json', // Auto-loads
-});
-```
-
-This will make it easy to:
-- Share agent configurations across projects
-- Standardize agent patterns within teams
-- Quickly set up specialized agents for different tasks
+- Replace `Task` with `SpawnAgent` plus `WaitAgent`.
+- Replace `TodoWrite` with `UpdatePlan`.
+- When adopting Codemode, expect direct coding tools to disappear from the
+  parent-visible tool set. They are still available inside generated Codemode
+  code through the configured runtime providers.
+- Use `loadSubagentProfilesFromJson`, `loadSubagentProfilesFromObject`, or
+  `loadSubagentProfilesFromFile` to share team-standard subagent profiles across
+  apps.
 
 ## Contributing
 

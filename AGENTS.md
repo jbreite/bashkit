@@ -44,6 +44,8 @@ src/
 ├── cache/         # Tool result caching (LRU, Redis) — src/cache/AGENTS.md
 ├── middleware/    # AI SDK language model middleware — src/middleware/AGENTS.md
 ├── utils/         # Budget, compaction, context status, helpers — src/utils/AGENTS.md
+├── subagents/     # Subagent control plane foundation — src/subagents/AGENTS.md
+├── runtime/       # Runtime events, plan state, approvals, snapshots — src/runtime/AGENTS.md
 ├── skills/        # Agent Skills standard — src/skills/AGENTS.md
 ├── setup/         # Agent environment setup (sandbox bootstrapping) — src/setup/AGENTS.md
 ├── cli/           # CLI initialization — src/cli/AGENTS.md
@@ -293,5 +295,7 @@ See `src/tools/AGENTS.md` for per-tool config details.
 | Add middleware | `src/middleware/AGENTS.md` → "Common Modifications" |
 | Add a cache backend | `src/cache/AGENTS.md` → "Common Modifications" |
 | Add a context layer or prompt section | `src/context/AGENTS.md` → "Common Modifications" |
+| Add subagent foundation behavior | `src/subagents/AGENTS.md` → "Common Modifications" |
+| Add runtime events, plan state, approvals, or snapshots | `src/runtime/AGENTS.md` → "Common Modifications" |
 | Add a skill source | `src/skills/AGENTS.md` → "Common Modifications" |
 | Add a config field | Define in `src/types.ts`, consume in the relevant factory via `config?.yourField ?? default` |

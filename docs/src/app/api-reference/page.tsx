@@ -100,10 +100,17 @@ const { tools, budget } = await createAgentTools(sandbox, {
             </Prop>
             <Prop name="codemode" type="CodemodeConfig">
               Cloudflare Codemode adapter. Adds a single <code>codemode</code>{" "}
-              tool that can orchestrate selected executable tools. Excludes
+              tool that becomes the parent-visible coding surface. Direct coding
+              tools remain available as Codemode runtime providers rather than
+              appearing beside <code>codemode</code>. Excludes
               client-intervention tools and tools with{" "}
               <code>needsApproval</code>. Supports extra default-namespace tools
               and named providers.
+            </Prop>
+            <Prop name="subagents" type="SubagentConfig">
+              Controller-backed subagent configuration. Presence enables
+              SpawnAgent, ListAgents, WaitAgent, SendMessage, FollowupTask, and
+              InterruptAgent tools, plus optional control-panel state.
             </Prop>
             <Prop name="cache" type="boolean | CacheConfig">
               Enable tool result caching. Pass <code>true</code> for defaults or
@@ -246,8 +253,8 @@ const result = await generateText({
 });`}
           />
           <p>
-            Budget tracking auto-wires into Task tool sub-agents when
-            configured.
+            Budget tracking can be shared with subagent controllers so parent
+            and child work are governed by one budget domain.
           </p>
 
           <h3>Model ID Matching</h3>

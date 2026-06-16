@@ -3,10 +3,21 @@ import type { CacheStore } from "../cache/types";
 import { cached, LRUCacheStore } from "../cache";
 import { applyContextLayers, type ContextLayer } from "../context/index";
 import { createExecutionPolicy } from "../context/execution-policy";
+import { createFileChangeEventLayer } from "../context/file-changes";
 import { createOutputPolicy } from "../context/output-policy";
+import { createRuntimeEventLayer } from "../context/runtime-events";
 import type { Sandbox } from "../sandbox/interface";
 import type { AgentConfig, CacheConfig } from "../types";
 import { DEFAULT_CONFIG } from "../types";
+import {
+  createAiSdkSubagentRunner,
+  createInMemorySubagentStore,
+  createSubagentControlPanelState,
+  createSubagentController,
+  type SubagentController,
+  type SubagentControlPanelState,
+  type SubagentStore,
+} from "../subagents";
 import {
   createBudgetTracker,
   fetchOpenRouterModels,
@@ -25,6 +36,9 @@ import { createGrepTool } from "./grep";
 import { createPatchTool } from "./patch";
 import { createReadTool } from "./read";
 import { createSkillTool } from "./skill";
+import { createPlanState, type PlanState } from "../runtime";
+import { createSubagentControlTools } from "./subagents";
+import { createUpdatePlanTool } from "./update-plan";
 import { createWebFetchTool } from "./web-fetch";
 import { createWebSearchTool } from "./web-search";
 import { createWriteTool } from "./write";
@@ -129,8 +143,16 @@ export interface AgentToolsResult {
   tools: ToolSet;
   /** Shared plan mode state (only present when planMode is enabled) */
   planModeState?: PlanModeState;
+  /** Canonical Codex-style task plan state, updated by the default UpdatePlan tool. */
+  planState: PlanState;
   /** Budget tracker (only present when budget config is set) */
   budget?: BudgetTracker;
+  /** Subagent controller (only present when subagents config is set) */
+  subagentController?: SubagentController;
+  /** Subagent store used by the controller (only present when subagents config is set) */
+  subagentStore?: SubagentStore;
+  /** Returns a serializable control-panel snapshot for host UIs. */
+  getSubagentControlPanelState?: () => Promise<SubagentControlPanelState>;
   /** Model info from OpenRouter (only present when modelRegistry or budget pricingProvider is configured) */
   openRouterModels?: Map<string, ModelInfo>;
   /** Context layers applied to tools. Use with applyContextLayers() for late-added tools. */
@@ -181,158 +203,12 @@ export async function createAgentTools(
     ...config?.tools,
   };
 
-  const tools: ToolSet = {
-    // Core sandbox tools (always included)
-    Bash: createBashTool(sandbox, toolsConfig.Bash),
-    Read: createReadTool(sandbox, toolsConfig.Read),
-    Write: createWriteTool(sandbox, toolsConfig.Write),
-    Edit: createEditTool(sandbox, toolsConfig.Edit),
-    Glob: createGlobTool(sandbox, toolsConfig.Glob),
-    Grep: createGrepTool(sandbox, toolsConfig.Grep),
-  };
+  const planModeState: PlanModeState | undefined = config?.planMode
+    ? { isActive: false }
+    : undefined;
+  const planState = createPlanState(config?.runtime?.initialPlan);
 
-  let planModeState: PlanModeState | undefined;
-
-  // Add AskUser tool if configured
-  if (config?.askUser) {
-    tools.AskUser = createAskUserTool(
-      config.askUser === true ? undefined : config.askUser,
-    );
-  }
-
-  // Add Patch tool if configured
-  if (config?.patch) {
-    tools.Patch = createPatchTool(
-      sandbox,
-      config.patch === true ? undefined : config.patch,
-    );
-  }
-
-  // Add plan mode tools if configured
-  if (config?.planMode) {
-    planModeState = { isActive: false };
-    tools.EnterPlanMode = createEnterPlanModeTool(planModeState);
-    tools.ExitPlanMode = createExitPlanModeTool();
-  }
-
-  // Add Skill tool if configured
-  if (config?.skill) {
-    tools.Skill = createSkillTool({
-      skills: config.skill.skills,
-      sandbox,
-      onActivate: config.skill.onActivate,
-    });
-  }
-
-  // Add web tools if configured
-  if (config?.webSearch) {
-    tools.WebSearch = createWebSearchTool(config.webSearch);
-  }
-  if (config?.webFetch) {
-    tools.WebFetch = createWebFetchTool(config.webFetch);
-  }
-
-  // Merge extra tools from context config
-  if (config?.context?.extraTools) {
-    for (const [name, extraTool] of Object.entries(config.context.extraTools)) {
-      (tools as Record<string, Tool>)[name] = extraTool;
-    }
-  }
-
-  // Apply caching if configured (inner wrapper — cache sits inside context)
-  const cacheConfig = resolveCache(config?.cache);
-  if (cacheConfig.store) {
-    for (const [name, tool] of Object.entries(tools)) {
-      if (cacheConfig.enabled.has(name)) {
-        // Type assertion needed because cached() adds methods that ToolSet allows
-        (tools as Record<string, unknown>)[name] = cached(tool, name, {
-          store: cacheConfig.store,
-          ttl: cacheConfig.ttl,
-          debug: cacheConfig.debug,
-          onHit: cacheConfig.onHit,
-          onMiss: cacheConfig.onMiss,
-          keyGenerator: cacheConfig.keyGenerator,
-        });
-      }
-    }
-  }
-
-  // Build and apply context layers (outer wrapper — wraps outside cache)
-  const contextLayers: ContextLayer[] = [];
-
-  if (config?.context) {
-    // Execution policy (plan-mode gating and/or custom shouldBlock)
-    if (planModeState || config.context.executionPolicy?.shouldBlock) {
-      contextLayers.push(
-        createExecutionPolicy(planModeState, config.context.executionPolicy),
-      );
-    }
-
-    // Output policy (enabled by default, unless explicitly false)
-    if (config.context.outputPolicy !== false) {
-      contextLayers.push(
-        createOutputPolicy(
-          config.context.outputPolicy === undefined
-            ? undefined
-            : config.context.outputPolicy,
-        ),
-      );
-    }
-
-    // Custom layers (run after built-in layers)
-    if (config.context.layers) {
-      contextLayers.push(...config.context.layers);
-    }
-
-    // Apply all layers to all tools
-    if (contextLayers.length > 0) {
-      const wrapped = applyContextLayers(tools, contextLayers);
-      for (const [name, wrappedTool] of Object.entries(wrapped)) {
-        (tools as Record<string, Tool>)[name] = wrappedTool;
-      }
-    }
-  }
-
-  // Add Cloudflare Codemode tool after cache/context wrapping so generated code
-  // orchestrates the same policy-wrapped tools a model would call directly.
-  if (config?.codemode) {
-    const codemodeOnlyTools =
-      config.codemode.tools && contextLayers.length > 0
-        ? applyContextLayers(config.codemode.tools, contextLayers)
-        : (config.codemode.tools ?? {});
-    const codemodeProviders = config.codemode.providers?.map((provider) => ({
-      ...provider,
-      tools:
-        contextLayers.length > 0
-          ? applyContextLayers(provider.tools, contextLayers)
-          : provider.tools,
-    }));
-    const codemodeConfig = {
-      ...config.codemode,
-      tools: codemodeOnlyTools,
-      providers: codemodeProviders,
-    };
-
-    const { name, tool: rawCodemodeTool } = await createCodemodeTool(
-      tools,
-      codemodeConfig,
-    );
-
-    if (tools[name]) {
-      throw new Error(
-        `[bashkit] Codemode tool name "${name}" conflicts with an existing tool.`,
-      );
-    }
-
-    const codemodeTool =
-      contextLayers.length > 0
-        ? applyContextLayers({ [name]: rawCodemodeTool }, contextLayers)[name]
-        : rawCodemodeTool;
-
-    tools[name] = codemodeTool;
-  }
-
-  // Fetch model info from provider (hoisted before budget so both can share the data)
+  // Fetch model info from provider before budget so both can share the data.
   let openRouterModels: Map<string, ModelInfo> | undefined;
 
   const shouldFetchOpenRouter =
@@ -383,7 +259,257 @@ export async function createAgentTools(
     });
   }
 
-  return { tools, planModeState, budget, openRouterModels, contextLayers };
+  const runtimeTools: ToolSet = {
+    // Core sandbox tools
+    Bash: createBashTool(sandbox, toolsConfig.Bash),
+    Read: createReadTool(sandbox, toolsConfig.Read),
+    Write: createWriteTool(sandbox, toolsConfig.Write),
+    Edit: createEditTool(sandbox, toolsConfig.Edit),
+    Glob: createGlobTool(sandbox, toolsConfig.Glob),
+    Grep: createGrepTool(sandbox, toolsConfig.Grep),
+    UpdatePlan: createUpdatePlanTool(planState, {
+      eventSink: config?.runtime?.eventSink,
+      context: config?.runtime?.planContext,
+      planModeState,
+    }),
+  };
+
+  // Add AskUser tool if configured
+  if (config?.askUser) {
+    runtimeTools.AskUser = createAskUserTool(
+      config.askUser === true ? undefined : config.askUser,
+    );
+  }
+
+  // Add Patch tool if configured
+  if (config?.patch) {
+    runtimeTools.Patch = createPatchTool(
+      sandbox,
+      config.patch === true ? undefined : config.patch,
+    );
+  }
+
+  // Add plan mode tools if configured
+  if (planModeState) {
+    runtimeTools.EnterPlanMode = createEnterPlanModeTool(planModeState);
+    runtimeTools.ExitPlanMode = createExitPlanModeTool();
+  }
+
+  // Add Skill tool if configured
+  if (config?.skill) {
+    runtimeTools.Skill = createSkillTool({
+      skills: config.skill.skills,
+      sandbox,
+      onActivate: config.skill.onActivate,
+    });
+  }
+
+  // Add web tools if configured
+  if (config?.webSearch) {
+    runtimeTools.WebSearch = createWebSearchTool(config.webSearch);
+  }
+  if (config?.webFetch) {
+    runtimeTools.WebFetch = createWebFetchTool(config.webFetch);
+  }
+
+  // Merge extra tools from context config
+  if (config?.context?.extraTools) {
+    for (const [name, extraTool] of Object.entries(config.context.extraTools)) {
+      (runtimeTools as Record<string, Tool>)[name] = extraTool;
+    }
+  }
+
+  // Apply caching if configured (inner wrapper — cache sits inside context)
+  const cacheConfig = resolveCache(config?.cache);
+  if (cacheConfig.store) {
+    for (const [name, tool] of Object.entries(runtimeTools)) {
+      if (cacheConfig.enabled.has(name)) {
+        // Type assertion needed because cached() adds methods that ToolSet allows
+        (runtimeTools as Record<string, unknown>)[name] = cached(tool, name, {
+          store: cacheConfig.store,
+          ttl: cacheConfig.ttl,
+          debug: cacheConfig.debug,
+          onHit: cacheConfig.onHit,
+          onMiss: cacheConfig.onMiss,
+          keyGenerator: cacheConfig.keyGenerator,
+        });
+      }
+    }
+  }
+
+  // Build and apply context layers (outer wrapper — wraps outside cache)
+  const contextLayers: ContextLayer[] = [];
+
+  if (config?.context) {
+    // Execution policy (plan-mode gating and/or custom shouldBlock)
+    if (planModeState || config.context.executionPolicy?.shouldBlock) {
+      contextLayers.push(
+        createExecutionPolicy(planModeState, config.context.executionPolicy),
+      );
+    }
+
+    // Output policy (enabled by default, unless explicitly false)
+    if (config.context.outputPolicy !== false) {
+      contextLayers.push(
+        createOutputPolicy(
+          config.context.outputPolicy === undefined
+            ? undefined
+            : config.context.outputPolicy,
+        ),
+      );
+    }
+
+    // Custom layers (run after built-in layers)
+    if (config.context.layers) {
+      contextLayers.push(...config.context.layers);
+    }
+  }
+
+  if (config?.runtime?.eventSink) {
+    contextLayers.push(
+      createRuntimeEventLayer({
+        eventSink: config.runtime.eventSink,
+        agentId: config.runtime.planContext?.agent_id,
+        threadId: config.runtime.planContext?.thread_id,
+        turnId: config.runtime.planContext?.turn_id,
+      }),
+    );
+
+    if (config.runtime.fileChanges !== false) {
+      const fileChangeConfig =
+        typeof config.runtime.fileChanges === "object"
+          ? config.runtime.fileChanges
+          : {};
+      contextLayers.push(
+        createFileChangeEventLayer({
+          ...fileChangeConfig,
+          sandbox,
+          eventSink: config.runtime.eventSink,
+          agentId: config.runtime.planContext?.agent_id,
+          threadId: config.runtime.planContext?.thread_id,
+          turnId: config.runtime.planContext?.turn_id,
+        }),
+      );
+    }
+  }
+
+  // Apply all layers to all tools
+  if (contextLayers.length > 0) {
+    const wrapped = applyContextLayers(runtimeTools, contextLayers);
+    for (const [name, wrappedTool] of Object.entries(wrapped)) {
+      (runtimeTools as Record<string, Tool>)[name] = wrappedTool;
+    }
+  }
+
+  const tools: ToolSet = config?.codemode ? {} : { ...runtimeTools };
+  if (config?.codemode) {
+    tools.UpdatePlan = runtimeTools.UpdatePlan;
+    if (runtimeTools.AskUser) tools.AskUser = runtimeTools.AskUser;
+    if (runtimeTools.EnterPlanMode)
+      tools.EnterPlanMode = runtimeTools.EnterPlanMode;
+    if (runtimeTools.ExitPlanMode)
+      tools.ExitPlanMode = runtimeTools.ExitPlanMode;
+    if (runtimeTools.Skill) tools.Skill = runtimeTools.Skill;
+  }
+  let subagentStore: SubagentStore | undefined;
+  let subagentController: SubagentController | undefined;
+  let subagentRunnerCapabilities:
+    | ReturnType<typeof createAiSdkSubagentRunner>["capabilities"]
+    | undefined;
+
+  // Add Cloudflare Codemode tool after cache/context wrapping so generated code
+  // orchestrates the same policy-wrapped tools a model would call directly.
+  if (config?.codemode) {
+    const codemodeOnlyTools =
+      config.codemode.tools && contextLayers.length > 0
+        ? applyContextLayers(config.codemode.tools, contextLayers)
+        : (config.codemode.tools ?? {});
+    const codemodeProviders = config.codemode.providers?.map((provider) => ({
+      ...provider,
+      tools:
+        contextLayers.length > 0
+          ? applyContextLayers(provider.tools, contextLayers)
+          : provider.tools,
+    }));
+    const codemodeConfig = {
+      ...config.codemode,
+      tools: codemodeOnlyTools,
+      providers: codemodeProviders,
+    };
+
+    const { name, tool: rawCodemodeTool } = await createCodemodeTool(
+      runtimeTools,
+      codemodeConfig,
+    );
+
+    if (tools[name] || runtimeTools[name]) {
+      throw new Error(
+        `[bashkit] Codemode tool name "${name}" conflicts with an existing tool.`,
+      );
+    }
+
+    const codemodeTool =
+      contextLayers.length > 0
+        ? applyContextLayers({ [name]: rawCodemodeTool }, contextLayers)[name]
+        : rawCodemodeTool;
+
+    tools[name] = codemodeTool;
+  }
+
+  if (config?.subagents) {
+    subagentStore = config.subagents.store ?? createInMemorySubagentStore();
+    const runner =
+      config.subagents.runner ??
+      createAiSdkSubagentRunner({
+        ...config.subagents.runnerConfig,
+        model: config.subagents.model,
+        codemode: config.codemode,
+      });
+    subagentRunnerCapabilities = runner.capabilities;
+    subagentController = createSubagentController({
+      profiles: config.subagents.profiles,
+      defaultProfile: config.subagents.defaultProfile,
+      profileDefaults: config.subagents.profileDefaults,
+      store: subagentStore,
+      runner,
+      tools: runtimeTools,
+      eventSink: config.subagents.eventSink,
+      runtimeEventSink: config.runtime?.eventSink,
+      lifecycle: config.subagents.lifecycle,
+      budget,
+      cost: config.subagents.cost,
+    });
+    const subagentControlTools = createSubagentControlTools(
+      subagentController,
+      config.subagents.controlTools,
+    );
+    Object.assign(
+      tools,
+      contextLayers.length > 0
+        ? applyContextLayers(subagentControlTools, contextLayers)
+        : subagentControlTools,
+    );
+  }
+
+  return {
+    tools,
+    planModeState,
+    planState,
+    budget,
+    subagentController,
+    subagentStore,
+    getSubagentControlPanelState:
+      subagentStore && subagentController
+        ? async () =>
+            createSubagentControlPanelState({
+              records: await subagentStore.list(),
+              capabilities: subagentRunnerCapabilities,
+              budget: budget?.getStatus(),
+            })
+        : undefined,
+    openRouterModels,
+    contextLayers,
+  };
 }
 
 // --- Ask User Tool ---
@@ -450,25 +576,33 @@ export { createReadTool } from "./read";
 export type { SkillError, SkillOutput, SkillToolConfig } from "./skill";
 export { createSkillTool } from "./skill";
 
-// --- Task Tool ---
+// --- Subagent Control Tools ---
 export type {
-  SubagentEventData,
-  SubagentStepEvent,
-  SubagentTypeConfig,
-  TaskError,
-  TaskOutput,
-  TaskToolConfig,
-} from "./task";
-export { createTaskTool } from "./task";
-// State/workflow tool types
+  CompactSubagentRecord,
+  InterruptAgentOutput,
+  ListAgentsOutput,
+  MessageAgentOutput,
+  SpawnAgentOutput,
+  SubagentControlToolConfig,
+  SubagentToolError,
+  WaitAgentOutput,
+} from "./subagents";
+export {
+  createFollowupTaskTool,
+  createInterruptAgentTool,
+  createListAgentsTool,
+  createSendMessageTool,
+  createSpawnAgentTool,
+  createSubagentControlTools,
+  createWaitAgentTool,
+} from "./subagents";
+// --- UpdatePlan Tool ---
 export type {
-  TodoItem,
-  TodoState,
-  TodoWriteError,
-  TodoWriteOutput,
-} from "./todo-write";
-// State/workflow tool factories (not sandbox-based)
-export { createTodoWriteTool } from "./todo-write";
+  UpdatePlanError,
+  UpdatePlanOutput,
+  UpdatePlanToolConfig,
+} from "./update-plan";
+export { createUpdatePlanTool } from "./update-plan";
 export type { ExtractResult, WebFetchError, WebFetchOutput } from "./web-fetch";
 export { createWebFetchTool } from "./web-fetch";
 // Web tool types

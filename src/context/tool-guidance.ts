@@ -22,8 +22,10 @@ const DEFAULT_HINTS: Record<string, string> = {
     "Run generated JavaScript once to batch and orchestrate selected BashKit/provider tools.",
   Codemode:
     "Run generated JavaScript once to batch and orchestrate selected BashKit/provider tools.",
-  Task: "Spawn sub-agents for complex parallel work.",
-  TodoWrite: "Track multi-step task progress.",
+  UpdatePlan: "Track multi-step progress with a Codex-style plan.",
+  SpawnAgent: "Start a controller-managed subagent for separable work.",
+  WaitAgent: "Wait for a subagent to finish or report current status.",
+  ListAgents: "Inspect active and terminal subagents.",
 };
 
 /**

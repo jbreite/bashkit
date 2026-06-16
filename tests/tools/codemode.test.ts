@@ -130,10 +130,10 @@ describe("createCodemodeTool", () => {
     );
 
     expect(result.name).toBe("codemode");
-    expect(result.innerTools.Read).toBeDefined();
-    expect(result.innerTools.AskUser).toBeUndefined();
+    expect(result.runtimeTools.Read).toBeDefined();
+    expect(result.runtimeTools.AskUser).toBeUndefined();
     expect(result.providers).toEqual([
-      { name: "bashkit", tools: result.innerTools },
+      { name: "bashkit", tools: result.runtimeTools },
     ]);
     expect(createCodeTool).toHaveBeenCalledWith({
       tools: result.providers,
@@ -328,7 +328,7 @@ describe("createAgentTools codemode config", () => {
     expect(captured[0].ExitPlanMode).toBeUndefined();
   });
 
-  it("adds codemode-only extra tools to the inner tool set", async () => {
+  it("adds codemode-only extra tools to the runtime tool set", async () => {
     const sandbox = createMockSandbox();
     const captured: ToolSet[] = [];
 

@@ -49,8 +49,8 @@ const links: {
       { id: "grep", text: "Grep" },
       { id: "websearch", text: "WebSearch" },
       { id: "webfetch", text: "WebFetch" },
-      { id: "task", text: "Task" },
-      { id: "todowrite", text: "TodoWrite" },
+      { id: "updateplan", text: "UpdatePlan" },
+      { id: "subagents", text: "Subagents" },
     ],
   },
   {
@@ -85,6 +85,20 @@ const links: {
       { id: "system-prompt", text: "System Prompt" },
       { id: "prepare-step", text: "prepareStep" },
       { id: "full-example", text: "Full Example" },
+    ],
+  },
+  {
+    href: "/runtime",
+    label: "Runtime",
+    items: [
+      { id: "overview", text: "Overview" },
+      { id: "event-sink", text: "Event Sink" },
+      { id: "plan-state", text: "Plan State" },
+      { id: "ai-sdk-ui-streams", text: "AI SDK UI Streams" },
+      { id: "file-changes", text: "File Changes" },
+      { id: "approvals", text: "Approvals" },
+      { id: "snapshots", text: "Snapshots" },
+      { id: "host-responsibilities", text: "Host Responsibilities" },
     ],
   },
   {

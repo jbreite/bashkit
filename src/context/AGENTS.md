@@ -13,6 +13,8 @@ Builds the agent's runtime context: static system prompt assembly (instructions,
 | `tool-guidance.ts` | `buildToolGuidance()` — one-line hint list keyed by registered tool names |
 | `execution-policy.ts` | `createExecutionPolicy()` — plan-mode + custom gate layer (`beforeExecute`) |
 | `output-policy.ts` | `createOutputPolicy()` — truncation + redirection hints + optional disk stash (`afterExecute`) |
+| `runtime-events.ts` | `createRuntimeEventLayer()` — emits normalized `tool.started`, `tool.completed`, and `tool.failed` events |
+| `file-changes.ts` | `createFileChangeEventLayer()` — snapshots mutating tool targets / watched Bash roots and emits normalized `file.changed` events with unified diffs |
 | `prepare-step.ts` | `createPrepareStep()` — composes compaction + context-status + plan-mode hints for AI SDK `prepareStep` |
 
 ## Key Exports
@@ -23,6 +25,8 @@ Builds the agent's runtime context: static system prompt assembly (instructions,
 - `buildSystemContext(sandbox, config?)` -- Returns `{ instructions, environment, toolGuidance, combined, meta }`; designed to be called **once at init** for prompt-cache stability
 - `createExecutionPolicy(planModeState, config?)` -- Blocks `["Bash", "Write", "Edit"]` by default when plan mode is active
 - `createOutputPolicy(config?)` -- Defaults: `maxOutputLength: 30000`, `redirectionThreshold: 20000`, uses `middleTruncate`
+- `createRuntimeEventLayer(config)` -- Emits host-facing runtime tool lifecycle events through a `RuntimeEventSink`
+- `createFileChangeEventLayer(config)` -- Emits host-facing `file.changed` events for successful `Bash`, `Write`, `Edit`, and `Patch` calls by comparing before/after sandbox file snapshots. `Bash` uses capped watched-root snapshots because commands do not declare target files.
 - `createPrepareStep(config)` -- Returns a `PrepareStepFunction<ToolSet>`; **never touches `system`** (prompt cache)
 - `discoverInstructions`, `collectEnvironment`, `formatEnvironment`, `buildToolGuidance` -- individual section builders
 
@@ -66,6 +70,7 @@ prepare-step.ts     ──→ ../utils/compact-conversation + ../utils/context-s
 **Depends on**:
 - `../sandbox/interface` — `Sandbox` type for `discoverInstructions`/`collectEnvironment`/`stashOutput`
 - `../tools/enter-plan-mode` — `PlanModeState` type (execution-policy + prepare-step)
+- `../runtime` — runtime event sink and normalized event contracts (runtime-events)
 - `../utils/helpers` — `middleTruncate` (output-policy)
 - `../utils/compact-conversation`, `../utils/context-status` — prepare-step pipeline
 - `ai` — `Tool`, `ToolSet`, `ModelMessage`, `PrepareStepFunction`, `PrepareStepResult`
@@ -117,6 +122,7 @@ Pass a `PrepareStepFunction` as `config.extend` to `createPrepareStep`. It runs 
 - `build-context.test.ts` (434 lines) — system prompt assembly, section enabling/disabling, combined output
 - `execution-policy.test.ts` (145 lines) — plan-mode blocking, custom predicates
 - `output-policy.test.ts` (520 lines) — truncation, hints, stash-to-disk, custom builders
+- `runtime-events.test.ts` — tool lifecycle event emission and createAgentTools auto-wiring
 - `prepare-step.test.ts` (196 lines) — compaction, context-status injection, plan-mode hint, extend composition
 - `with-context.test.ts` (346 lines) — layer wrapping, gate short-circuit, transform pipe, no-execute passthrough
 - `parallel.test.ts` (175 lines) — layer isolation under concurrent tool calls

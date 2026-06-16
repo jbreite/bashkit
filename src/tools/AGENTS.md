@@ -1,6 +1,6 @@
 # Tools Module
 
-The tools module implements all 16 AI agent tools in BashKit. These tools bridge AI models with sandbox execution environments, enabling agents to perform file operations, run commands, search code, fetch web content, manage workflows, and interact with users. Each tool follows the Vercel AI SDK tool() pattern with Zod schemas for input validation and structured error handling.
+The tools module implements AI agent tools in BashKit. These tools bridge AI models with sandbox execution environments, enabling agents to perform file operations, run commands, search code, fetch web content, manage workflows, update progress, and interact with users. Each tool follows the Vercel AI SDK tool() pattern with Zod schemas for input validation and structured error handling.
 
 Most tools are a single file. **Tools with non-trivial internals live in their own folder with their own `AGENTS.md`** (e.g. `patch/`). When a single-file tool grows past ~3 files of supporting modules, promote it to a folder.
 
@@ -20,8 +20,8 @@ Most tools are a single file. **Tools with non-trivial internals live in their o
 | `enter-plan-mode.ts` | Enter planning mode for explore-then-execute workflows |
 | `exit-plan-mode.ts` | Exit planning mode and submit plan for approval |
 | `skill.ts` | Activate pre-loaded skills from SKILL.md files |
-| `task.ts` | Spawn sub-agents for autonomous multi-step tasks |
-| `todo-write.ts` | Manage structured task lists with state tracking |
+| `subagents/` | Controller-backed multi-agent control tools |
+| `update-plan.ts` | Codex-style canonical checklist/progress tool backed by runtime `PlanState` |
 | `web-search.ts` | Search the web via Parallel API with domain filtering |
 | `web-fetch.ts` | Fetch and process web content with AI model |
 | `index.ts` | Tool factory orchestration and caching layer |
@@ -42,8 +42,8 @@ Most tools are a single file. **Tools with non-trivial internals live in their o
 - `createEnterPlanModeTool(state, onEnter?)` -- Planning mode entry
 - `createExitPlanModeTool(onPlanSubmit?)` -- Planning mode exit
 - `createSkillTool(config)` -- Skill activation
-- `createTaskTool(config)` -- Sub-agent spawning
-- `createTodoWriteTool(state, onUpdate?)` -- Task list management
+- `createSubagentControlTools(controller, config?)` -- Create Spawn/List/Wait/Message/Interrupt subagent control tools
+- `createUpdatePlanTool(state, config?)` -- Codex-style checklist/progress updates backed by runtime `PlanState`
 - `createWebSearchTool(config)` -- Web search
 - `createWebFetchTool(config)` -- Web content fetching
 
@@ -51,16 +51,16 @@ Most tools are a single file. **Tools with non-trivial internals live in their o
 Each tool exports `<Name>Output` for success and `<Name>Error` for errors:
 - Sandbox tools: `BashOutput | BashError`, `ReadOutput | ReadError`, etc.
 - Interactive tools: `AskUserOutput`, etc.
-- Workflow tools: `TaskOutput | TaskError`, `TodoWriteOutput | TodoWriteError`
+- Workflow tools: subagent control tool outputs plus `UpdatePlanOutput | UpdatePlanError`
 - Web tools: `WebSearchOutput | WebSearchError`, `WebFetchOutput | WebFetchError`
 
 ### Configuration Types
-- `AgentConfig` -- Top-level config for createAgentTools()
+- `AgentConfig` -- Top-level config for createAgentTools(), including `codemode` and `subagents`
 - `ToolConfig` -- Per-tool config (timeout, allowedPaths, maxFileSize, etc.)
 - `AskUserConfig` -- AskUser AI SDK tool options
 - `SkillConfig` -- Skill metadata and sandbox
-- `TaskToolConfig` -- Sub-agent configuration (includes optional `budget` for auto-wiring cost tracking)
 - `CodemodeConfig` -- Optional Cloudflare Codemode adapter config (executor, tool filters, extra tools). Executor typing follows Cloudflare Codemode / AI SDK v6.
+- `SubagentConfig` -- Optional controller-backed subagent tools/configuration
 - `ModelRegistryConfig` -- Model registry config (provider, apiKey) for fetching model info
 - `BudgetConfig` -- Budget tracking config (maxUsd, modelPricing; pricing provider via top-level `modelRegistry`)
 - `WebSearchConfig` / `WebFetchConfig` -- Web tool API keys and providers
@@ -81,11 +81,14 @@ Each tool exports `<Name>Output` for success and `<Name>Error` for errors:
 - Skill -- Load specialized instructions from SKILL.md files
 
 **Code Orchestration** (opt-in via config):
-- codemode -- A Cloudflare Codemode tool that lets the model write code to orchestrate a filtered set of BashKit tools, codemode-only extra tools, and optional named providers. Client-intervention tools (`AskUser`, `EnterPlanMode`, `ExitPlanMode`), tools without `execute`, and tools with `needsApproval` are excluded from every inner tool set. Thrown codemode execution failures are converted to `{ error }` tool results like other BashKit tools.
+- codemode -- A Cloudflare Codemode tool that lets the model write code to orchestrate a filtered set of BashKit tools, codemode-only extra tools, and optional named providers. When `codemode` is configured, `createAgentTools` makes Codemode the parent-visible coding surface and keeps direct coding/file tools as runtime providers. Client-intervention tools (`AskUser`, `EnterPlanMode`, `ExitPlanMode`), tools without `execute`, and tools with `needsApproval` are excluded from every runtime tool set. Thrown codemode execution failures are converted to `{ error }` tool results like other BashKit tools.
 
-**Workflow Tools** (require Task tool config):
-- Task -- Spawn sub-agents with custom system prompts and tool restrictions
-- TodoWrite -- Shared state management for task tracking
+**Progress Tools** (default):
+- UpdatePlan -- Canonical Codex-style checklist/progress tool. Updates runtime `PlanState` and emits `plan.updated` events when a runtime event sink is configured.
+
+**Workflow Tools**:
+- UpdatePlan -- Canonical Codex-style progress tracking backed by runtime plan state
+- Subagent control tools -- First-class controller adapters for SpawnAgent, ListAgents, WaitAgent, SendMessage, FollowupTask, and InterruptAgent. Enabled through top-level `subagents` config and backed by a shared controller/store/runner.
 
 **Web Tools** (opt-in via config, require parallel-web):
 - WebSearch -- Search via Parallel API
@@ -93,12 +96,13 @@ Each tool exports `<Name>Output` for success and `<Name>Error` for errors:
 
 ### Data Flow
 
-1. **Tool Creation**: `createAgentTools()` → individual `create*Tool()` factories → `tool()` from AI SDK
+1. **Tool Creation**: `createAgentTools()` → individual `create*Tool()` factories → `tool()` from AI SDK. `UpdatePlan` is included by default with a canonical runtime `PlanState`.
 2. **Execution**: AI model calls tool → `execute()` function or deferred client round-trip → sandbox operation or external API → return Output or Error
 3. **Caching** (optional): `resolveCache()` wraps cacheable tools with `cached()` from cache module
 4. **Model Registry** (optional): `createAgentTools()` fetches model info (pricing + context lengths) from a provider (e.g., OpenRouter). Data is shared with budget tracking and returned as `openRouterModels` in the result.
-5. **Budget** (optional): `createAgentTools()` creates a `BudgetTracker` from config, using pricing derived from model registry or manual overrides. Returns it for wiring into `onStepFinish`/`stopWhen`. Auto-wires into Task tool sub-agents.
-5. **Export**: Tools surfaced via `src/index.ts` barrel export to package consumers
+5. **Budget** (optional): `createAgentTools()` creates a `BudgetTracker` from config, using pricing derived from model registry or manual overrides. Returns it for wiring into `onStepFinish`/`stopWhen` and subagent controller policies.
+6. **Surface Split**: policy-wrapped `runtimeTools` feed Codemode and subagent runners. Parent-visible tools are Codemode-first when `codemode` is configured; direct coding/file tools stay inside the runtime provider surface.
+7. **Export**: Tools surfaced via `src/index.ts` barrel export to package consumers
 
 ### Internal Dependencies
 
@@ -110,8 +114,9 @@ Each tool exports `<Name>Output` for success and `<Name>Error` for errors:
 - `../sandbox/interface.ts` -- Sandbox abstraction for Bash/Read/Write/Edit/Glob/Grep
 - `../types.ts` -- Config types and DEFAULT_CONFIG
 - `../cache/` -- Caching layer for Read, Glob, Grep, WebFetch, WebSearch
+- `../runtime/` -- Runtime event sink and canonical plan state for UpdatePlan
 - `../utils/debug.ts` -- Debug logging for all tools
-- `../utils/budget-tracking.ts` -- Budget tracker creation and OpenRouter model/pricing fetch (used by index.ts and task.ts)
+- `../utils/budget-tracking.ts` -- Budget tracker creation and OpenRouter model/pricing fetch (used by index.ts)
 - `../skills/types.ts` -- Skill metadata for Skill tool
 - `ai` -- tool(), zodSchema(), generateText(), streamText() from Vercel AI SDK
 - `zod` -- Schema validation for all tool inputs
@@ -248,11 +253,11 @@ Located at `/tests/tools/`:
 - `edit.test.ts` -- String replacement, uniqueness validation, replace_all
 - `glob.test.ts` -- Pattern matching, path filtering
 - `grep.test.ts` -- Content search, output modes, context lines, pagination
-- `todo-write.test.ts` -- Task state management
+- `update-plan.test.ts` -- Canonical plan updates and runtime event emission
 - `web-search.test.ts` -- Parallel API search (requires PARALLEL_API_KEY)
 - `web-fetch.test.ts` -- Web content extraction (requires PARALLEL_API_KEY)
 - `index.test.ts` -- Tool factory orchestration, caching
-- `budget-integration.test.ts` -- Budget tracker integration with createAgentTools and Task tool auto-wiring
+- `budget-integration.test.ts` -- Budget tracker integration with createAgentTools
 
 ### Running Tests
 ```bash
@@ -267,6 +272,6 @@ PARALLEL_API_KEY=xxx bun test tests/tools/web-search.test.ts
 ```
 
 ### Coverage Gaps
-- No tests for: `ask-user.ts`, `enter-plan-mode.ts`, `exit-plan-mode.ts`, `skill.ts`, `task.ts`
+- No tests for: `ask-user.ts`, `enter-plan-mode.ts`, `exit-plan-mode.ts`, `skill.ts`
 - These tools require runtime integration (user interaction, plan mode state, skills, sub-agents)
 - Test via examples: `/examples/basic.ts` for full agent loop

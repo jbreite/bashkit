@@ -91,7 +91,7 @@ export interface CodemodeConfig {
   excludeTools?: string[];
   /** Test hook / advanced override. Defaults to @cloudflare/codemode/ai createCodeTool. */
   createCodeTool?: CreateCodeTool;
-  /** Observability hook for tools filtered out of the codemode inner tool set. */
+  /** Observability hook for tools filtered out of the Codemode runtime tool set. */
   onToolExcluded?: (
     toolName: string,
     reason: CodemodeToolExclusionReason,
@@ -214,20 +214,20 @@ export async function createCodemodeTool(
 ): Promise<{
   name: string;
   tool: Tool;
-  innerTools: ToolSet;
+  runtimeTools: ToolSet;
   providers: CodemodeToolProvider[];
 }> {
   const defaultProviderTools = {
     ...tools,
     ...(config.tools ?? {}),
   };
-  const innerTools = selectCodemodeTools(defaultProviderTools, config);
+  const runtimeTools = selectCodemodeTools(defaultProviderTools, config);
   const providers = [
-    ...(Object.keys(innerTools).length > 0
+    ...(Object.keys(runtimeTools).length > 0
       ? [
           {
             name: config.namespace ?? DEFAULT_CODEMODE_TOOL_NAMESPACE,
-            tools: innerTools,
+            tools: runtimeTools,
           },
         ]
       : []),
@@ -258,7 +258,7 @@ export async function createCodemodeTool(
   return {
     name: config.toolName ?? DEFAULT_CODEMODE_TOOL_NAME,
     tool: wrapCodemodeTool(tool),
-    innerTools,
+    runtimeTools,
     providers,
   };
 }
