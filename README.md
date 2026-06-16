@@ -19,9 +19,25 @@ Agentic coding tools for Vercel AI SDK. Give AI agents the ability to execute co
 - Search the web and fetch URLs
 - Load skills on-demand via the [Agent Skills](https://agentskills.io) standard
 
-## Breaking Changes in v0.4.0
+## Breaking Changes
 
-### Nullable Types for OpenAI Compatibility
+### Next Breaking Release: Codemode, Subagents, and Progress
+
+BashKit is moving to a simpler coding surface:
+
+- If `codemode` is configured, the parent model receives the `codemode` tool as
+  its coding interface. Direct coding tools such as `Bash`, `Read`, `Write`,
+  `Edit`, `Glob`, and `Grep` remain available to Codemode as runtime providers.
+- If `codemode` is not configured, the parent model receives the direct BashKit
+  tools.
+- `Task` has been removed. Use `SpawnAgent` plus `WaitAgent`.
+- `TodoWrite` has been removed. Use `UpdatePlan`, which is included by
+  `createAgentTools()`.
+
+This is intentionally a breaking change. There is no `createAgentTools`
+compatibility switch that exposes direct tools alongside Codemode.
+
+### v0.4.0: Nullable Types for OpenAI Compatibility
 
 All optional tool parameters now use `.nullable()` instead of `.optional()` in Zod schemas. This change enables compatibility with OpenAI's structured outputs, which require all properties to be in the `required` array.
 
@@ -71,7 +87,7 @@ import { generateText, stepCountIs } from 'ai';
 const sandbox = createLocalSandbox({ cwd: '/tmp/workspace' });
 
 // Create tools bound to the sandbox
-const { tools } = createAgentTools(sandbox);
+const { tools } = await createAgentTools(sandbox);
 
 // Use with Vercel AI SDK
 const result = await generateText({
@@ -103,7 +119,7 @@ const sandbox = await createVercelSandbox({
   resources: { vcpus: 2 },
 });
 
-const { tools } = createAgentTools(sandbox);
+const { tools } = await createAgentTools(sandbox);
 
 const result = streamText({
   model: anthropic('claude-sonnet-4-5'),
@@ -118,7 +134,7 @@ await sandbox.destroy();
 
 ## Available Tools
 
-### Default Tools (always included)
+### Direct Coding Tools
 
 | Tool | Purpose | Key Inputs |
 |------|---------|------------|
@@ -128,6 +144,10 @@ await sandbox.destroy();
 | `Edit` | Replace strings in files | `file_path`, `old_string`, `new_string`, `replace_all?` |
 | `Glob` | Find files by pattern | `pattern`, `path?` |
 | `Grep` | Search file contents | `pattern`, `path?`, `output_mode?`, `-i?`, `-C?` |
+
+These tools are parent-visible when `codemode` is not configured. When
+`codemode` is configured, they move behind Codemode as runtime providers instead
+of appearing beside the `codemode` tool.
 
 ### Optional Tools (via config)
 
@@ -146,7 +166,7 @@ await sandbox.destroy();
 | Tool | Purpose | Factory |
 |------|---------|---------|
 | `UpdatePlan` | Track task progress | Included by `createAgentTools()` |
-| `SpawnAgent` / `WaitAgent` | Control subagents | `createSubagentControlTools(controller, config?)` |
+| `SpawnAgent` / `WaitAgent` | Control subagents | `subagents: { ... }` or `createSubagentControlTools(controller, config?)` |
 
 ### Web Tools (require `parallel-web` peer dependency)
 
@@ -220,7 +240,7 @@ const reconnected = await createE2BSandbox({
 You can configure tools with security restrictions and limits, and enable optional tools:
 
 ```typescript
-const { tools, planModeState } = createAgentTools(sandbox, {
+const { tools, planModeState } = await createAgentTools(sandbox, {
   // Enable optional tools
   askUser: true,
   planMode: true, // Enables EnterPlanMode and ExitPlanMode
@@ -295,6 +315,11 @@ await streamText({
 });
 ```
 
+When `codemode` is configured, `tools` contains `codemode` plus control and
+interactive tools such as `UpdatePlan`, `AskUser`, `EnterPlanMode`,
+`ExitPlanMode`, `Skill`, and subagent controls. Direct coding/file tools are not
+also exposed to the parent model.
+
 By default, generated code calls BashKit tools through BashKit's `bashkit.*` namespace, for example `await bashkit.Grep(...)`. Use `providers` when you want additional named tool groups such as `repo.SummarizeFile(...)`.
 
 Client-intervention tools are excluded from codemode automatically: `AskUser`, `EnterPlanMode`, `ExitPlanMode`, tools without `execute`, and tools with `needsApproval`. Top-level `includeTools` narrows the default `bashkit.*` namespace. Named providers can define their own `includeTools` or `excludeTools`.
@@ -317,7 +342,7 @@ Client-intervention tools are excluded from codemode automatically: `AskUser`, `
 All tools support AI SDK v6 tool options:
 
 ```typescript
-const { tools } = createAgentTools(sandbox, {
+const { tools } = await createAgentTools(sandbox, {
   tools: {
     Bash: {
       timeout: 30000,
@@ -350,6 +375,88 @@ separable work, `ListAgents` to inspect running and terminal children, and
 The older one-shot `Task` tool has been removed from the breaking API. Migrate
 `Task(description, prompt)` flows to `SpawnAgent(task, task_name?)` followed by
 `WaitAgent(agent_id)`.
+
+```typescript
+import {
+  createAgentTools,
+  createLocalSandbox,
+  createStaticSubagentRunner,
+} from 'bashkit';
+
+const sandbox = createLocalSandbox({ cwd: '/tmp/workspace' });
+
+const { tools, getSubagentControlPanelState } = await createAgentTools(
+  sandbox,
+  {
+    subagents: {
+      profiles: [
+        {
+          name: 'researcher',
+          description: 'Read-only code research',
+          allowedTools: ['Read', 'Glob', 'Grep'],
+          deniedTools: ['Write', 'Edit', 'Bash'],
+        },
+      ],
+      runner: createStaticSubagentRunner({
+        status: 'completed',
+        result: 'Research summary',
+      }),
+    },
+  },
+);
+
+// Parent model can call SpawnAgent, ListAgents, WaitAgent, SendMessage,
+// FollowupTask, and InterruptAgent.
+console.log(Object.keys(tools));
+console.log(await getSubagentControlPanelState?.());
+```
+
+### Subagent Profile Files
+
+Profiles can be loaded from JSON-safe config and then passed to
+`createAgentTools`. Model entries are string aliases in the file; the host maps
+them to live AI SDK model objects.
+
+```json
+{
+  "defaultProfile": "researcher",
+  "defaults": {
+    "model": "fast",
+    "context": { "recent_turns": 3 },
+    "cost": { "maxDepth": 1 }
+  },
+  "profiles": [
+    {
+      "name": "researcher",
+      "description": "Read-only investigation",
+      "system": "Investigate and cite files. Do not edit.",
+      "allowedTools": ["Read", "Glob", "Grep", "WebSearch"],
+      "deniedTools": ["Write", "Edit", "Bash"]
+    }
+  ]
+}
+```
+
+```typescript
+import { loadSubagentProfilesFromJson } from 'bashkit';
+
+const loaded = loadSubagentProfilesFromJson(profileJson, {
+  models: {
+    fast: anthropic('claude-haiku-4'),
+  },
+});
+
+if ('error' in loaded) throw new Error(loaded.error);
+
+const { tools } = await createAgentTools(sandbox, {
+  subagents: {
+    profiles: loaded.profiles,
+    profileDefaults: loaded.defaults,
+    defaultProfile: loaded.defaultProfile,
+    model: anthropic('claude-sonnet-4-5'),
+  },
+});
+```
 
 ## Context Management
 
@@ -398,7 +505,7 @@ if (contextNeedsCompaction(status)) {
 Cache tool execution results to avoid repeated expensive operations:
 
 ```typescript
-const { tools } = createAgentTools(sandbox, {
+const { tools } = await createAgentTools(sandbox, {
   // Enable caching with defaults (LRU, 5min TTL)
   cache: true,
 });
@@ -407,7 +514,7 @@ const { tools } = createAgentTools(sandbox, {
 ### Cache Configuration Options
 
 ```typescript
-const { tools } = createAgentTools(sandbox, {
+const { tools } = await createAgentTools(sandbox, {
   cache: {
     // Custom TTL (default: 5 minutes)
     ttl: 10 * 60 * 1000,
@@ -463,7 +570,7 @@ const redisStore: CacheStore = {
   },
 };
 
-const { tools } = createAgentTools(sandbox, {
+const { tools } = await createAgentTools(sandbox, {
   cache: redisStore,
 });
 ```
@@ -552,7 +659,7 @@ import {
 } from 'bashkit';
 
 const sandbox = createLocalSandbox({ cwd: '/tmp/workspace' });
-const { tools, planModeState } = createAgentTools(sandbox, { planMode: true });
+const { tools, planModeState } = await createAgentTools(sandbox, { planMode: true });
 
 const wrappedTools = applyContextLayers(tools, [
   // Gate: block Bash/Write/Edit while plan mode is active
@@ -643,7 +750,7 @@ import { discoverSkills, skillsToXml, createAgentTools, createLocalSandbox } fro
 
 const skills = await discoverSkills();
 const sandbox = createLocalSandbox({ cwd: '/tmp/workspace' });
-const { tools } = createAgentTools(sandbox);
+const { tools } = await createAgentTools(sandbox);
 
 const result = await generateText({
   model: anthropic('claude-sonnet-4-5'),
@@ -812,7 +919,7 @@ ${skillsToXml(skills)}
 `;
 
 // Create tools and run
-const { tools } = createAgentTools(sandbox);
+const { tools } = await createAgentTools(sandbox);
 
 const result = await generateText({
   model: anthropic('claude-sonnet-4-5'),
@@ -888,7 +995,7 @@ class DockerSandbox implements Sandbox {
 }
 
 const sandbox = new DockerSandbox();
-const { tools } = createAgentTools(sandbox);
+const { tools } = await createAgentTools(sandbox);
 ```
 
 ## Architecture
@@ -933,6 +1040,8 @@ const { tools } = createAgentTools(sandbox);
 See the `examples/` directory for complete working examples:
 
 - `basic.ts` - Full example with UpdatePlan and prompt caching
+- `subagents.ts` - Controller-backed subagent control and control-panel state
+- `codemode-subagents.ts` - Codemode-first parent surface with profile-loaded subagents
 - `test-tools.ts` - Testing individual tools
 - `test-web-tools.ts` - Web search and fetch examples
 
@@ -946,7 +1055,9 @@ Creates a set of agent tools bound to a sandbox instance.
 - `sandbox` (Sandbox): Sandbox instance for code execution
 - `config` (AgentConfig, optional): Configuration for tools and web tools
 
-**Returns:** Object with tool definitions compatible with Vercel AI SDK
+**Returns:** Promise resolving to tool definitions compatible with Vercel AI SDK,
+plus optional shared state such as `budget`, `planState`,
+`subagentController`, and `getSubagentControlPanelState`.
 
 ### Sandbox Factories
 
@@ -959,6 +1070,9 @@ Creates a set of agent tools bound to a sandbox instance.
 
 - `createUpdatePlanTool(state, config?)` - Track progress with the canonical Codex-style plan state
 - `createSubagentControlTools(controller, config?)` - Create Spawn/List/Wait/Message/Interrupt subagent controls
+- `loadSubagentProfilesFromJson(json, options?)` - Load JSON-safe subagent profile configs
+- `loadSubagentProfilesFromObject(input, options?)` - Validate profile config objects
+- `loadSubagentProfilesFromFile(path, reader, options?)` - Load profile config through a host-provided reader
 
 ### Optional Tools (also available via config)
 
@@ -1001,43 +1115,16 @@ Creates a set of agent tools bound to a sandbox instance.
 - `createOutputPolicy(config?)` - Truncation + redirection hints + optional disk stash `ContextLayer`
 - `createPrepareStep(config)` - Compose compaction + context-status + plan-mode hints into an AI SDK `PrepareStepFunction`
 
-## Future Roadmap
+## Migration Notes
 
-The following features are planned for future releases:
-
-### Agent Profiles Loader
-
-Load pre-configured subagent types from JSON/TypeScript configs:
-
-```json
-// .bashkit/agents.json
-{
-  "subagentTypes": {
-    "research": {
-      "systemPrompt": "You are a research specialist...",
-      "tools": ["Read", "Grep", "Glob", "WebSearch"]
-    },
-    "coding": {
-      "systemPrompt": "You are a coding expert...",
-      "tools": ["Read", "Write", "Edit", "Bash"]
-    }
-  }
-}
-```
-
-Register loaded profiles with the subagent profile registry:
-```typescript
-import { createSubagentProfileRegistry } from 'bashkit';
-
-const registry = createSubagentProfileRegistry({
-  profiles,
-});
-```
-
-This will make it easy to:
-- Share agent configurations across projects
-- Standardize agent patterns within teams
-- Quickly set up specialized agents for different tasks
+- Replace `Task` with `SpawnAgent` plus `WaitAgent`.
+- Replace `TodoWrite` with `UpdatePlan`.
+- When adopting Codemode, expect direct coding tools to disappear from the
+  parent-visible tool set. They are still available inside generated Codemode
+  code through the configured runtime providers.
+- Use `loadSubagentProfilesFromJson`, `loadSubagentProfilesFromObject`, or
+  `loadSubagentProfilesFromFile` to share team-standard subagent profiles across
+  apps.
 
 ## Contributing
 

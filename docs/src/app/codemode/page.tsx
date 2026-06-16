@@ -29,6 +29,13 @@ export default function Codemode() {
             policy-wrapped tools. That means context layers, plan-mode gates,
             output policy, and sandbox restrictions keep applying.
           </p>
+          <p>
+            The factory surface is binary: configure <code>codemode</code> and
+            the parent model gets Codemode as its coding tool; omit{" "}
+            <code>codemode</code> and the parent model gets direct BashKit
+            tools. There is no parent-surface compatibility mode that exposes
+            both.
+          </p>
         </section>
 
         <section>
@@ -164,6 +171,11 @@ async () => {
             <code>AskUser</code>, <code>EnterPlanMode</code>,{" "}
             <code>ExitPlanMode</code>, tools without an <code>execute</code>{" "}
             function, and tools with <code>needsApproval</code>.
+          </p>
+          <p>
+            Parent-visible control tools such as <code>UpdatePlan</code> and
+            subagent controls can still be exposed beside <code>codemode</code>.
+            Direct coding/file tools stay inside the runtime provider surface.
           </p>
         </section>
 

@@ -279,12 +279,30 @@ export default function Tools() {
           <p>
             Use controller-backed subagent tools for delegation. SpawnAgent
             starts separable work, ListAgents inspects status, and WaitAgent
-            collects terminal results.
+            collects terminal results. Configure subagents through{" "}
+            <code>createAgentTools</code> to expose the control tools to the
+            parent model.
           </p>
           <CodeBlock
             language="typescript"
             copyable
-            code={`// SpawnAgent input schema
+            code={`const { tools, getSubagentControlPanelState } = await createAgentTools(
+  sandbox,
+  {
+    subagents: {
+      model,
+      profiles: [
+        {
+          name: 'researcher',
+          allowedTools: ['Read', 'Glob', 'Grep'],
+          deniedTools: ['Write', 'Edit', 'Bash'],
+        },
+      ],
+    },
+  },
+);
+
+// SpawnAgent input schema
 {
   task: string,
   profile: string | null,
@@ -296,6 +314,32 @@ export default function Tools() {
   agent: string,
   timeout_ms: number | null
 }`}
+          />
+          <p>
+            Profile files can be loaded with{" "}
+            <code>loadSubagentProfilesFromJson</code>,{" "}
+            <code>loadSubagentProfilesFromObject</code>, or{" "}
+            <code>loadSubagentProfilesFromFile</code>. Model names inside the
+            file are aliases that the host maps to live AI SDK model objects.
+          </p>
+          <CodeBlock
+            language="typescript"
+            copyable
+            code={`const loaded = loadSubagentProfilesFromJson(profileJson, {
+  models: {
+    fast: anthropic('claude-haiku-4'),
+  },
+});
+
+if ('error' in loaded) throw new Error(loaded.error);
+
+const { tools } = await createAgentTools(sandbox, {
+  subagents: {
+    profiles: loaded.profiles,
+    profileDefaults: loaded.defaults,
+    defaultProfile: loaded.defaultProfile,
+  },
+});`}
           />
         </section>
       </article>
