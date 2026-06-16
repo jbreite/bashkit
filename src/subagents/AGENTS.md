@@ -12,6 +12,7 @@ Foundation for controller-managed subagents. This module owns identity, path res
 | `status.ts` | Status helpers and terminal-state checks |
 | `profiles.ts` | Profile registry factory and profile resolution |
 | `profile-descriptions.ts` | Model-visible profile description generation |
+| `model-info.ts` | Serializable model summary helpers for metadata and host snapshots |
 | `tool-filter.ts` | Tool allowlist filtering plus denied-tool reject/hide policy wrappers |
 | `context-inheritance.ts` | Parent-to-child message inheritance for `none`, `all`, and bounded recent-turn policies |
 | `tool-surface.ts` | Profile-scoped child tool surface construction with Codemode quarantine |
@@ -24,6 +25,7 @@ Foundation for controller-managed subagents. This module owns identity, path res
 | `runner.ts` | Runner capability helpers and fake test runner utilities |
 | `execution-limits.ts` | Active/total/depth/mailbox/wait limit policy |
 | `cost-control.ts` | Budget-backed policy checks |
+| `control-panel.ts` | Host-facing serializable control panel state projection |
 | `controller.ts` | Subagent controller orchestration |
 | `index.ts` | Barrel exports |
 
@@ -36,6 +38,8 @@ The default foundation does not put subagent methods on `Sandbox`. Child agents 
 `createAiSdkSubagentRunner` is the default in-process runner. It builds child messages from the profile context policy, constructs a profile-scoped tool surface, calls AI SDK `generateText`, reports usage/tool events through runner callbacks, and returns compact terminal results with result/transcript references. It does not maintain durable paused JavaScript execution or follow-up turns.
 
 Profile tool policy is allowlist-first. `allowedTools` narrows the child surface. `deniedTools` defaults to execution-time rejection, so denied tools stay visible and return `{ error: string }` when called. Profiles can explicitly set `deniedBehavior: "hide"` when the denied tool names should be removed from direct and Codemode inner surfaces.
+
+Control panel state is a normalized host projection, not a UI framework. It includes each agent's resolved profile model summary, status, supported actions, result/transcript refs, recent events, and budget warnings while excluding full child result/transcript text.
 
 ## Design Rules
 

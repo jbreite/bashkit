@@ -2,6 +2,7 @@ import { checkSubagentCostPolicy } from "./cost-control";
 import { clampSubagentWaitTimeout } from "./execution-limits";
 import { subagentEventToRuntimeEvent } from "./events";
 import { createMailboxMessage } from "./mailbox";
+import { createSubagentModelInfo } from "./model-info";
 import { createSubagentProfileRegistry } from "./profiles";
 import { createSubagentRegistry } from "./registry";
 import { isActiveSubagentStatus, isTerminalSubagentStatus } from "./status";
@@ -272,9 +273,11 @@ export function createSubagentController(
         taskName: request.task_name,
         profile: profile.name,
         nickname: profile.nickname,
+        model: createSubagentModelInfo(profile.model),
         parentId: request.parent_id ?? null,
         depth,
         lastTaskMessage: request.task,
+        metadata: request.metadata,
       });
       if (hasError(metadata)) return metadata;
 
@@ -294,6 +297,7 @@ export function createSubagentController(
         status: metadata.status,
         profile: metadata.profile,
         nickname: metadata.nickname,
+        model: metadata.model,
       };
     },
 

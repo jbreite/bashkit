@@ -802,7 +802,7 @@ BashKit is currently pre-1.0, but the contributor guide says breaking changes re
 - **Requirements:** R10, R11, R12, R14, R19, R23
 - **Dependencies:** U1, U2, U3, U4, U6
 - **Files:** `src/subagents/control-panel.ts`, `src/subagents/events.ts`, `src/subagents/index.ts`, `tests/subagents/control-panel.test.ts`, `README.md`, `docs/src/app/tools/page.tsx`
-- **Approach:** Add a projection layer that turns controller state, store records, events, and budget summaries into `SubagentControlPanelState`. Include live and terminal agents, status, profile/type, task name, nickname, last task message, parent/child relationship, budget summary, warnings, supported actions, and transcript/result references.
+- **Approach:** Add a projection layer that turns controller state, store records, events, and budget summaries into `SubagentControlPanelState`. Include live and terminal agents, status, profile/type, resolved model summary, task name, nickname, last task message, parent/child relationship, budget summary, warnings, supported actions, and transcript/result references.
 - **Patterns to follow:** Codex `list_agents` status output; BashKit budget status shape in `src/utils/budget-tracking.ts`; normalized runtime event snapshots.
 - **Test scenarios:** Starting a child adds it to active state; completion moves it to terminal state without dropping result references; budget updates and warnings appear; unsupported actions are absent; full transcript text is excluded by default; snapshots serialize to plain JSON; path filters produce stable subsets.
 - **Verification:** Host apps can build a control panel without reaching into controller internals.

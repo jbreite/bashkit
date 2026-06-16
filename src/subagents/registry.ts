@@ -33,13 +33,14 @@ export function createSubagentRegistry(): SubagentRegistry {
         task_name: normalizedPath,
         profile: request.profile,
         nickname: request.nickname,
+        model: request.model ?? { id: null },
         status: "pending",
         parent_id: request.parentId ?? null,
         depth: request.depth,
         last_task_message: request.lastTaskMessage,
         created_at: now,
         updated_at: now,
-        metadata: {},
+        metadata: request.metadata ?? {},
       };
 
       records.set(metadata.agent_id, metadata);

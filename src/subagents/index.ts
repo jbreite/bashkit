@@ -26,6 +26,15 @@ export {
   type SubagentToolSurfaceConfig,
 } from "./tool-surface";
 export {
+  createSubagentControlPanelState,
+  type SubagentControlPanelAction,
+  type SubagentControlPanelAgent,
+  type SubagentControlPanelOptions,
+  type SubagentControlPanelState,
+  type SubagentControlPanelStats,
+} from "./control-panel";
+export { createSubagentModelInfo } from "./model-info";
+export {
   compactSubagentResult,
   createSubagentResultRef,
   createSubagentTranscriptRef,
@@ -88,6 +97,7 @@ export type {
   SubagentMessageResult,
   SubagentMetadata,
   SubagentMetadataPatch,
+  SubagentModelInfo,
   SubagentPath,
   SubagentPolicyState,
   SubagentProfileDefaults,

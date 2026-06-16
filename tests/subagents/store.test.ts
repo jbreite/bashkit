@@ -8,6 +8,7 @@ function metadata(): SubagentMetadata {
     task_name: "research/auth",
     profile: "worker",
     nickname: "worker",
+    model: { id: null },
     status: "pending",
     parent_id: null,
     depth: 0,

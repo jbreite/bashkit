@@ -36,6 +36,10 @@ export interface SubagentUsage {
   outputTokens?: number;
 }
 
+export interface SubagentModelInfo {
+  id: string | null;
+}
+
 export interface SubagentRunResult {
   agent_id: SubagentId;
   task_name: SubagentPath | null;
@@ -114,6 +118,7 @@ export interface SubagentMetadata {
   task_name: SubagentPath | null;
   profile: string;
   nickname: string | null;
+  model: SubagentModelInfo;
   status: SubagentStatus;
   parent_id: SubagentId | null;
   depth: number;
@@ -274,6 +279,7 @@ export type SubagentSpawnResult = SubagentHandle & {
   status: SubagentStatus;
   profile: string;
   nickname: string | null;
+  model: SubagentModelInfo;
 };
 
 export interface SubagentWaitRequest {
@@ -379,6 +385,7 @@ export interface SubagentReservationRequest {
   taskName?: string | null;
   profile: string;
   nickname: string | null;
+  model?: SubagentModelInfo;
   parentId?: SubagentId | null;
   depth: number;
   lastTaskMessage: string;
