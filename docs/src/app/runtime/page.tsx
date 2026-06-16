@@ -140,9 +140,11 @@ console.log(planState.stats());`}
           <p>
             When a runtime <code>eventSink</code> is configured, BashKit emits{" "}
             <code>file.changed</code> events after successful calls to{" "}
-            <code>Write</code>, <code>Edit</code>, and <code>Patch</code>. Each
-            event includes the path, change type, originating tool, tool call
-            id, and a unified diff when BashKit can safely capture one.
+            <code>Bash</code>, <code>Write</code>, <code>Edit</code>, and{" "}
+            <code>Patch</code>. Each event includes the path, change type,
+            originating tool, tool call id, and a unified diff when BashKit can
+            safely capture one. Bash changes are detected by snapshotting
+            watched roots before and after the command.
           </p>
           <CodeBlock
             language="typescript"
@@ -154,6 +156,9 @@ const { tools } = await createAgentTools(sandbox, {
   runtime: {
     eventSink,
     fileChanges: {
+      rootPaths: ['/workspace'],
+      maxSnapshotFiles: 1_000,
+      maxSnapshotDepth: 8,
       maxDiffBytes: 80_000,
     },
   },

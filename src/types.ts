@@ -94,8 +94,9 @@ export interface RuntimeConfig {
   /** Default event identity for main-agent plan updates. */
   planContext?: PlanUpdateContext;
   /**
-   * Emit file.changed events after successful mutating tools.
-   * Defaults to true when eventSink is configured.
+   * Emit file.changed events after successful mutating tools. Bash changes are
+   * detected by capped watched-root snapshots; Write/Edit/Patch use exact
+   * target paths. Defaults to true when eventSink is configured.
    */
   fileChanges?:
     | boolean

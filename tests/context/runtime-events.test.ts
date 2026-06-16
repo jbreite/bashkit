@@ -7,7 +7,11 @@ import {
   projectChangesSnapshot,
 } from "@/runtime";
 import { createAgentTools } from "@/tools";
-import { createMockSandbox, executeTool } from "@test/helpers";
+import {
+  createMockSandbox,
+  executeTool,
+  type MockSandbox,
+} from "@test/helpers";
 
 describe("createRuntimeEventLayer", () => {
   it("emits tool started and completed events", async () => {
@@ -180,6 +184,50 @@ describe("createRuntimeEventLayer", () => {
         unified_diff: expect.stringContaining("-gone"),
       }),
     ]);
+  });
+
+  it("emits file changed events for Bash workspace mutations", async () => {
+    const sink = createMemoryRuntimeEventSink();
+    let sandbox: MockSandbox;
+    sandbox = createMockSandbox({
+      files: {
+        "/workspace": ["file.txt"],
+        "/workspace/file.txt": "before\n",
+      },
+      execHandler: () => {
+        sandbox.setFile("/workspace/file.txt", "after\n");
+        return {
+          stdout: "",
+          stderr: "",
+          exitCode: 0,
+          durationMs: 1,
+          interrupted: false,
+        };
+      },
+    });
+    const { tools } = await createAgentTools(sandbox, {
+      runtime: {
+        eventSink: sink,
+        fileChanges: { rootPaths: ["/workspace"] },
+      },
+    });
+
+    await executeTool(tools.Bash, {
+      command: "printf after > /workspace/file.txt",
+      timeout: null,
+      description: null,
+      run_in_background: null,
+    });
+
+    const changed = sink.events.find((event) => event.type === "file.changed");
+    expect(changed).toMatchObject({
+      type: "file.changed",
+      path: "/workspace/file.txt",
+      change: "modified",
+      tool_name: "Bash",
+    });
+    expect(changed?.unified_diff).toContain("-before");
+    expect(changed?.unified_diff).toContain("+after");
   });
 
   it("does not emit file changed events for failed mutating calls", async () => {
