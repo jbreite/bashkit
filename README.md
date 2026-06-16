@@ -14,8 +14,8 @@ Agentic coding tools for Vercel AI SDK. Give AI agents the ability to execute co
 - Edit existing files with string replacement
 - Search for files by pattern
 - Search file contents with regex
-- Spawn sub-agents for complex tasks
-- Track task progress with todos
+- Coordinate controller-managed subagents
+- Track task progress with UpdatePlan
 - Search the web and fetch URLs
 - Load skills on-demand via the [Agent Skills](https://agentskills.io) standard
 
@@ -141,12 +141,12 @@ await sandbox.destroy();
 | `WebSearch` | Search the web | `webSearch: { apiKey }` |
 | `WebFetch` | Fetch URL and process with AI | `webFetch: { apiKey, model }` |
 
-### Workflow Tools (created separately)
+### Workflow Tools
 
 | Tool | Purpose | Factory |
 |------|---------|---------|
-| `Task` | Spawn sub-agents | `createTaskTool({ model, tools, subagentTypes? })` |
-| `TodoWrite` | Track task progress | `createTodoWriteTool(state, config?, onUpdate?)` |
+| `UpdatePlan` | Track task progress | Included by `createAgentTools()` |
+| `SpawnAgent` / `WaitAgent` | Control subagents | `createSubagentControlTools(controller, config?)` |
 
 ### Web Tools (require `parallel-web` peer dependency)
 
@@ -340,102 +340,16 @@ const { tools } = createAgentTools(sandbox, {
 - `strict` (boolean): Enable strict schema validation
 - `providerOptions` (object): Provider-specific tool options
 
-## Sub-agents with Task Tool
+## Subagents
 
-The Task tool spawns new agents for complex subtasks:
+Subagents are controller-managed agents with stable identity, profiles,
+lifecycle events, and explicit supervision tools. Use `SpawnAgent` to start
+separable work, `ListAgents` to inspect running and terminal children, and
+`WaitAgent` to collect the terminal result.
 
-```typescript
-import { createTaskTool } from 'bashkit';
-
-const taskTool = createTaskTool({
-  model: anthropic('claude-sonnet-4-5'),
-  tools: sandboxTools,
-  subagentTypes: {
-    research: {
-      model: anthropic('claude-haiku-4'), // Cheaper model for research
-      systemPrompt: 'You are a research specialist. Find information only.',
-      tools: ['Read', 'Grep', 'Glob'], // Limited tools
-    },
-    coding: {
-      systemPrompt: 'You are a coding expert. Write clean code.',
-      tools: ['Read', 'Write', 'Edit', 'Bash'],
-    },
-  },
-});
-
-// Add to tools
-const allTools = { ...sandboxTools, Task: taskTool };
-```
-
-The parent agent calls Task like any other tool:
-```typescript
-// Agent decides to delegate:
-{ tool: "Task", args: {
-  description: "Research API patterns",
-  prompt: "Find best practices for REST APIs",
-  subagent_type: "research"
-}}
-```
-
-### Dynamic Agents
-
-You can create custom agents on the fly by passing `system_prompt` and/or `tools` directly, without predefined subagent types:
-
-```typescript
-// Agent creates a specialized agent dynamically:
-{ tool: "Task", args: {
-  description: "Analyze security vulnerabilities",
-  prompt: "Review the auth code for security issues",
-  subagent_type: "custom",
-  system_prompt: "You are a security expert. Focus on OWASP top 10 vulnerabilities.",
-  tools: ["Read", "Grep", "Glob"]
-}}
-```
-
-This is useful when:
-- The parent agent needs to create specialized agents based on context
-- You want agents to delegate with custom instructions
-- Predefined subagent types don't fit the task
-
-### Streaming Sub-agent Activity to UI
-
-Pass a `streamWriter` to stream real-time sub-agent activity to the UI:
-
-```typescript
-import { createUIMessageStream } from 'ai';
-
-const stream = createUIMessageStream({
-  execute: async ({ writer }) => {
-    const taskTool = createTaskTool({
-      model,
-      tools: sandboxTools,
-      streamWriter: writer, // Enable real-time streaming
-      subagentTypes: { ... },
-    });
-
-    // Use with streamText
-    const result = streamText({
-      model,
-      tools: { Task: taskTool },
-      ...
-    });
-
-    writer.merge(result.toUIMessageStream());
-  },
-});
-```
-
-When `streamWriter` is provided:
-- Uses `streamText` internally (instead of `generateText`)
-- Emits `data-subagent` events to the UI stream:
-  - `start` - Sub-agent begins work
-  - `tool-call` - Each tool the sub-agent uses (with args)
-  - `done` - Sub-agent finished
-  - `complete` - Full messages array for UI access
-
-These appear in `message.parts` on the client as `{ type: "data-subagent", data: SubagentEventData }`.
-
-**Important:** The TaskOutput returned to the lead agent does NOT include messages (to avoid context bloat). The UI accesses the full conversation via the streamed `complete` event.
+The older one-shot `Task` tool has been removed from the breaking API. Migrate
+`Task(description, prompt)` flows to `SpawnAgent(task, task_name?)` followed by
+`WaitAgent(agent_id)`.
 
 ## Context Management
 
@@ -916,25 +830,23 @@ const result = await generateText({
 
 ### Using with Subagents
 
-Use the same config for subagent prompts:
+Use the same config for subagent profiles:
 
 ```typescript
-const taskTool = createTaskTool({
-  model,
-  tools,
-  subagentTypes: {
-    researcher: {
-      systemPrompt: `You are a researcher.
+const profiles = [
+  {
+    name: 'researcher',
+    system: `You are a researcher.
 Save findings to: ${config.workspace.notes}`,
-      tools: ['WebSearch', 'Write'],
-    },
-    'report-writer': {
-      systemPrompt: `Read from: ${config.workspace.notes}
-Save reports to: ${config.workspace.outputs}`,
-      tools: ['Read', 'Glob', 'Write'],
-    },
+    allowedTools: ['WebSearch', 'Write'],
   },
-});
+  {
+    name: 'report-writer',
+    system: `Read from: ${config.workspace.notes}
+Save reports to: ${config.workspace.outputs}`,
+    allowedTools: ['Read', 'Glob', 'Write'],
+  },
+];
 ```
 
 ## Sandbox Interface
@@ -1020,7 +932,7 @@ const { tools } = createAgentTools(sandbox);
 
 See the `examples/` directory for complete working examples:
 
-- `basic.ts` - Full example with todos, sub-agents, and prompt caching
+- `basic.ts` - Full example with UpdatePlan and prompt caching
 - `test-tools.ts` - Testing individual tools
 - `test-web-tools.ts` - Web search and fetch examples
 
@@ -1045,8 +957,8 @@ Creates a set of agent tools bound to a sandbox instance.
 
 ### Workflow Tools
 
-- `createTaskTool(config)` - Spawn sub-agents for complex tasks
-- `createTodoWriteTool(state, config?, onUpdate?)` - Track task progress
+- `createUpdatePlanTool(state, config?)` - Track progress with the canonical Codex-style plan state
+- `createSubagentControlTools(controller, config?)` - Create Spawn/List/Wait/Message/Interrupt subagent controls
 
 ### Optional Tools (also available via config)
 
@@ -1113,14 +1025,12 @@ Load pre-configured subagent types from JSON/TypeScript configs:
 }
 ```
 
-Helper function to auto-load profiles:
+Register loaded profiles with the subagent profile registry:
 ```typescript
-import { createTaskToolWithProfiles } from 'bashkit';
+import { createSubagentProfileRegistry } from 'bashkit';
 
-const taskTool = createTaskToolWithProfiles({
-  model,
-  tools,
-  profilesPath: '.bashkit/agents.json', // Auto-loads
+const registry = createSubagentProfileRegistry({
+  profiles,
 });
 ```
 

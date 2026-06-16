@@ -39,7 +39,7 @@ const GLOB_DESCRIPTION = `
 - Supports glob patterns like "**/*.js" or "src/**/*.ts"
 - Returns matching file paths sorted by modification time
 - Use this tool when you need to find files by name patterns
-- When you are doing an open ended search that may require multiple rounds of globbing and grepping, use the Task tool instead
+- When you are doing open-ended research that may require multiple rounds of globbing and grepping, use subagent control tools when available
 - It is always better to speculatively perform multiple searches in parallel if they are potentially useful
 `;
 

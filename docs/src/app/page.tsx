@@ -158,10 +158,12 @@ export default function Home() {
               <strong>WebFetch</strong> &mdash; Fetch and extract web content
             </li>
             <li>
-              <strong>Task</strong> &mdash; Spawn sub-agents for complex work
+              <strong>UpdatePlan</strong> &mdash; Track progress with a
+              Codex-style plan
             </li>
             <li>
-              <strong>TodoWrite</strong> &mdash; Manage structured task lists
+              <strong>SpawnAgent</strong> &mdash; Start controller-managed
+              subagents for separable work
             </li>
           </ul>
         </section>

@@ -246,8 +246,8 @@ const result = await generateText({
 });`}
           />
           <p>
-            Budget tracking auto-wires into Task tool sub-agents when
-            configured.
+            Budget tracking can be shared with subagent controllers so parent
+            and child work are governed by one budget domain.
           </p>
 
           <h3>Model ID Matching</h3>

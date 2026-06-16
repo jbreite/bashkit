@@ -4,6 +4,7 @@ import {
   type AgentToolsResult,
   type CodemodeExecutor,
 } from "@/tools/index";
+import * as bashkit from "@/index";
 import type { WebFetchConfig } from "@/types";
 import type { CachedTool } from "@/cache/cached";
 import {
@@ -51,6 +52,11 @@ describe("createAgentTools", () => {
       expect(tools.Skill).toBeUndefined();
       expect(tools.Patch).toBeUndefined();
       expect(tools.codemode).toBeUndefined();
+    });
+
+    it("does not export removed legacy Task or TodoWrite factories", () => {
+      expect("createTaskTool" in bashkit).toBe(false);
+      expect("createTodoWriteTool" in bashkit).toBe(false);
     });
 
     it("should not return planModeState by default", async () => {

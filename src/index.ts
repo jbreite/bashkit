@@ -253,22 +253,10 @@ export type {
   SkillError,
   SkillOutput,
   SkillToolConfig,
-  // Task tool
-  SubagentEventData,
-  SubagentStepEvent,
-  SubagentTypeConfig,
-  TaskError,
-  TaskOutput,
-  TaskToolConfig,
   // UpdatePlan tool
   UpdatePlanError,
   UpdatePlanOutput,
   UpdatePlanToolConfig,
-  // TodoWrite tool
-  TodoItem,
-  TodoState,
-  TodoWriteError,
-  TodoWriteOutput,
   // Web tools
   WebFetchError,
   WebFetchOutput,
@@ -298,8 +286,6 @@ export {
   createSkillTool,
   createSpawnAgentTool,
   createSubagentControlTools,
-  createTaskTool,
-  createTodoWriteTool,
   createUpdatePlanTool,
   createWaitAgentTool,
   createWebFetchTool,

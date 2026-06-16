@@ -17,7 +17,7 @@ Host-facing runtime primitives for building Codex-like agent experiences on top 
 
 `RuntimeEventSink` is a small host-facing event stream. It records and publishes typed JSON-safe `RuntimeEvent` objects but does not decide where they go. Hosts can forward events to React state, WebSockets, databases, logs, or queues.
 
-`PlanState` is canonical for progress tracking. It follows Codex `update_plan` semantics: an optional explanation plus plan items with `step` and `status`. Legacy `TodoWrite` can adapt into this shape, but new runtime state should not depend on `TodoWrite.activeForm`.
+`PlanState` is canonical for progress tracking. It follows Codex `update_plan` semantics: an optional explanation plus plan items with `step` and `status`. Runtime state should not depend on legacy todo-list fields such as `activeForm`.
 
 ## Design Rules
 
@@ -42,4 +42,3 @@ Host-facing runtime primitives for building Codex-like agent experiences on top 
 1. Define the snapshot type in `types.ts` or `snapshots.ts`.
 2. Implement a pure reducer in `snapshots.ts`.
 3. Test multiple-event ordering, empty streams, and irrelevant-event filtering.
-

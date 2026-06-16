@@ -480,7 +480,7 @@ export { createReadTool } from "./read";
 export type { SkillError, SkillOutput, SkillToolConfig } from "./skill";
 export { createSkillTool } from "./skill";
 
-// --- Task Tool ---
+// --- Subagent Control Tools ---
 export type {
   CompactSubagentRecord,
   InterruptAgentOutput,
@@ -500,15 +500,6 @@ export {
   createSubagentControlTools,
   createWaitAgentTool,
 } from "./subagents";
-export type {
-  SubagentEventData,
-  SubagentStepEvent,
-  SubagentTypeConfig,
-  TaskError,
-  TaskOutput,
-  TaskToolConfig,
-} from "./task";
-export { createTaskTool } from "./task";
 // --- UpdatePlan Tool ---
 export type {
   UpdatePlanError,
@@ -516,15 +507,6 @@ export type {
   UpdatePlanToolConfig,
 } from "./update-plan";
 export { createUpdatePlanTool } from "./update-plan";
-// State/workflow tool types
-export type {
-  TodoItem,
-  TodoState,
-  TodoWriteError,
-  TodoWriteOutput,
-} from "./todo-write";
-// State/workflow tool factories (not sandbox-based)
-export { createTodoWriteTool } from "./todo-write";
 export type { ExtractResult, WebFetchError, WebFetchOutput } from "./web-fetch";
 export { createWebFetchTool } from "./web-fetch";
 // Web tool types

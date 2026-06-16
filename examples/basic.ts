@@ -10,52 +10,20 @@ import {
   anthropicPromptCacheMiddleware,
   createAgentTools,
   createLocalSandbox,
-  createTaskTool,
-  createTodoWriteTool,
-  type TodoState,
 } from "../src";
 
 async function main() {
   // Create sandbox in a temp directory
   const sandbox = createLocalSandbox({ cwd: "/tmp/bashkit-test" });
 
-  // Create sandbox-based tools
-  const { tools: sandboxTools } = await createAgentTools(sandbox);
-
-  // Create state for todos
-  const todoState: TodoState = { todos: [] };
-  const todoTool = createTodoWriteTool(todoState, undefined, (todos) => {
-    console.log("📝 Todos updated:", JSON.stringify(todos, null, 2));
-  });
+  // Create sandbox-based tools plus the canonical UpdatePlan progress tool.
+  const { tools } = await createAgentTools(sandbox);
 
   // Wrap model with prompt caching middleware for better performance
   const model = wrapLanguageModel({
     model: anthropic("claude-sonnet-4-20250514"),
     middleware: anthropicPromptCacheMiddleware,
   });
-
-  // Create task tool for sub-agents (also uses cached model)
-  const taskTool = createTaskTool({
-    model,
-    tools: sandboxTools,
-    subagentTypes: {
-      research: {
-        systemPrompt: "You are a research specialist. Find information only.",
-        tools: ["Read", "Grep", "Glob"],
-      },
-      coding: {
-        systemPrompt: "You are a coding expert. Write clean code.",
-        tools: ["Read", "Write", "Edit", "Bash"],
-      },
-    },
-  });
-
-  // Combine all tools
-  const tools = {
-    ...sandboxTools,
-    TodoWrite: todoTool,
-    Task: taskTool,
-  };
 
   console.log("🚀 Starting bashkit test...\n");
   console.log("Available tools:", Object.keys(tools).join(", "));
@@ -71,9 +39,9 @@ async function main() {
     system: `You are a helpful coding assistant with access to tools for file operations and code execution.
     
 When given a task:
-1. Use TodoWrite to plan your steps
+1. Use UpdatePlan to plan your steps
 2. Execute each step using the appropriate tools
-3. Mark todos as completed as you go`,
+3. Mark plan items as completed as you go`,
     prompt: `Create a simple "hello world" TypeScript file at /tmp/bashkit-test/hello.ts and then run it with bun.`,
     stopWhen: stepCountIs(10), // Allow up to 10 steps
     onStepFinish: ({ finishReason, toolCalls, toolResults, text, usage }) => {

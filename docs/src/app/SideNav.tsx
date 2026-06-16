@@ -49,8 +49,8 @@ const links: {
       { id: "grep", text: "Grep" },
       { id: "websearch", text: "WebSearch" },
       { id: "webfetch", text: "WebFetch" },
-      { id: "task", text: "Task" },
-      { id: "todowrite", text: "TodoWrite" },
+      { id: "updateplan", text: "UpdatePlan" },
+      { id: "subagents", text: "Subagents" },
     ],
   },
   {

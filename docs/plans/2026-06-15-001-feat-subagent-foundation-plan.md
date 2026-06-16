@@ -106,7 +106,7 @@ Codex has already solved the architectural split. Its multi-agent tools do not o
 - KTD1. Split subagent core from tool adapters: create `src/subagents/` for profiles, identity, registry, controller, stores, events, state projections, policies, and runner contracts. Tool files call into this module.
 - KTD2. Make Codemode the default public harness: `createAgentTools` exposes a Codemode tool by default when a Codemode executor is supplied. Direct tools are inner providers and optional compatibility exposure.
 - KTD3. Make subagent controls the default delegation API: expose `SpawnAgent`, `ListAgents`, `SendMessage`, `FollowupTask`, `WaitAgent`, and `InterruptAgent` for parent model coordination.
-- KTD4. Treat `Task` as legacy: remove it from default examples and either remove it from the default factory or retain it as a deprecated one-shot adapter over the controller.
+- KTD4. Remove `Task` entirely in the breaking release: the one-shot delegation abstraction does not fit the controller-managed subagent model. Migrate callers to `SpawnAgent` plus `WaitAgent`.
 - KTD5. Put Codemode inside subagents by default: children receive a profile-scoped Codemode tool that can orchestrate only the tools allowed by the profile.
 - KTD6. Apply quarantine at two layers: profile allowlists filter direct tools and Codemode inner providers. A restricted profile cannot regain `Write`, `Edit`, `Patch`, `Bash`, `SpawnAgent`, or `FollowupTask` through generated code.
 - KTD7. Model profiles as runtime configuration, not prompt strings: profiles resolve to model, prompt, tool policy, Codemode policy, context policy, cost policy, stop conditions, prepare-step, callbacks, and host metadata.
@@ -716,21 +716,11 @@ This boundary should be documented as "metadata and terminal result persistence"
 | Cost tracking exists mostly at tool/generation boundaries | Cost tracking is shared across parent and children |
 | UI receives optional `data-subagent` events from `Task` | UI can consume typed controller events and snapshots |
 
-### `Task` Options
+### Removed Legacy Tools
 
-Preferred path:
-
-- Remove `Task` from default docs and factory examples.
-- Export `createLegacyTaskTool` for one migration window.
-- Implement the adapter over `SubagentController.spawn` plus `wait`.
-- Emit deprecation messaging in docs and release notes.
-
-Alternative path:
-
-- Remove `Task` entirely in the breaking release.
-- Provide a migration recipe: `Task(description, prompt)` becomes `SpawnAgent(task, task_name?)` then `WaitAgent(agent_id)`.
-
-The preferred path is kinder to existing consumers while still making the default mental model correct.
+- Remove `Task` entirely in the breaking release. The one-shot nested generation model conflicts with stable subagent identity, lifecycle events, control panel state, messaging, waiting, interruption, and profile-scoped Codemode policy.
+- Remove `TodoWrite` entirely in the breaking release. `UpdatePlan` is the canonical Codex-style progress primitive and emits normalized `plan.updated` runtime events for host UIs.
+- Provide migration recipes: `Task(description, prompt)` becomes `SpawnAgent(task, task_name?)` then `WaitAgent(agent_id)`. `TodoWrite(todos)` becomes `UpdatePlan(plan)`.
 
 ### Versioning
 
@@ -747,7 +737,7 @@ BashKit is currently pre-1.0, but the contributor guide says breaking changes re
 - **Dependencies:** None
 - **Files:** `src/subagents/AGENTS.md`, `src/subagents/CLAUDE.md`, `src/subagents/index.ts`, `src/subagents/types.ts`, `src/subagents/identity.ts`, `src/subagents/path.ts`, `src/subagents/profiles.ts`, `src/subagents/profile-descriptions.ts`, `src/subagents/tool-filter.ts`, `src/subagents/registry.ts`, `src/tools/AGENTS.md`, `src/index.ts`, `tests/subagents/identity.test.ts`, `tests/subagents/path.test.ts`, `tests/subagents/profiles.test.ts`, `tests/subagents/tool-filter.test.ts`, `tests/subagents/registry.test.ts`
 - **Approach:** Define public-but-small interfaces for `SubagentProfile`, `ResolvedSubagentProfile`, `SubagentMetadata`, `SubagentStatus`, `SubagentPath`, `SubagentRunResult`, `SubagentCodemodePolicy`, `SubagentContextPolicy`, and `SubagentError`. Keep core request types separate from AI SDK tool schemas. Add path parsing, relative lookup, duplicate live-name checks, and profile-visible description generation.
-- **Patterns to follow:** `src/tools/patch/` for promoting non-trivial internals into a folder; `src/tools/AGENTS.md` for documentation expectations; `src/tools/task.ts` for AI SDK type imports and budget callback conventions.
+- **Patterns to follow:** `src/tools/patch/` for promoting non-trivial internals into a folder; `src/tools/AGENTS.md` for documentation expectations; AI SDK runner tests for model/tool execution conventions.
 - **Test scenarios:** Unique IDs are generated; duplicate live paths return `{ error }`; relative child and sibling paths resolve; terminal path reuse follows policy; profile resolution applies defaults, named profile config, and allowed overrides; profile descriptions include purpose, locked model/cost hints, and capability limits; tool filtering excludes unknown tools without throwing; Codemode policy inherits the same allowlist as direct tools; context policy accepts `none`, `all`, and recent-turn modes; optional nullable fields resolve with `??` defaults.
 - **Verification:** `src/subagents/` exports only stable types/helpers and every new file is covered by `src/subagents/AGENTS.md`.
 
@@ -758,7 +748,7 @@ BashKit is currently pre-1.0, but the contributor guide says breaking changes re
 - **Dependencies:** U1
 - **Files:** `src/subagents/controller.ts`, `src/subagents/store.ts`, `src/subagents/runner.ts`, `src/subagents/events.ts`, `src/subagents/status.ts`, `src/subagents/mailbox.ts`, `tests/subagents/controller.test.ts`, `tests/subagents/store.test.ts`, `tests/subagents/runner.test.ts`, `tests/subagents/events.test.ts`
 - **Approach:** Implement `SubagentController` over `SubagentStore`, `SubagentRunner`, lifecycle hooks, and `SubagentEventSink`. Provide `InMemorySubagentStore` and an AI SDK runner. The controller owns reservations, status transitions, context inheritance, mailbox writes, completion notifications, and event ordering. The runner executes resolved runs and reports usage/events back through typed callbacks.
-- **Patterns to follow:** Codex `AgentControl` and `AgentRegistry`; BashKit `BudgetTracker` stopWhen/onStepFinish composition in `src/tools/task.ts`; debug parent attribution in `src/utils/debug.ts`.
+- **Patterns to follow:** Codex `AgentControl` and `AgentRegistry`; BashKit `BudgetTracker` stopWhen/onStepFinish composition in `src/subagents/ai-sdk-runner.ts`; debug parent attribution in `src/utils/debug.ts`.
 - **Test scenarios:** Spawn moves `pending -> running -> completed`; setup failures move to `failed`; lifecycle hooks fire in deterministic order; completion notification emits even when no one waits; runner rejection records errored status and returns `{ error }`; interrupt changes status and aborts when supported; unsupported interrupt returns `{ error }`; wait timeout does not change status; mailbox updates `last_task_message`; follow-up requests a turn only when runner supports it; snapshots are JSON-serializable; fake runners can test behavior without real models.
 - **Verification:** Controller tests use fake stores and fake runners; no live AI SDK calls are needed.
 
@@ -791,20 +781,20 @@ BashKit is currently pre-1.0, but the contributor guide says breaking changes re
 - **Dependencies:** U1, U2, U3
 - **Files:** `src/subagents/ai-sdk-runner.ts`, `src/subagents/tool-surface.ts`, `src/subagents/context-inheritance.ts`, `src/subagents/transcripts.ts`, `tests/subagents/ai-sdk-runner.test.ts`, `tests/subagents/context-inheritance.test.ts`, `tests/subagents/tool-surface.test.ts`
 - **Approach:** Construct a child tool surface from the resolved profile. Build Codemode providers after profile filtering. Include optional direct tools only when the profile asks for them. Apply context inheritance before the model call. Route usage, tool events, and terminal summaries back through runner callbacks.
-- **Patterns to follow:** `src/tools/task.ts` AI SDK generation flow; `src/tools/codemode.ts` provider selection and `selectCodemodeTools`; `src/context/index.ts` wrapping behavior.
+- **Patterns to follow:** `src/subagents/ai-sdk-runner.ts` AI SDK generation flow; `src/tools/codemode.ts` provider selection and `selectCodemodeTools`; `src/context/index.ts` wrapping behavior.
 - **Test scenarios:** Child receives Codemode by default; child direct tools are hidden unless profile opts in; blocked tools are absent from Codemode providers; recent-turn context includes only the configured number of turns; `none` context excludes parent history; runner reports usage to the controller; generated terminal summary excludes full transcript; stop conditions produce `completed`; model/tool failure produces `failed` with `{ error }`.
 - **Verification:** Runner tests use mock models/tools where possible and avoid networked model calls.
 
-### U6. Decide and Implement the `Task` Migration Path
+### U6. Remove Legacy `Task` and `TodoWrite`
 
-- **Goal:** Make the breaking `Task` decision explicit and provide the smallest responsible compatibility path.
+- **Goal:** Make the breaking delegation/progress decision explicit by deleting old model-facing compatibility tools.
 - **Requirements:** R1, R2, R3, R4, R5, R8, R10, R11, R13
 - **Dependencies:** U1, U2, U3, U5
-- **Files:** `src/tools/task.ts`, `tests/tools/task.test.ts`, `tests/tools/budget-integration.test.ts`
-- **Approach:** Prefer retaining `Task` only as `createLegacyTaskTool` or a deprecated adapter. Translate old fields into a one-shot spawn request, call `wait`, and format the old `TaskOutput` shape. Emit existing streaming event names through the shared event sink so legacy and new paths share observability code.
-- **Patterns to follow:** Current `src/tools/task.ts` output and debug behavior; existing budget tests; `runWithDebugParent` for nested attribution.
-- **Test scenarios:** Deprecated adapter can be imported; legacy success returns `result`, `usage`, `duration_ms`, `subagent`, and `description`; legacy errors return `TaskError`; custom `system_prompt` maps to profile override; custom `tools` narrows direct tools and Codemode providers; streaming mode emits compatible `data-subagent` events; debug parent wraps child tool calls; budget stopWhen still halts child work.
-- **Verification:** New docs do not teach `Task` as the default subagent API.
+- **Files:** `src/tools/task.ts`, `src/tools/todo-write.ts`, `src/tools/index.ts`, `src/index.ts`, `tests/tools/todo-write.test.ts`, `tests/tools/budget-integration.test.ts`, `README.md`, docs pages
+- **Approach:** Delete `Task` and `TodoWrite` factories/types/tests/exports. Keep `UpdatePlan` as the canonical progress tool and subagent controls as the canonical delegation API. Move useful budget and event assertions into controller/runtime tests rather than preserving adapter behavior.
+- **Patterns to follow:** `UpdatePlan` runtime event behavior; subagent control tool tests; `createAgentTools` export surface tests.
+- **Test scenarios:** `Task` and `TodoWrite` are absent from package exports; `UpdatePlan` remains default; budget tests no longer import legacy tools; docs/examples contain migration wording instead of legacy usage examples.
+- **Verification:** New docs do not teach `Task` or `TodoWrite` as supported APIs.
 
 ### U7. Add Parent-Agent Control Panel State
 
@@ -813,7 +803,7 @@ BashKit is currently pre-1.0, but the contributor guide says breaking changes re
 - **Dependencies:** U1, U2, U3, U4, U6
 - **Files:** `src/subagents/control-panel.ts`, `src/subagents/events.ts`, `src/subagents/index.ts`, `tests/subagents/control-panel.test.ts`, `README.md`, `docs/src/app/tools/page.tsx`
 - **Approach:** Add a projection layer that turns controller state, store records, events, and budget summaries into `SubagentControlPanelState`. Include live and terminal agents, status, profile/type, task name, nickname, last task message, parent/child relationship, budget summary, warnings, supported actions, and transcript/result references.
-- **Patterns to follow:** Existing `SubagentEventData` shape in `src/tools/task.ts`; Codex `list_agents` status output; BashKit budget status shape in `src/utils/budget-tracking.ts`.
+- **Patterns to follow:** Codex `list_agents` status output; BashKit budget status shape in `src/utils/budget-tracking.ts`; normalized runtime event snapshots.
 - **Test scenarios:** Starting a child adds it to active state; completion moves it to terminal state without dropping result references; budget updates and warnings appear; unsupported actions are absent; full transcript text is excluded by default; snapshots serialize to plain JSON; path filters produce stable subsets.
 - **Verification:** Host apps can build a control panel without reaching into controller internals.
 
@@ -891,7 +881,7 @@ BashKit is currently pre-1.0, but the contributor guide says breaking changes re
 - Subagent control tools with fake runner.
 - Budget integration across parent and child.
 - Context layers inherited by child tools.
-- Legacy `Task` adapter over controller.
+- Removed `Task`/`TodoWrite` public export checks.
 
 ### Regression Tests
 
@@ -920,7 +910,7 @@ BashKit is currently pre-1.0, but the contributor guide says breaking changes re
 3. Add AI SDK runner and profile-scoped Codemode tool surface.
 4. Add model-facing control tools.
 5. Add control panel projection.
-6. Add legacy `Task` adapter or removal path.
+6. Remove legacy `Task` and `TodoWrite` APIs.
 7. Flip factory defaults to Codemode-first and subagent-first in the breaking release branch.
 8. Update examples, docs, and release notes.
 9. Run full local gates and review public API surface before release.
@@ -951,14 +941,14 @@ Optional peer dependency strategy needs a release decision. If Codemode becomes 
 | UI expects transcripts in model output | Parent context fills with child logs | Provide event sinks and transcript references instead. |
 | Durable resume expectations | Users assume active-run recovery | Document metadata/result persistence and defer active-run resume. |
 | API surface becomes too complex | Hard adoption | Keep defaults simple and put advanced knobs in profile/config objects. |
-| Legacy `Task` behavior diverges | Migration confusion | Implement adapter on same controller or remove with clear release notes. |
+| Removed legacy tools surprise consumers | Migration confusion | Treat as a major breaking change and document `Task` -> `SpawnAgent`/`WaitAgent`, `TodoWrite` -> `UpdatePlan`. |
 
 ---
 
 ## Open Questions
 
 - OQ1. Should this ship as `1.0.0` to make the breaking change obvious, or as a pre-1.0 breaking minor with unusually strong migration notes?
-- OQ2. Should `Task` remain as `createLegacyTaskTool` for one release, or be removed entirely from the breaking release?
+- OQ2. Resolved: remove `Task` entirely in the breaking release.
 - OQ3. What should the default max depth be: `1` for safest behavior or `2` to allow supervisor -> worker -> specialist patterns?
 - OQ4. Should the default `worker` profile expose subagent control tools, or should recursive spawning require explicit profile opt-in?
 - OQ5. Should profile files live under a conventional path such as `.bashkit/agents/*.json`, or should loading remain completely caller-directed?
@@ -973,7 +963,7 @@ The docs should introduce the model in this order:
 2. Subagent controls are the default delegation surface.
 3. Profiles define capability, safety, cost, and context boundaries.
 4. Control panel state is host-rendered from typed snapshots.
-5. `Task` is legacy or removed.
+5. `Task` and `TodoWrite` are removed.
 
 The examples should show:
 
@@ -989,7 +979,7 @@ The examples should show:
 
 ## Sources & Research
 
-- BashKit current implementation: `src/tools/task.ts`, `src/tools/codemode.ts`, `src/tools/index.ts`, `src/types.ts`, `tests/tools/budget-integration.test.ts`, `README.md`
+- BashKit current implementation: `src/subagents/`, `src/tools/subagents/`, `src/tools/codemode.ts`, `src/tools/index.ts`, `src/types.ts`, `tests/tools/budget-integration.test.ts`, `README.md`
 - BashKit module guidance: `src/tools/AGENTS.md`, `src/tools/patch/AGENTS.md`
 - Codex reference concepts: `codex-rs/core/src/agent/control.rs`, `codex-rs/core/src/agent/registry.rs`, `codex-rs/core/src/agent/role.rs`, `codex-rs/core/src/tools/handlers/multi_agents_v2.rs`, `codex-rs/core/src/tools/handlers/multi_agents_v2/spawn.rs`, `codex-rs/core/src/tools/handlers/multi_agents_v2/wait.rs`, `codex-rs/core/src/tools/handlers/multi_agents_spec.rs`
 - Codex test coverage patterns: `codex-rs/core/tests/suite/subagent_notifications.rs`, `codex-rs/core/tests/suite/spawn_agent_description.rs`, `codex-rs/core/tests/suite/agent_execution.rs`, `codex-rs/core/tests/suite/hierarchical_agents.rs`
