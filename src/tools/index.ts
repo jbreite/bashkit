@@ -258,7 +258,7 @@ export async function createAgentTools(
     });
   }
 
-  const innerTools: ToolSet = {
+  const runtimeTools: ToolSet = {
     // Core sandbox tools
     Bash: createBashTool(sandbox, toolsConfig.Bash),
     Read: createReadTool(sandbox, toolsConfig.Read),
@@ -275,14 +275,14 @@ export async function createAgentTools(
 
   // Add AskUser tool if configured
   if (config?.askUser) {
-    innerTools.AskUser = createAskUserTool(
+    runtimeTools.AskUser = createAskUserTool(
       config.askUser === true ? undefined : config.askUser,
     );
   }
 
   // Add Patch tool if configured
   if (config?.patch) {
-    innerTools.Patch = createPatchTool(
+    runtimeTools.Patch = createPatchTool(
       sandbox,
       config.patch === true ? undefined : config.patch,
     );
@@ -290,13 +290,13 @@ export async function createAgentTools(
 
   // Add plan mode tools if configured
   if (planModeState) {
-    innerTools.EnterPlanMode = createEnterPlanModeTool(planModeState);
-    innerTools.ExitPlanMode = createExitPlanModeTool();
+    runtimeTools.EnterPlanMode = createEnterPlanModeTool(planModeState);
+    runtimeTools.ExitPlanMode = createExitPlanModeTool();
   }
 
   // Add Skill tool if configured
   if (config?.skill) {
-    innerTools.Skill = createSkillTool({
+    runtimeTools.Skill = createSkillTool({
       skills: config.skill.skills,
       sandbox,
       onActivate: config.skill.onActivate,
@@ -305,26 +305,26 @@ export async function createAgentTools(
 
   // Add web tools if configured
   if (config?.webSearch) {
-    innerTools.WebSearch = createWebSearchTool(config.webSearch);
+    runtimeTools.WebSearch = createWebSearchTool(config.webSearch);
   }
   if (config?.webFetch) {
-    innerTools.WebFetch = createWebFetchTool(config.webFetch);
+    runtimeTools.WebFetch = createWebFetchTool(config.webFetch);
   }
 
   // Merge extra tools from context config
   if (config?.context?.extraTools) {
     for (const [name, extraTool] of Object.entries(config.context.extraTools)) {
-      (innerTools as Record<string, Tool>)[name] = extraTool;
+      (runtimeTools as Record<string, Tool>)[name] = extraTool;
     }
   }
 
   // Apply caching if configured (inner wrapper — cache sits inside context)
   const cacheConfig = resolveCache(config?.cache);
   if (cacheConfig.store) {
-    for (const [name, tool] of Object.entries(innerTools)) {
+    for (const [name, tool] of Object.entries(runtimeTools)) {
       if (cacheConfig.enabled.has(name)) {
         // Type assertion needed because cached() adds methods that ToolSet allows
-        (innerTools as Record<string, unknown>)[name] = cached(tool, name, {
+        (runtimeTools as Record<string, unknown>)[name] = cached(tool, name, {
           store: cacheConfig.store,
           ttl: cacheConfig.ttl,
           debug: cacheConfig.debug,
@@ -377,23 +377,24 @@ export async function createAgentTools(
 
   // Apply all layers to all tools
   if (contextLayers.length > 0) {
-    const wrapped = applyContextLayers(innerTools, contextLayers);
+    const wrapped = applyContextLayers(runtimeTools, contextLayers);
     for (const [name, wrappedTool] of Object.entries(wrapped)) {
-      (innerTools as Record<string, Tool>)[name] = wrappedTool;
+      (runtimeTools as Record<string, Tool>)[name] = wrappedTool;
     }
   }
 
   const directToolsExposure =
     config?.directTools ?? (config?.codemode ? "codemode-only" : "legacy");
   const tools: ToolSet =
-    directToolsExposure === "legacy" ? { ...innerTools } : {};
+    directToolsExposure === "legacy" ? { ...runtimeTools } : {};
   if (directToolsExposure === "codemode-only") {
-    tools.UpdatePlan = innerTools.UpdatePlan;
-    if (innerTools.AskUser) tools.AskUser = innerTools.AskUser;
-    if (innerTools.EnterPlanMode)
-      tools.EnterPlanMode = innerTools.EnterPlanMode;
-    if (innerTools.ExitPlanMode) tools.ExitPlanMode = innerTools.ExitPlanMode;
-    if (innerTools.Skill) tools.Skill = innerTools.Skill;
+    tools.UpdatePlan = runtimeTools.UpdatePlan;
+    if (runtimeTools.AskUser) tools.AskUser = runtimeTools.AskUser;
+    if (runtimeTools.EnterPlanMode)
+      tools.EnterPlanMode = runtimeTools.EnterPlanMode;
+    if (runtimeTools.ExitPlanMode)
+      tools.ExitPlanMode = runtimeTools.ExitPlanMode;
+    if (runtimeTools.Skill) tools.Skill = runtimeTools.Skill;
   }
   let subagentStore: SubagentStore | undefined;
   let subagentController: SubagentController | undefined;
@@ -422,11 +423,11 @@ export async function createAgentTools(
     };
 
     const { name, tool: rawCodemodeTool } = await createCodemodeTool(
-      innerTools,
+      runtimeTools,
       codemodeConfig,
     );
 
-    if (tools[name] || innerTools[name]) {
+    if (tools[name] || runtimeTools[name]) {
       throw new Error(
         `[bashkit] Codemode tool name "${name}" conflicts with an existing tool.`,
       );
@@ -456,7 +457,7 @@ export async function createAgentTools(
       profileDefaults: config.subagents.profileDefaults,
       store: subagentStore,
       runner,
-      tools: innerTools,
+      tools: runtimeTools,
       eventSink: config.subagents.eventSink,
       runtimeEventSink: config.runtime?.eventSink,
       lifecycle: config.subagents.lifecycle,

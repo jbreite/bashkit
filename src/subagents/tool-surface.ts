@@ -13,7 +13,7 @@ export interface SubagentToolSurfaceConfig {
 
 export interface SubagentCodemodeSurface {
   name: string;
-  innerTools: ToolSet;
+  runtimeTools: ToolSet;
   providers: CodemodeToolProvider[];
 }
 
@@ -78,7 +78,7 @@ export async function createSubagentToolSurface(options: {
       directTools,
       codemode: {
         name: codemode.name,
-        innerTools: codemode.innerTools,
+        runtimeTools: codemode.runtimeTools,
         providers: codemode.providers,
       },
     };

@@ -142,7 +142,7 @@ async () => {
         <section>
           <h2 id="tool-selection">Tool Selection</h2>
           <p>
-            Keep the inner tool set narrow. <code>includeTools</code> is the
+            Keep the runtime tool set narrow. <code>includeTools</code> is the
             safest default because generated code can loop and fan out calls.
           </p>
           <CodeBlock

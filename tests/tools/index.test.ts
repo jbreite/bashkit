@@ -188,20 +188,20 @@ describe("createAgentTools", () => {
 
   describe("codemode tool", () => {
     it("uses Codemode as the parent coding surface when configured", async () => {
-      const captured = { innerTools: [] as string[] };
+      const captured = { runtimeTools: [] as string[] };
       const { tools } = await createAgentTools(sandbox, {
         askUser: true,
         codemode: {
           executor: createExecutor(),
-          createCodeTool: async ({ tools: innerTools }) => {
-            if (Array.isArray(innerTools)) {
-              captured.innerTools = Object.keys(innerTools[0]?.tools ?? {});
-              const readTool = innerTools[0]?.tools.Read;
+          createCodeTool: async ({ tools: runtimeTools }) => {
+            if (Array.isArray(runtimeTools)) {
+              captured.runtimeTools = Object.keys(runtimeTools[0]?.tools ?? {});
+              const readTool = runtimeTools[0]?.tools.Read;
               if (!readTool) throw new Error("expected Read tool");
               return readTool;
             }
-            captured.innerTools = Object.keys(innerTools);
-            return innerTools.Read;
+            captured.runtimeTools = Object.keys(runtimeTools);
+            return runtimeTools.Read;
           },
         },
       });
@@ -211,8 +211,8 @@ describe("createAgentTools", () => {
       expect(tools.AskUser).toBeDefined();
       expect(tools.Read).toBeUndefined();
       expect(tools.Bash).toBeUndefined();
-      expect(captured.innerTools).toContain("Read");
-      expect(captured.innerTools).toContain("Bash");
+      expect(captured.runtimeTools).toContain("Read");
+      expect(captured.runtimeTools).toContain("Bash");
     });
 
     it("should not include codemode without config", async () => {
@@ -226,9 +226,9 @@ describe("createAgentTools", () => {
         directTools: "legacy",
         codemode: {
           executor: createExecutor(),
-          createCodeTool: async ({ tools: innerTools }) => {
-            if (Array.isArray(innerTools)) return innerTools[0].tools.Read;
-            return innerTools.Read;
+          createCodeTool: async ({ tools: runtimeTools }) => {
+            if (Array.isArray(runtimeTools)) return runtimeTools[0].tools.Read;
+            return runtimeTools.Read;
           },
         },
       });

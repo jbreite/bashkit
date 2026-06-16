@@ -37,7 +37,7 @@ The default foundation does not put subagent methods on `Sandbox`. Child agents 
 
 `createAiSdkSubagentRunner` is the default in-process runner. It builds child messages from the profile context policy, constructs a profile-scoped tool surface, calls AI SDK `generateText`, reports usage/tool events through runner callbacks, and returns compact terminal results with result/transcript references. It does not maintain durable paused JavaScript execution or follow-up turns.
 
-Profile tool policy is allowlist-first. `allowedTools` narrows the child surface. `deniedTools` defaults to execution-time rejection, so denied tools stay visible and return `{ error: string }` when called. Profiles can explicitly set `deniedBehavior: "hide"` when the denied tool names should be removed from direct and Codemode inner surfaces.
+Profile tool policy is allowlist-first. `allowedTools` narrows the child surface. `deniedTools` defaults to execution-time rejection, so denied tools stay visible and return `{ error: string }` when called. Profiles can explicitly set `deniedBehavior: "hide"` when the denied tool names should be removed from direct and Codemode runtime surfaces.
 
 Control panel state is a normalized host projection, not a UI framework. It includes each agent's resolved profile model summary, status, supported actions, result/transcript refs, recent events, and budget warnings while excluding full child result/transcript text.
 
