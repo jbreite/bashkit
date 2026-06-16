@@ -383,11 +383,8 @@ export async function createAgentTools(
     }
   }
 
-  const directToolsExposure =
-    config?.directTools ?? (config?.codemode ? "codemode-only" : "legacy");
-  const tools: ToolSet =
-    directToolsExposure === "legacy" ? { ...runtimeTools } : {};
-  if (directToolsExposure === "codemode-only") {
+  const tools: ToolSet = config?.codemode ? {} : { ...runtimeTools };
+  if (config?.codemode) {
     tools.UpdatePlan = runtimeTools.UpdatePlan;
     if (runtimeTools.AskUser) tools.AskUser = runtimeTools.AskUser;
     if (runtimeTools.EnterPlanMode)

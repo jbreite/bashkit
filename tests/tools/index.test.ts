@@ -219,21 +219,6 @@ describe("createAgentTools", () => {
       const { tools } = await createAgentTools(sandbox);
 
       expect(tools.codemode).toBeUndefined();
-    });
-
-    it("can expose direct tools in explicit compatibility mode", async () => {
-      const { tools } = await createAgentTools(sandbox, {
-        directTools: "legacy",
-        codemode: {
-          executor: createExecutor(),
-          createCodeTool: async ({ tools: runtimeTools }) => {
-            if (Array.isArray(runtimeTools)) return runtimeTools[0].tools.Read;
-            return runtimeTools.Read;
-          },
-        },
-      });
-
-      expect(tools.codemode).toBeDefined();
       expect(tools.Read).toBeDefined();
       expect(tools.Bash).toBeDefined();
     });

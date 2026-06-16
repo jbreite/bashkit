@@ -206,8 +206,6 @@ export interface ContextConfig {
   layers?: ContextLayer[];
 }
 
-export type DirectToolExposure = "legacy" | "codemode-only";
-
 export interface SubagentConfig {
   /** Default model for the in-process AI SDK subagent runner. */
   model?: LanguageModel;
@@ -256,11 +254,6 @@ export type AgentConfig = {
   webFetch?: WebFetchConfig;
   /** Include a Cloudflare Codemode tool that can orchestrate selected tools */
   codemode?: CodemodeConfig;
-  /**
-   * Direct parent tool exposure. Defaults to "codemode-only" when codemode is
-   * configured and "legacy" otherwise.
-   */
-  directTools?: DirectToolExposure;
   /** Include controller-backed subagent tools and state. */
   subagents?: SubagentConfig;
   /** Host-facing runtime state and event stream configuration. */

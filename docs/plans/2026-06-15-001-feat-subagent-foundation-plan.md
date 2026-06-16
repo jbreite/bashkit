@@ -36,11 +36,11 @@ Codex has already solved the architectural split. Its multi-agent tools do not o
 
 - Make Codemode the default model-facing coding harness.
 - Make first-class subagent controls the default delegation interface.
-- Preserve direct BashKit tools as runtime providers and explicit compatibility mode, not the normal public surface.
+- Keep the factory surface binary: Codemode configured means Codemode-first; no Codemode means direct tools.
 - Build a reusable `src/subagents/` architecture that library consumers can use directly without model-visible tools.
 - Keep subagent execution safe through profile quarantine, shared cost controls, depth limits, concurrency limits, and bounded context inheritance.
 - Expose typed state and events so hosts can build control panels without depending on internal controller objects.
-- Provide a breaking migration story from `Task` and direct tool exposure.
+- Provide a breaking migration story from `Task`, `TodoWrite`, and direct tool exposure alongside Codemode.
 
 ## Non-Goals
 
@@ -61,7 +61,7 @@ Codex has already solved the architectural split. Its multi-agent tools do not o
 - R3. Replace `Task` as the primary subagent API with first-class subagent control tools and controller APIs.
 - R4. Keep tool failures model-visible as `{ error: string }` results, except for construction-time configuration errors.
 - R5. Use nullable tool input fields for optional parameters so OpenAI structured outputs remain compatible.
-- R6. Keep direct tool exposure available only as explicit compatibility or advanced configuration.
+- R6. Keep parent coding surface binary: direct tools when Codemode is absent, Codemode when Codemode is configured.
 
 **Subagent Foundation**
 
@@ -362,7 +362,6 @@ The following sketches are directional contracts, not final implementation code.
 export interface AgentConfig {
   codemode?: CodemodeConfig;
   subagents?: SubagentConfig;
-  exposeDirectTools?: boolean | DirectToolExposureConfig;
   budget?: BudgetConfig;
   context?: ContextConfig;
 }
@@ -378,15 +377,14 @@ export interface SubagentConfig {
   contextInheritance?: SubagentContextPolicyInput;
   lifecycle?: SubagentLifecycleHooks;
   exposeControlTools?: boolean;
-  legacyTask?: false | "deprecated-adapter";
 }
 ```
 
 Default behavior:
 
 - If `codemode` is configured, expose Codemode as the primary coding tool.
+- If `codemode` is not configured, expose the direct BashKit tools.
 - If `subagents` is configured, expose subagent control tools.
-- Direct tools are hidden from the parent unless `exposeDirectTools` is configured.
 - Direct tools remain available as Codemode runtime providers after safety filtering.
 - Child Codemode receives profile-filtered runtime providers.
 
@@ -813,10 +811,10 @@ BashKit is currently pre-1.0, but the contributor guide says breaking changes re
 - **Requirements:** R1, R2, R6, R8, R9, R10, R12, R13, R15, R16, R21, R24
 - **Dependencies:** U1, U2, U3, U4, U5, U6, U7
 - **Files:** `src/types.ts`, `src/tools/index.ts`, `src/index.ts`, `tests/tools/index.test.ts`, `tests/context/integration.test.ts`
-- **Approach:** Reshape `createAgentTools` so Codemode config creates a Codemode-first surface. Direct tools remain as Codemode runtime providers and explicit compatibility exposure through `directTools: "legacy"`. Add top-level `subagents` config for model defaults, profiles, limits, store, event sink, lifecycle hooks, context policy, and Codemode executor/config. Pass already-wrapped tools into Codemode and the controller.
+- **Approach:** Reshape `createAgentTools` so Codemode config creates a Codemode-first surface. Direct tools remain as Codemode runtime providers, not parent-visible tools, when Codemode is configured. Without Codemode, `createAgentTools` exposes the direct BashKit tools. Add top-level `subagents` config for model defaults, profiles, limits, store, event sink, lifecycle hooks, context policy, and Codemode executor/config. Pass already-wrapped tools into Codemode and the controller.
 - **Patterns to follow:** Config-presence pattern for `webSearch`, `webFetch`, `skill`, `codemode`, and `budget`; `context.extraTools` wrapping order in `src/tools/index.ts`; `selectCodemodeTools` safety filtering in `src/tools/codemode.ts`.
-- **Test scenarios:** Codemode config creates Codemode-first parent surface; direct tool exposure requires explicit compatibility config; `subagents` creates control tools; missing model/executor returns clear construction error; context-wrapped tools are inherited; budget enters the controller; max concurrent agents rejects excess spawns; profile restrictions apply to direct tools and Codemode providers; exported types are available from `src/index.ts`.
-- **Verification:** Factory tests describe Codemode-default, subagent-default, context-layer, profile-restricted Codemode, and legacy-adapter cases.
+- **Test scenarios:** Codemode config creates Codemode-first parent surface; no-Codemode config exposes direct tools; `subagents` creates control tools; missing model/executor returns clear construction error; context-wrapped tools are inherited; budget enters the controller; max concurrent agents rejects excess spawns; profile restrictions apply to direct tools and Codemode providers; exported types are available from `src/index.ts`.
+- **Verification:** Factory tests describe Codemode-default, no-Codemode direct surface, subagent-default, context-layer, and profile-restricted Codemode cases.
 
 ### U9. Add Profile Loading Helpers
 
@@ -845,13 +843,13 @@ BashKit is currently pre-1.0, but the contributor guide says breaking changes re
 ## Acceptance Examples
 
 - AE1. Given a host configures subagents, when the parent model receives tools, then `SpawnAgent`, `ListAgents`, `WaitAgent`, `SendMessage`, `FollowupTask`, and `InterruptAgent` are the model-visible delegation tools.
-- AE2. Given a host configures Codemode, when the parent model receives tools, then Codemode is the default coding tool and direct sandbox tools are hidden unless compatibility mode requests them.
+- AE2. Given a host configures Codemode, when the parent model receives tools, then Codemode is the coding tool and direct sandbox tools are hidden from the parent surface.
 - AE3. Given the parent calls `SpawnAgent`, then it receives a stable handle and can later call `ListAgents` or `WaitAgent` without re-running the child in parent context.
 - AE4. Given a child subagent starts, then the child receives a Codemode tool whose runtime providers are limited by the child's resolved profile.
 - AE5. Given two subagents run concurrently under one budget tracker, when both finish, then shared budget status includes both child usages.
 - AE6. Given a read-only research profile, when it is spawned with `tools: ["Read", "Grep", "Glob"]`, then write and shell tools are unavailable directly and through Codemode-generated code.
 - AE7. Given shared budget is exhausted or active-agent limit is reached, when the parent requests another spawn or follow-up task, then BashKit rejects it before starting a costly child turn.
-- AE8. Given a consumer still imports the legacy adapter, when they upgrade through the migration window, then their one-shot task can still run or fails with a clear migration error, depending on the chosen deprecation policy.
+- AE8. Given a consumer still imports removed `Task` or `TodoWrite` APIs, when they upgrade, then TypeScript and migration docs point them to `SpawnAgent`/`WaitAgent` and `UpdatePlan`.
 - AE9. Given a future workflow harness needs fan-out-and-synthesize, when it uses the controller directly, then it can spawn multiple child runs, await terminal results, and synthesize without model-visible `Task` calls.
 - AE10. Given the parent uses `context: { recent_turns: 3 }`, when the child starts, then it receives only the bounded recent context plus explicit spawn task and profile prompt.
 - AE11. Given a host renders `SubagentControlPanelState`, when a child completes while the parent is not waiting, then the control panel still updates with terminal status, usage, and result reference.
@@ -877,7 +875,7 @@ BashKit is currently pre-1.0, but the contributor guide says breaking changes re
 ### Integration Tests
 
 - `createAgentTools` Codemode-default behavior.
-- Direct tool compatibility mode.
+- No-Codemode direct tool surface.
 - Subagent control tools with fake runner.
 - Budget integration across parent and child.
 - Context layers inherited by child tools.
@@ -925,7 +923,7 @@ This work changes BashKit's public API, default tool surface, docs, examples, Co
 
 The `Sandbox` interface should remain unchanged. Subagents orchestrate model/tool execution. Sandboxes remain responsible for filesystem and process operations.
 
-Optional peer dependency strategy needs a release decision. If Codemode becomes the default harness, the package can either make Codemode a required peer for the default path or require hosts to opt into direct-tool compatibility when Codemode is unavailable. The cleaner API is Codemode-first with an explicit construction-time error when a caller asks for Codemode defaults but does not provide the executor.
+Optional peer dependency strategy needs a release decision. The factory should remain binary: hosts either configure Codemode and get a Codemode-first surface, or omit Codemode and get direct tools. The cleaner API is Codemode-first with an explicit construction-time error when a caller asks for Codemode but does not provide the executor.
 
 ---
 
@@ -934,7 +932,7 @@ Optional peer dependency strategy needs a release decision. If Codemode becomes 
 | Risk | Impact | Mitigation |
 | --- | --- | --- |
 | AI SDK cancellation support is limited | Interrupt may be best effort | Return explicit unsupported errors and keep status transitions truthful. |
-| Codemode dependency boundary changes | Consumers may need new setup | Document peer dependency and compatibility mode clearly. |
+| Codemode dependency boundary changes | Consumers may need new setup | Document peer dependency and the Codemode/no-Codemode factory split clearly. |
 | Recursive spawning runs away | Cost and resource exhaustion | Enforce depth, active count, total count, and budget before spawn. |
 | Quarantine bypass through Codemode | Restricted agents mutate state | Filter Codemode providers after profile resolution and test blocked tools. |
 | Context bloat from fan-out | Cost spikes and parent context pressure | Make context inheritance explicit and default to bounded recent turns. |

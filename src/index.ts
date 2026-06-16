@@ -308,7 +308,6 @@ export type {
   BudgetConfig,
   CacheConfig,
   ContextConfig,
-  DirectToolExposure,
   ModelRegistryConfig,
   ModelRegistryProvider,
   PricingProvider,
