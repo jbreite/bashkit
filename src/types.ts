@@ -5,7 +5,18 @@ import type { ExecutionPolicyConfig } from "./context/execution-policy";
 import type { OutputPolicyConfig } from "./context/output-policy";
 import type { PlanState, PlanUpdateContext, RuntimeEventSink } from "./runtime";
 import type { SkillMetadata } from "./skills/types";
+import type {
+  AiSdkSubagentRunnerConfig,
+  SubagentCostPolicyInput,
+  SubagentEventSink,
+  SubagentLifecycleHooks,
+  SubagentProfileDefaults,
+  SubagentProfileInput,
+  SubagentRunner,
+  SubagentStore,
+} from "./subagents";
 import type { CodemodeConfig } from "./tools/codemode";
+import type { SubagentControlToolConfig } from "./tools/subagents";
 import type { ModelPricing } from "./utils/budget-tracking";
 
 /**
@@ -195,6 +206,33 @@ export interface ContextConfig {
   layers?: ContextLayer[];
 }
 
+export type DirectToolExposure = "legacy" | "codemode-only";
+
+export interface SubagentConfig {
+  /** Default model for the in-process AI SDK subagent runner. */
+  model?: LanguageModel;
+  /** Named subagent profiles available to SpawnAgent. */
+  profiles?: SubagentProfileInput[];
+  /** Default profile name. Defaults to BashKit's worker profile. */
+  defaultProfile?: string;
+  /** Defaults layered into every profile. */
+  profileDefaults?: SubagentProfileDefaults;
+  /** Host-provided runner. If omitted, BashKit creates the in-process AI SDK runner. */
+  runner?: SubagentRunner;
+  /** Store for subagent metadata/events/mailbox/result records. */
+  store?: SubagentStore;
+  /** Subagent event sink. */
+  eventSink?: SubagentEventSink;
+  /** Lifecycle hooks for host audit, telemetry, or side effects. */
+  lifecycle?: SubagentLifecycleHooks;
+  /** Subagent execution and cost guardrails. */
+  cost?: SubagentCostPolicyInput;
+  /** Tool adapter options, such as currentAgentId for child self-target checks. */
+  controlTools?: SubagentControlToolConfig;
+  /** Extra options for the default AI SDK runner. */
+  runnerConfig?: Omit<AiSdkSubagentRunnerConfig, "model" | "codemode">;
+}
+
 export type AgentConfig = {
   tools?: {
     Bash?: ToolConfig;
@@ -218,6 +256,13 @@ export type AgentConfig = {
   webFetch?: WebFetchConfig;
   /** Include a Cloudflare Codemode tool that can orchestrate selected tools */
   codemode?: CodemodeConfig;
+  /**
+   * Direct parent tool exposure. Defaults to "codemode-only" when codemode is
+   * configured and "legacy" otherwise.
+   */
+  directTools?: DirectToolExposure;
+  /** Include controller-backed subagent tools and state. */
+  subagents?: SubagentConfig;
   /** Host-facing runtime state and event stream configuration. */
   runtime?: RuntimeConfig;
   /** Enable tool result caching */

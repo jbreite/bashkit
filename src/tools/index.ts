@@ -9,6 +9,15 @@ import type { Sandbox } from "../sandbox/interface";
 import type { AgentConfig, CacheConfig } from "../types";
 import { DEFAULT_CONFIG } from "../types";
 import {
+  createAiSdkSubagentRunner,
+  createInMemorySubagentStore,
+  createSubagentControlPanelState,
+  createSubagentController,
+  type SubagentController,
+  type SubagentControlPanelState,
+  type SubagentStore,
+} from "../subagents";
+import {
   createBudgetTracker,
   fetchOpenRouterModels,
   type BudgetTracker,
@@ -27,6 +36,7 @@ import { createPatchTool } from "./patch";
 import { createReadTool } from "./read";
 import { createSkillTool } from "./skill";
 import { createPlanState, type PlanState } from "../runtime";
+import { createSubagentControlTools } from "./subagents";
 import { createUpdatePlanTool } from "./update-plan";
 import { createWebFetchTool } from "./web-fetch";
 import { createWebSearchTool } from "./web-search";
@@ -136,6 +146,12 @@ export interface AgentToolsResult {
   planState: PlanState;
   /** Budget tracker (only present when budget config is set) */
   budget?: BudgetTracker;
+  /** Subagent controller (only present when subagents config is set) */
+  subagentController?: SubagentController;
+  /** Subagent store used by the controller (only present when subagents config is set) */
+  subagentStore?: SubagentStore;
+  /** Returns a serializable control-panel snapshot for host UIs. */
+  getSubagentControlPanelState?: () => Promise<SubagentControlPanelState>;
   /** Model info from OpenRouter (only present when modelRegistry or budget pricingProvider is configured) */
   openRouterModels?: Map<string, ModelInfo>;
   /** Context layers applied to tools. Use with applyContextLayers() for late-added tools. */
@@ -191,8 +207,59 @@ export async function createAgentTools(
     : undefined;
   const planState = createPlanState(config?.runtime?.initialPlan);
 
-  const tools: ToolSet = {
-    // Core sandbox tools (always included)
+  // Fetch model info from provider before budget so both can share the data.
+  let openRouterModels: Map<string, ModelInfo> | undefined;
+
+  const shouldFetchOpenRouter =
+    config?.modelRegistry?.provider === "openRouter" ||
+    config?.budget?.pricingProvider === "openRouter";
+
+  if (shouldFetchOpenRouter) {
+    const apiKey = config?.modelRegistry?.apiKey ?? config?.budget?.apiKey;
+
+    try {
+      openRouterModels = await fetchOpenRouterModels(apiKey);
+    } catch (err) {
+      // Only fatal if budget needs it and has no modelPricing fallback
+      if (config?.budget && !config.budget.modelPricing) {
+        throw new Error(
+          `[bashkit] Failed to fetch OpenRouter pricing and no modelPricing overrides provided. ` +
+            `Either provide modelPricing in your budget config or ensure network access to OpenRouter. ` +
+            `Original error: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
+    }
+  }
+
+  // Derive pricing-only map from models map for budget tracker
+  let openRouterPricing: Map<string, ModelPricing> | undefined;
+  if (openRouterModels) {
+    openRouterPricing = new Map(
+      [...openRouterModels].map(([k, v]) => [k, v.pricing]),
+    );
+  }
+
+  // Create budget tracker if configured
+  let budget: BudgetTracker | undefined;
+  if (config?.budget) {
+    const { modelPricing, maxUsd } = config.budget;
+
+    // Validate: at least one pricing source required
+    // modelRegistry, pricingProvider, or modelPricing
+    if (!openRouterPricing && !modelPricing) {
+      throw new Error(
+        "[bashkit] Budget requires either modelRegistry, pricingProvider, or modelPricing.",
+      );
+    }
+
+    budget = createBudgetTracker(maxUsd, {
+      modelPricing,
+      openRouterPricing,
+    });
+  }
+
+  const innerTools: ToolSet = {
+    // Core sandbox tools
     Bash: createBashTool(sandbox, toolsConfig.Bash),
     Read: createReadTool(sandbox, toolsConfig.Read),
     Write: createWriteTool(sandbox, toolsConfig.Write),
@@ -208,14 +275,14 @@ export async function createAgentTools(
 
   // Add AskUser tool if configured
   if (config?.askUser) {
-    tools.AskUser = createAskUserTool(
+    innerTools.AskUser = createAskUserTool(
       config.askUser === true ? undefined : config.askUser,
     );
   }
 
   // Add Patch tool if configured
   if (config?.patch) {
-    tools.Patch = createPatchTool(
+    innerTools.Patch = createPatchTool(
       sandbox,
       config.patch === true ? undefined : config.patch,
     );
@@ -223,13 +290,13 @@ export async function createAgentTools(
 
   // Add plan mode tools if configured
   if (planModeState) {
-    tools.EnterPlanMode = createEnterPlanModeTool(planModeState);
-    tools.ExitPlanMode = createExitPlanModeTool();
+    innerTools.EnterPlanMode = createEnterPlanModeTool(planModeState);
+    innerTools.ExitPlanMode = createExitPlanModeTool();
   }
 
   // Add Skill tool if configured
   if (config?.skill) {
-    tools.Skill = createSkillTool({
+    innerTools.Skill = createSkillTool({
       skills: config.skill.skills,
       sandbox,
       onActivate: config.skill.onActivate,
@@ -238,26 +305,26 @@ export async function createAgentTools(
 
   // Add web tools if configured
   if (config?.webSearch) {
-    tools.WebSearch = createWebSearchTool(config.webSearch);
+    innerTools.WebSearch = createWebSearchTool(config.webSearch);
   }
   if (config?.webFetch) {
-    tools.WebFetch = createWebFetchTool(config.webFetch);
+    innerTools.WebFetch = createWebFetchTool(config.webFetch);
   }
 
   // Merge extra tools from context config
   if (config?.context?.extraTools) {
     for (const [name, extraTool] of Object.entries(config.context.extraTools)) {
-      (tools as Record<string, Tool>)[name] = extraTool;
+      (innerTools as Record<string, Tool>)[name] = extraTool;
     }
   }
 
   // Apply caching if configured (inner wrapper — cache sits inside context)
   const cacheConfig = resolveCache(config?.cache);
   if (cacheConfig.store) {
-    for (const [name, tool] of Object.entries(tools)) {
+    for (const [name, tool] of Object.entries(innerTools)) {
       if (cacheConfig.enabled.has(name)) {
         // Type assertion needed because cached() adds methods that ToolSet allows
-        (tools as Record<string, unknown>)[name] = cached(tool, name, {
+        (innerTools as Record<string, unknown>)[name] = cached(tool, name, {
           store: cacheConfig.store,
           ttl: cacheConfig.ttl,
           debug: cacheConfig.debug,
@@ -310,11 +377,29 @@ export async function createAgentTools(
 
   // Apply all layers to all tools
   if (contextLayers.length > 0) {
-    const wrapped = applyContextLayers(tools, contextLayers);
+    const wrapped = applyContextLayers(innerTools, contextLayers);
     for (const [name, wrappedTool] of Object.entries(wrapped)) {
-      (tools as Record<string, Tool>)[name] = wrappedTool;
+      (innerTools as Record<string, Tool>)[name] = wrappedTool;
     }
   }
+
+  const directToolsExposure =
+    config?.directTools ?? (config?.codemode ? "codemode-only" : "legacy");
+  const tools: ToolSet =
+    directToolsExposure === "legacy" ? { ...innerTools } : {};
+  if (directToolsExposure === "codemode-only") {
+    tools.UpdatePlan = innerTools.UpdatePlan;
+    if (innerTools.AskUser) tools.AskUser = innerTools.AskUser;
+    if (innerTools.EnterPlanMode)
+      tools.EnterPlanMode = innerTools.EnterPlanMode;
+    if (innerTools.ExitPlanMode) tools.ExitPlanMode = innerTools.ExitPlanMode;
+    if (innerTools.Skill) tools.Skill = innerTools.Skill;
+  }
+  let subagentStore: SubagentStore | undefined;
+  let subagentController: SubagentController | undefined;
+  let subagentRunnerCapabilities:
+    | ReturnType<typeof createAiSdkSubagentRunner>["capabilities"]
+    | undefined;
 
   // Add Cloudflare Codemode tool after cache/context wrapping so generated code
   // orchestrates the same policy-wrapped tools a model would call directly.
@@ -337,11 +422,11 @@ export async function createAgentTools(
     };
 
     const { name, tool: rawCodemodeTool } = await createCodemodeTool(
-      tools,
+      innerTools,
       codemodeConfig,
     );
 
-    if (tools[name]) {
+    if (tools[name] || innerTools[name]) {
       throw new Error(
         `[bashkit] Codemode tool name "${name}" conflicts with an existing tool.`,
       );
@@ -355,55 +440,39 @@ export async function createAgentTools(
     tools[name] = codemodeTool;
   }
 
-  // Fetch model info from provider (hoisted before budget so both can share the data)
-  let openRouterModels: Map<string, ModelInfo> | undefined;
-
-  const shouldFetchOpenRouter =
-    config?.modelRegistry?.provider === "openRouter" ||
-    config?.budget?.pricingProvider === "openRouter";
-
-  if (shouldFetchOpenRouter) {
-    const apiKey = config?.modelRegistry?.apiKey ?? config?.budget?.apiKey;
-
-    try {
-      openRouterModels = await fetchOpenRouterModels(apiKey);
-    } catch (err) {
-      // Only fatal if budget needs it and has no modelPricing fallback
-      if (config?.budget && !config.budget.modelPricing) {
-        throw new Error(
-          `[bashkit] Failed to fetch OpenRouter pricing and no modelPricing overrides provided. ` +
-            `Either provide modelPricing in your budget config or ensure network access to OpenRouter. ` +
-            `Original error: ${err instanceof Error ? err.message : String(err)}`,
-        );
-      }
-    }
-  }
-
-  // Derive pricing-only map from models map for budget tracker
-  let openRouterPricing: Map<string, ModelPricing> | undefined;
-  if (openRouterModels) {
-    openRouterPricing = new Map(
-      [...openRouterModels].map(([k, v]) => [k, v.pricing]),
-    );
-  }
-
-  // Create budget tracker if configured
-  let budget: BudgetTracker | undefined;
-  if (config?.budget) {
-    const { modelPricing, maxUsd } = config.budget;
-
-    // Validate: at least one pricing source required
-    // modelRegistry, pricingProvider, or modelPricing
-    if (!openRouterPricing && !modelPricing) {
-      throw new Error(
-        "[bashkit] Budget requires either modelRegistry, pricingProvider, or modelPricing.",
-      );
-    }
-
-    budget = createBudgetTracker(maxUsd, {
-      modelPricing,
-      openRouterPricing,
+  if (config?.subagents) {
+    subagentStore = config.subagents.store ?? createInMemorySubagentStore();
+    const runner =
+      config.subagents.runner ??
+      createAiSdkSubagentRunner({
+        ...config.subagents.runnerConfig,
+        model: config.subagents.model,
+        codemode: config.codemode,
+      });
+    subagentRunnerCapabilities = runner.capabilities;
+    subagentController = createSubagentController({
+      profiles: config.subagents.profiles,
+      defaultProfile: config.subagents.defaultProfile,
+      profileDefaults: config.subagents.profileDefaults,
+      store: subagentStore,
+      runner,
+      tools: innerTools,
+      eventSink: config.subagents.eventSink,
+      runtimeEventSink: config.runtime?.eventSink,
+      lifecycle: config.subagents.lifecycle,
+      budget,
+      cost: config.subagents.cost,
     });
+    const subagentControlTools = createSubagentControlTools(
+      subagentController,
+      config.subagents.controlTools,
+    );
+    Object.assign(
+      tools,
+      contextLayers.length > 0
+        ? applyContextLayers(subagentControlTools, contextLayers)
+        : subagentControlTools,
+    );
   }
 
   return {
@@ -411,6 +480,17 @@ export async function createAgentTools(
     planModeState,
     planState,
     budget,
+    subagentController,
+    subagentStore,
+    getSubagentControlPanelState:
+      subagentStore && subagentController
+        ? async () =>
+            createSubagentControlPanelState({
+              records: await subagentStore.list(),
+              capabilities: subagentRunnerCapabilities,
+              budget: budget?.getStatus(),
+            })
+        : undefined,
     openRouterModels,
     contextLayers,
   };

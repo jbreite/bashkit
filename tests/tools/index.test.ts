@@ -5,6 +5,7 @@ import {
   type CodemodeExecutor,
 } from "@/tools/index";
 import * as bashkit from "@/index";
+import { createStaticSubagentRunner } from "@/subagents";
 import type { WebFetchConfig } from "@/types";
 import type { CachedTool } from "@/cache/cached";
 import {
@@ -186,28 +187,97 @@ describe("createAgentTools", () => {
   });
 
   describe("codemode tool", () => {
-    it("should include codemode when configured", async () => {
+    it("uses Codemode as the parent coding surface when configured", async () => {
+      const captured = { innerTools: [] as string[] };
       const { tools } = await createAgentTools(sandbox, {
+        askUser: true,
         codemode: {
           executor: createExecutor(),
           createCodeTool: async ({ tools: innerTools }) => {
             if (Array.isArray(innerTools)) {
+              captured.innerTools = Object.keys(innerTools[0]?.tools ?? {});
               const readTool = innerTools[0]?.tools.Read;
               if (!readTool) throw new Error("expected Read tool");
               return readTool;
             }
+            captured.innerTools = Object.keys(innerTools);
             return innerTools.Read;
           },
         },
       });
 
       expect(tools.codemode).toBeDefined();
+      expect(tools.UpdatePlan).toBeDefined();
+      expect(tools.AskUser).toBeDefined();
+      expect(tools.Read).toBeUndefined();
+      expect(tools.Bash).toBeUndefined();
+      expect(captured.innerTools).toContain("Read");
+      expect(captured.innerTools).toContain("Bash");
     });
 
     it("should not include codemode without config", async () => {
       const { tools } = await createAgentTools(sandbox);
 
       expect(tools.codemode).toBeUndefined();
+    });
+
+    it("can expose direct tools in explicit compatibility mode", async () => {
+      const { tools } = await createAgentTools(sandbox, {
+        directTools: "legacy",
+        codemode: {
+          executor: createExecutor(),
+          createCodeTool: async ({ tools: innerTools }) => {
+            if (Array.isArray(innerTools)) return innerTools[0].tools.Read;
+            return innerTools.Read;
+          },
+        },
+      });
+
+      expect(tools.codemode).toBeDefined();
+      expect(tools.Read).toBeDefined();
+      expect(tools.Bash).toBeDefined();
+    });
+  });
+
+  describe("subagent controls", () => {
+    it("adds controller-backed subagent tools and state when configured", async () => {
+      const { tools, subagentController, getSubagentControlPanelState } =
+        await createAgentTools(sandbox, {
+          subagents: {
+            runner: createStaticSubagentRunner({
+              status: "completed",
+              result: "done",
+            }),
+            profiles: [
+              {
+                name: "worker",
+                model: { modelId: "worker-model" } as WebFetchConfig["model"],
+              },
+            ],
+          },
+        });
+
+      expect(tools.SpawnAgent).toBeDefined();
+      expect(tools.ListAgents).toBeDefined();
+      expect(tools.WaitAgent).toBeDefined();
+      expect(tools.SendMessage).toBeDefined();
+      expect(tools.FollowupTask).toBeDefined();
+      expect(tools.InterruptAgent).toBeDefined();
+      expect(subagentController).toBeDefined();
+      expect(getSubagentControlPanelState).toBeDefined();
+
+      const spawned = await subagentController?.spawn({ task: "Do work" });
+      if (!spawned || "error" in spawned) throw new Error("expected spawn");
+      await subagentController?.wait({
+        agent: spawned.agent_id,
+        timeoutMs: 500,
+      });
+
+      const state = await getSubagentControlPanelState?.();
+      expect(state?.terminal_agents[0]).toMatchObject({
+        model: { id: "worker-model" },
+        status: "completed",
+      });
     });
   });
 

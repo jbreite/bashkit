@@ -55,11 +55,12 @@ Each tool exports `<Name>Output` for success and `<Name>Error` for errors:
 - Web tools: `WebSearchOutput | WebSearchError`, `WebFetchOutput | WebFetchError`
 
 ### Configuration Types
-- `AgentConfig` -- Top-level config for createAgentTools()
+- `AgentConfig` -- Top-level config for createAgentTools(), including `directTools` and `subagents`
 - `ToolConfig` -- Per-tool config (timeout, allowedPaths, maxFileSize, etc.)
 - `AskUserConfig` -- AskUser AI SDK tool options
 - `SkillConfig` -- Skill metadata and sandbox
 - `CodemodeConfig` -- Optional Cloudflare Codemode adapter config (executor, tool filters, extra tools). Executor typing follows Cloudflare Codemode / AI SDK v6.
+- `SubagentConfig` -- Optional controller-backed subagent tools/configuration
 - `ModelRegistryConfig` -- Model registry config (provider, apiKey) for fetching model info
 - `BudgetConfig` -- Budget tracking config (maxUsd, modelPricing; pricing provider via top-level `modelRegistry`)
 - `WebSearchConfig` / `WebFetchConfig` -- Web tool API keys and providers
@@ -80,14 +81,14 @@ Each tool exports `<Name>Output` for success and `<Name>Error` for errors:
 - Skill -- Load specialized instructions from SKILL.md files
 
 **Code Orchestration** (opt-in via config):
-- codemode -- A Cloudflare Codemode tool that lets the model write code to orchestrate a filtered set of BashKit tools, codemode-only extra tools, and optional named providers. Client-intervention tools (`AskUser`, `EnterPlanMode`, `ExitPlanMode`), tools without `execute`, and tools with `needsApproval` are excluded from every inner tool set. Thrown codemode execution failures are converted to `{ error }` tool results like other BashKit tools.
+- codemode -- A Cloudflare Codemode tool that lets the model write code to orchestrate a filtered set of BashKit tools, codemode-only extra tools, and optional named providers. When `codemode` is configured, `createAgentTools` defaults the parent-visible coding surface to Codemode and keeps direct coding/file tools as inner providers. Use `directTools: "legacy"` to expose the old direct parent surface alongside Codemode. Client-intervention tools (`AskUser`, `EnterPlanMode`, `ExitPlanMode`), tools without `execute`, and tools with `needsApproval` are excluded from every inner tool set. Thrown codemode execution failures are converted to `{ error }` tool results like other BashKit tools.
 
 **Progress Tools** (default):
 - UpdatePlan -- Canonical Codex-style checklist/progress tool. Updates runtime `PlanState` and emits `plan.updated` events when a runtime event sink is configured.
 
 **Workflow Tools**:
 - UpdatePlan -- Canonical Codex-style progress tracking backed by runtime plan state
-- Subagent control tools -- First-class controller adapters for SpawnAgent, ListAgents, WaitAgent, SendMessage, FollowupTask, and InterruptAgent
+- Subagent control tools -- First-class controller adapters for SpawnAgent, ListAgents, WaitAgent, SendMessage, FollowupTask, and InterruptAgent. Enabled through top-level `subagents` config and backed by a shared controller/store/runner.
 
 **Web Tools** (opt-in via config, require parallel-web):
 - WebSearch -- Search via Parallel API
@@ -100,7 +101,8 @@ Each tool exports `<Name>Output` for success and `<Name>Error` for errors:
 3. **Caching** (optional): `resolveCache()` wraps cacheable tools with `cached()` from cache module
 4. **Model Registry** (optional): `createAgentTools()` fetches model info (pricing + context lengths) from a provider (e.g., OpenRouter). Data is shared with budget tracking and returned as `openRouterModels` in the result.
 5. **Budget** (optional): `createAgentTools()` creates a `BudgetTracker` from config, using pricing derived from model registry or manual overrides. Returns it for wiring into `onStepFinish`/`stopWhen` and subagent controller policies.
-5. **Export**: Tools surfaced via `src/index.ts` barrel export to package consumers
+6. **Surface Split**: policy-wrapped `innerTools` feed Codemode and subagent runners. Parent-visible tools are Codemode-first when `codemode` is configured, with direct exposure only through `directTools: "legacy"`.
+7. **Export**: Tools surfaced via `src/index.ts` barrel export to package consumers
 
 ### Internal Dependencies
 

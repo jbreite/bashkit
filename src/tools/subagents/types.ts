@@ -1,5 +1,6 @@
 import type {
   SubagentMetadata,
+  SubagentModelInfo,
   SubagentRunResult,
   SubagentStatus,
 } from "../../subagents";
@@ -21,6 +22,7 @@ export interface CompactSubagentRecord {
   task_name: string | null;
   profile: string;
   nickname: string | null;
+  model: SubagentModelInfo;
   status: SubagentStatus;
   parent_id: string | null;
   depth: number;
@@ -38,6 +40,7 @@ export interface SpawnAgentOutput {
   status: SubagentStatus;
   profile: string;
   nickname: string | null;
+  model: SubagentModelInfo;
 }
 
 export interface ListAgentsOutput {
@@ -71,6 +74,7 @@ export function compactSubagentRecord(
     task_name: metadata.task_name,
     profile: metadata.profile,
     nickname: metadata.nickname,
+    model: metadata.model,
     status: metadata.status,
     parent_id: metadata.parent_id,
     depth: metadata.depth,
