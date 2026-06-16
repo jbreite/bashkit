@@ -59,6 +59,8 @@ export type SubagentContextPolicyInput =
   | { recent_turns: number }
   | SubagentContextPolicy;
 
+export type SubagentDeniedToolBehavior = "reject" | "hide";
+
 export interface SubagentCodemodePolicy {
   enabled: boolean;
   exposeDirectTools: boolean;
@@ -74,6 +76,7 @@ export interface SubagentProfileInput {
   system?: string;
   allowedTools?: string[];
   deniedTools?: string[];
+  deniedBehavior?: SubagentDeniedToolBehavior;
   codemode?: Partial<SubagentCodemodePolicy>;
   context?: SubagentContextPolicyInput;
   cost?: SubagentCostPolicyInput;
@@ -85,6 +88,7 @@ export interface SubagentProfileDefaults {
   system?: string;
   allowedTools?: string[];
   deniedTools?: string[];
+  deniedBehavior?: SubagentDeniedToolBehavior;
   codemode?: Partial<SubagentCodemodePolicy>;
   context?: SubagentContextPolicyInput;
   cost?: SubagentCostPolicyInput;
@@ -98,6 +102,7 @@ export interface ResolvedSubagentProfile {
   system: string;
   allowedTools: readonly string[];
   deniedTools: readonly string[];
+  deniedBehavior: SubagentDeniedToolBehavior;
   codemode: SubagentCodemodePolicy;
   context: SubagentContextPolicy;
   cost: SubagentCostPolicy;

@@ -12,7 +12,7 @@ Foundation for controller-managed subagents. This module owns identity, path res
 | `status.ts` | Status helpers and terminal-state checks |
 | `profiles.ts` | Profile registry factory and profile resolution |
 | `profile-descriptions.ts` | Model-visible profile description generation |
-| `tool-filter.ts` | Tool allowlist/denylist filtering |
+| `tool-filter.ts` | Tool allowlist filtering plus denied-tool reject/hide policy wrappers |
 | `context-inheritance.ts` | Parent-to-child message inheritance for `none`, `all`, and bounded recent-turn policies |
 | `tool-surface.ts` | Profile-scoped child tool surface construction with Codemode quarantine |
 | `transcripts.ts` | Compact terminal result and transcript reference helpers |
@@ -35,6 +35,8 @@ The default foundation does not put subagent methods on `Sandbox`. Child agents 
 
 `createAiSdkSubagentRunner` is the default in-process runner. It builds child messages from the profile context policy, constructs a profile-scoped tool surface, calls AI SDK `generateText`, reports usage/tool events through runner callbacks, and returns compact terminal results with result/transcript references. It does not maintain durable paused JavaScript execution or follow-up turns.
 
+Profile tool policy is allowlist-first. `allowedTools` narrows the child surface. `deniedTools` defaults to execution-time rejection, so denied tools stay visible and return `{ error: string }` when called. Profiles can explicitly set `deniedBehavior: "hide"` when the denied tool names should be removed from direct and Codemode inner surfaces.
+
 ## Design Rules
 
 - Keep tool schemas out of this module. Model-facing tools adapt to these core contracts.
@@ -44,6 +46,7 @@ The default foundation does not put subagent methods on `Sandbox`. Child agents 
 - Avoid `any`; use `unknown`, narrow types, and explicit interfaces.
 - Prefer factory functions that return typed plain objects over classes.
 - Prefer small pure helpers where possible so controller behavior is easy to test with fake runners.
+- Keep denied-tool failures model-visible as `{ error: string }` unless a profile explicitly uses hide behavior.
 
 ## Common Modifications
 

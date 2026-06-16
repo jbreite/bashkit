@@ -140,6 +140,8 @@ export function createSubagentController(
     const childTools = filterSubagentTools(tools, {
       allowedTools: profile.allowedTools,
       deniedTools: profile.deniedTools,
+      deniedBehavior: profile.deniedBehavior,
+      profileName: profile.name,
     });
 
     try {

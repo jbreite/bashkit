@@ -12,7 +12,9 @@ export function describeSubagentProfile(
     parts.push(`allowed tools: ${profile.allowedTools.join(", ")}`);
   }
   if (profile.deniedTools.length > 0) {
-    parts.push(`denied tools: ${profile.deniedTools.join(", ")}`);
+    parts.push(
+      `denied tools: ${profile.deniedTools.join(", ")} (${profile.deniedBehavior})`,
+    );
   }
   if (profile.cost.maxUsd != null) {
     parts.push(`budget cap: $${profile.cost.maxUsd}`);

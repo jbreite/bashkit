@@ -51,6 +51,8 @@ export async function createSubagentToolSurface(options: {
   const filteredTools = filterSubagentTools(options.tools, {
     allowedTools: options.profile.allowedTools,
     deniedTools: options.profile.deniedTools,
+    deniedBehavior: options.profile.deniedBehavior,
+    profileName: options.profile.name,
   });
   const directTools = options.profile.codemode.exposeDirectTools
     ? filteredTools

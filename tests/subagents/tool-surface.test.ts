@@ -8,6 +8,7 @@ import {
   type SubagentProfileInput,
 } from "@/subagents";
 import type { CodemodeConfig, CodemodeToolProvider } from "@/tools/codemode";
+import { executeTool } from "../helpers/tool-executor";
 
 function fakeTool(name: string): Tool {
   return tool({
@@ -92,6 +93,68 @@ describe("createSubagentToolSurface", () => {
       config: { codemode: codemodeConfig(captured) },
     });
 
+    expect(Object.keys(captured.providers[0].tools)).toEqual(["Read", "Bash"]);
+    await expect(
+      executeTool(captured.providers[0].tools.Bash, {}),
+    ).resolves.toEqual({
+      error: "Tool Bash is not allowed for subagent profile test",
+    });
+  });
+
+  it("keeps denied direct tools present by default and rejects execution", async () => {
+    const surface = await createSubagentToolSurface({
+      tools: {
+        Read: fakeTool("Read"),
+        Bash: fakeTool("Bash"),
+      },
+      profile: resolveProfile({
+        deniedTools: ["Bash"],
+        codemode: { enabled: false, exposeDirectTools: true },
+      }),
+    });
+
+    expect(Object.keys(surface.directTools)).toEqual(["Read", "Bash"]);
+    await expect(executeTool(surface.directTools.Bash, {})).resolves.toEqual({
+      error: "Tool Bash is not allowed for subagent profile test",
+    });
+  });
+
+  it("uses allowedTools as the primary surface narrowing mechanism", async () => {
+    const captured = { providers: [] as CodemodeToolProvider[] };
+    const surface = await createSubagentToolSurface({
+      tools: {
+        Read: fakeTool("Read"),
+        Bash: fakeTool("Bash"),
+        Write: fakeTool("Write"),
+      },
+      profile: resolveProfile({
+        allowedTools: ["Read"],
+        deniedTools: ["Bash"],
+        codemode: { exposeDirectTools: true },
+      }),
+      config: { codemode: codemodeConfig(captured) },
+    });
+
+    expect(Object.keys(surface.directTools)).toEqual(["Read"]);
+    expect(Object.keys(captured.providers[0].tools)).toEqual(["Read"]);
+  });
+
+  it("hides denied direct and Codemode tools when configured", async () => {
+    const captured = { providers: [] as CodemodeToolProvider[] };
+    const surface = await createSubagentToolSurface({
+      tools: {
+        Read: fakeTool("Read"),
+        Bash: fakeTool("Bash"),
+      },
+      profile: resolveProfile({
+        deniedTools: ["Bash"],
+        deniedBehavior: "hide",
+        codemode: { exposeDirectTools: true },
+      }),
+      config: { codemode: codemodeConfig(captured) },
+    });
+
+    expect(Object.keys(surface.directTools)).toEqual(["Read"]);
     expect(Object.keys(captured.providers[0].tools)).toEqual(["Read"]);
   });
 });

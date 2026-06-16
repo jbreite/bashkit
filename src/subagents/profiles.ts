@@ -5,6 +5,7 @@ import type {
   SubagentContextPolicyInput,
   SubagentCostPolicy,
   SubagentCostPolicyInput,
+  SubagentDeniedToolBehavior,
   SubagentError,
   SubagentProfileDefaults,
   SubagentProfileInput,
@@ -22,6 +23,9 @@ export const DEFAULT_SUBAGENT_CODEMODE_POLICY: SubagentCodemodePolicy = {
   enabled: true,
   exposeDirectTools: false,
 };
+
+export const DEFAULT_SUBAGENT_DENIED_TOOL_BEHAVIOR: SubagentDeniedToolBehavior =
+  "reject";
 
 export const DEFAULT_SUBAGENT_COST_POLICY: SubagentCostPolicy = {
   maxUsd: null,
@@ -149,6 +153,11 @@ export function createSubagentProfileRegistry(options?: {
           ...(profile.deniedTools ?? []),
           ...(overrides?.deniedTools ?? []),
         ],
+        deniedBehavior:
+          overrides?.deniedBehavior ??
+          profile.deniedBehavior ??
+          defaults.deniedBehavior ??
+          DEFAULT_SUBAGENT_DENIED_TOOL_BEHAVIOR,
         codemode,
         context,
         cost,

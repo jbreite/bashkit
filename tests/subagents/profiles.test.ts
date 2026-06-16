@@ -14,6 +14,7 @@ describe("createSubagentProfileRegistry", () => {
       name: "worker",
       nickname: "worker",
       codemode: { enabled: true, exposeDirectTools: false },
+      deniedBehavior: "reject",
       context: { mode: "recent", turns: 3 },
     });
   });
@@ -23,6 +24,7 @@ describe("createSubagentProfileRegistry", () => {
       defaults: {
         allowedTools: ["Read", "Grep", "Bash"],
         deniedTools: ["Bash"],
+        deniedBehavior: "hide",
         context: "none",
       },
       profiles: [
@@ -44,6 +46,7 @@ describe("createSubagentProfileRegistry", () => {
       name: "researcher",
       allowedTools: ["Read", "Grep", "Bash", "Glob", "WebSearch"],
       deniedTools: ["Bash"],
+      deniedBehavior: "hide",
       codemode: { enabled: true, exposeDirectTools: true },
       context: { mode: "recent", turns: 2 },
     });

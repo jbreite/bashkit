@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { tool, zodSchema, type ToolSet } from "ai";
 import { z } from "zod";
 import { filterSubagentTools } from "@/subagents";
+import { executeTool } from "../helpers/tool-executor";
 
 function executableTools(): ToolSet {
   const simpleTool = tool({
@@ -27,10 +28,24 @@ describe("filterSubagentTools", () => {
     expect(Object.keys(tools)).toEqual(["Read", "Grep", "Bash"]);
   });
 
-  it("applies denylist after allowlist", () => {
+  it("keeps denied tools visible by default and rejects execution", async () => {
     const filtered = filterSubagentTools(executableTools(), {
       allowedTools: ["Read", "Bash"],
       deniedTools: ["Bash"],
+      profileName: "researcher",
+    });
+
+    expect(Object.keys(filtered)).toEqual(["Read", "Bash"]);
+    await expect(executeTool(filtered.Bash, {})).resolves.toEqual({
+      error: "Tool Bash is not allowed for subagent profile researcher",
+    });
+  });
+
+  it("applies hide behavior after allowlist when explicitly configured", () => {
+    const filtered = filterSubagentTools(executableTools(), {
+      allowedTools: ["Read", "Bash"],
+      deniedTools: ["Bash"],
+      deniedBehavior: "hide",
     });
 
     expect(Object.keys(filtered)).toEqual(["Read"]);
