@@ -136,6 +136,72 @@ console.log(planState.stats());`}
         </section>
 
         <section>
+          <h2 id="ai-sdk-ui-streams">AI SDK UI Streams</h2>
+          <p>
+            Runtime events stay outside the model message list by default, but
+            hosts can forward them to the browser as AI SDK UI data parts. The
+            model still receives ordinary tool results; the UI receives typed
+            progress, changes, approvals, and subagent activity alongside the
+            assistant stream.
+          </p>
+          <CodeBlock
+            language="typescript"
+            copyable
+            code={`import {
+  createUIMessageStream,
+  createUIMessageStreamResponse,
+  streamText,
+  type UIMessage,
+} from 'ai';
+import {
+  createAgentTools,
+  createMemoryRuntimeEventSink,
+  type RuntimeEvent,
+} from 'bashkit';
+
+type AgentMessage = UIMessage<
+  unknown,
+  { 'bashkit-runtime-event': RuntimeEvent }
+>;
+
+export async function POST(req: Request) {
+  const { messages } = await req.json();
+
+  const stream = createUIMessageStream<AgentMessage>({
+    execute: async ({ writer }) => {
+      const eventSink = createMemoryRuntimeEventSink();
+
+      eventSink.subscribe((event) => {
+        writer.write({
+          type: 'data-bashkit-runtime-event',
+          data: event,
+          transient: true,
+        });
+
+        // Optional: also persist for refresh-safe UI state.
+        persistRuntimeEvent(event);
+      });
+
+      const { tools } = await createAgentTools(sandbox, {
+        runtime: { eventSink },
+      });
+
+      const result = streamText({
+        model,
+        messages,
+        tools,
+      });
+
+      writer.merge(result.toUIMessageStream());
+    },
+  });
+
+  return createUIMessageStreamResponse({ stream });
+}`}
+          />
+        </section>
+
+        <section>
           <h2 id="file-changes">File Changes</h2>
           <p>
             When a runtime <code>eventSink</code> is configured, BashKit emits{" "}

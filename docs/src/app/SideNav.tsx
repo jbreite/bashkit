@@ -94,6 +94,7 @@ const links: {
       { id: "overview", text: "Overview" },
       { id: "event-sink", text: "Event Sink" },
       { id: "plan-state", text: "Plan State" },
+      { id: "ai-sdk-ui-streams", text: "AI SDK UI Streams" },
       { id: "file-changes", text: "File Changes" },
       { id: "approvals", text: "Approvals" },
       { id: "snapshots", text: "Snapshots" },
