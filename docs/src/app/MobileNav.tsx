@@ -13,6 +13,7 @@ const links = [
   { href: "/codemode", label: "Codemode" },
   { href: "/sandboxes", label: "Sandboxes" },
   { href: "/context", label: "Context" },
+  { href: "/runtime", label: "Runtime" },
   { href: "/api-reference", label: "API Reference" },
 ];
 

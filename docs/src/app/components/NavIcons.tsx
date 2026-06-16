@@ -57,6 +57,15 @@ export const navIcons: Record<string, React.ReactNode> = {
       <polyline points="2 12 12 17 22 12" />
     </svg>
   ),
+  "/runtime": (
+    <svg {...iconProps}>
+      <rect x="3" y="4" width="18" height="16" rx="2" />
+      <path d="M7 8h10" />
+      <path d="M7 12h4" />
+      <path d="M7 16h7" />
+      <path d="M17 12l2 2-2 2" />
+    </svg>
+  ),
   "/api-reference": (
     <svg {...iconProps}>
       <polyline points="16 18 22 12 16 6" />

@@ -88,6 +88,18 @@ const links: {
     ],
   },
   {
+    href: "/runtime",
+    label: "Runtime",
+    items: [
+      { id: "overview", text: "Overview" },
+      { id: "event-sink", text: "Event Sink" },
+      { id: "plan-state", text: "Plan State" },
+      { id: "approvals", text: "Approvals" },
+      { id: "snapshots", text: "Snapshots" },
+      { id: "host-responsibilities", text: "Host Responsibilities" },
+    ],
+  },
+  {
     href: "/api-reference",
     label: "API Reference",
     items: [
