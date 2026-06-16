@@ -159,8 +159,13 @@ import {
   type RuntimeEvent,
 } from 'bashkit';
 
+type AgentMessageMetadata = {
+  threadId: string;
+  turnId: string;
+};
+
 type AgentMessage = UIMessage<
-  unknown,
+  AgentMessageMetadata,
   { 'bashkit-runtime-event': RuntimeEvent }
 >;
 
