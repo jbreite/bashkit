@@ -348,6 +348,7 @@ export type {
   SystemContext,
   PrepareStepConfig,
   RuntimeEventLayerConfig,
+  FileChangeEventLayerConfig,
 } from "./context";
 export {
   withContext,
@@ -355,6 +356,7 @@ export {
   createExecutionPolicy,
   createOutputPolicy,
   createRuntimeEventLayer,
+  createFileChangeEventLayer,
   discoverInstructions,
   collectEnvironment,
   formatEnvironment,

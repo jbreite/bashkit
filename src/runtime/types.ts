@@ -151,6 +151,8 @@ export interface FileChangedEvent extends RuntimeEventBase {
   path: string;
   change: FileChangeKind;
   unified_diff?: string | null;
+  tool_call_id?: string | null;
+  tool_name?: string | null;
 }
 
 export interface CommandOutputEvent extends RuntimeEventBase {

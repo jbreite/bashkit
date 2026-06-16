@@ -13,16 +13,26 @@ export interface RuntimeEventLayerConfig {
   turnId?: string | null;
 }
 
-interface ToolCallMeta {
+export interface RuntimeToolCallMeta {
   tool_call_id: string;
   started_at: number;
 }
 
 let toolCallCounter = 0;
+const runtimeToolCalls = new WeakMap<
+  Record<string, unknown>,
+  RuntimeToolCallMeta
+>();
 
 function createToolCallId(toolName: string): string {
   toolCallCounter += 1;
   return `${toolName.toLowerCase()}_${toolCallCounter.toString(36).padStart(4, "0")}`;
+}
+
+export function getRuntimeToolCallMeta(
+  params: Record<string, unknown>,
+): RuntimeToolCallMeta | undefined {
+  return runtimeToolCalls.get(params);
 }
 
 function jsonValueFromUnknown(value: unknown): JsonValue {
@@ -61,15 +71,13 @@ function jsonObjectFromRecord(record: Record<string, unknown>): JsonObject {
 export function createRuntimeEventLayer(
   config: RuntimeEventLayerConfig,
 ): ContextLayer {
-  const calls = new WeakMap<Record<string, unknown>, ToolCallMeta>();
-
   return {
     beforeExecute: async (toolName, params) => {
       const meta = {
         tool_call_id: createToolCallId(toolName),
         started_at: performance.now(),
       };
-      calls.set(params, meta);
+      runtimeToolCalls.set(params, meta);
 
       await config.eventSink.emit(
         createRuntimeEvent({
@@ -88,11 +96,11 @@ export function createRuntimeEventLayer(
 
     afterExecute: async (toolName, params, result) => {
       const meta =
-        calls.get(params) ??
+        runtimeToolCalls.get(params) ??
         ({
           tool_call_id: createToolCallId(toolName),
           started_at: performance.now(),
-        } satisfies ToolCallMeta);
+        } satisfies RuntimeToolCallMeta);
       const durationMs = Math.round(performance.now() - meta.started_at);
 
       if (typeof result.error === "string") {
@@ -123,7 +131,6 @@ export function createRuntimeEventLayer(
         );
       }
 
-      calls.delete(params);
       return result;
     },
   };

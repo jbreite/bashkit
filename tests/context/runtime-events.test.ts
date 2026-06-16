@@ -2,7 +2,10 @@ import { describe, expect, it } from "vitest";
 import { tool, zodSchema } from "ai";
 import { z } from "zod";
 import { applyContextLayers, createRuntimeEventLayer } from "@/context";
-import { createMemoryRuntimeEventSink } from "@/runtime";
+import {
+  createMemoryRuntimeEventSink,
+  projectChangesSnapshot,
+} from "@/runtime";
 import { createAgentTools } from "@/tools";
 import { createMockSandbox, executeTool } from "@test/helpers";
 
@@ -89,5 +92,133 @@ describe("createRuntimeEventLayer", () => {
       tool_name: "Read",
       thread_id: "thread_1",
     });
+  });
+
+  it("emits file changed events for successful Write calls", async () => {
+    const sink = createMemoryRuntimeEventSink();
+    const sandbox = createMockSandbox();
+    const { tools } = await createAgentTools(sandbox, {
+      runtime: {
+        eventSink: sink,
+        planContext: {
+          agent_id: "agent_1",
+          thread_id: "thread_1",
+          turn_id: "turn_1",
+        },
+      },
+    });
+
+    await executeTool(tools.Write, {
+      file_path: "/tmp/new.txt",
+      content: "hello\n",
+    });
+
+    const started = sink.events.find((event) => event.type === "tool.started");
+    const changed = sink.events.find((event) => event.type === "file.changed");
+
+    expect(changed).toMatchObject({
+      type: "file.changed",
+      path: "/tmp/new.txt",
+      change: "created",
+      tool_name: "Write",
+      agent_id: "agent_1",
+      thread_id: "thread_1",
+      turn_id: "turn_1",
+    });
+    expect(changed?.tool_call_id).toBe(started?.tool_call_id);
+    expect(changed?.unified_diff).toContain("+hello");
+  });
+
+  it("emits modified file changed events for Edit calls", async () => {
+    const sink = createMemoryRuntimeEventSink();
+    const sandbox = createMockSandbox({
+      files: { "/tmp/file.txt": "before\n" },
+    });
+    const { tools } = await createAgentTools(sandbox, {
+      runtime: { eventSink: sink },
+    });
+
+    await executeTool(tools.Edit, {
+      file_path: "/tmp/file.txt",
+      old_string: "before",
+      new_string: "after",
+      replace_all: null,
+    });
+
+    const changed = sink.events.find((event) => event.type === "file.changed");
+    expect(changed).toMatchObject({
+      type: "file.changed",
+      path: "/tmp/file.txt",
+      change: "modified",
+      tool_name: "Edit",
+    });
+    expect(changed?.unified_diff).toContain("-before");
+    expect(changed?.unified_diff).toContain("+after");
+  });
+
+  it("emits deleted file changed events for Patch calls", async () => {
+    const sink = createMemoryRuntimeEventSink();
+    const sandbox = createMockSandbox({
+      files: { "/tmp/delete.txt": "gone\n" },
+    });
+    const { tools } = await createAgentTools(sandbox, {
+      patch: true,
+      runtime: { eventSink: sink },
+    });
+
+    await executeTool(tools.Patch, {
+      patch: `*** Begin Patch
+*** Delete File: /tmp/delete.txt
+*** End Patch`,
+    });
+
+    const changes = projectChangesSnapshot(sink.events);
+    expect(changes).toEqual([
+      expect.objectContaining({
+        path: "/tmp/delete.txt",
+        change: "deleted",
+        unified_diff: expect.stringContaining("-gone"),
+      }),
+    ]);
+  });
+
+  it("does not emit file changed events for failed mutating calls", async () => {
+    const sink = createMemoryRuntimeEventSink();
+    const sandbox = createMockSandbox();
+    const { tools } = await createAgentTools(sandbox, {
+      runtime: { eventSink: sink },
+    });
+
+    await executeTool(tools.Edit, {
+      file_path: "/tmp/missing.txt",
+      old_string: "before",
+      new_string: "after",
+      replace_all: null,
+    });
+
+    expect(sink.events.some((event) => event.type === "file.changed")).toBe(
+      false,
+    );
+  });
+
+  it("can disable automatic file changed events", async () => {
+    const sink = createMemoryRuntimeEventSink();
+    const sandbox = createMockSandbox();
+    const { tools } = await createAgentTools(sandbox, {
+      runtime: {
+        eventSink: sink,
+        fileChanges: false,
+      },
+    });
+
+    await executeTool(tools.Write, {
+      file_path: "/tmp/new.txt",
+      content: "hello\n",
+    });
+
+    expect(sink.events.map((event) => event.type)).toEqual([
+      "tool.started",
+      "tool.completed",
+    ]);
   });
 });

@@ -14,6 +14,7 @@ Builds the agent's runtime context: static system prompt assembly (instructions,
 | `execution-policy.ts` | `createExecutionPolicy()` — plan-mode + custom gate layer (`beforeExecute`) |
 | `output-policy.ts` | `createOutputPolicy()` — truncation + redirection hints + optional disk stash (`afterExecute`) |
 | `runtime-events.ts` | `createRuntimeEventLayer()` — emits normalized `tool.started`, `tool.completed`, and `tool.failed` events |
+| `file-changes.ts` | `createFileChangeEventLayer()` — snapshots mutating tool targets and emits normalized `file.changed` events with unified diffs |
 | `prepare-step.ts` | `createPrepareStep()` — composes compaction + context-status + plan-mode hints for AI SDK `prepareStep` |
 
 ## Key Exports
@@ -25,6 +26,7 @@ Builds the agent's runtime context: static system prompt assembly (instructions,
 - `createExecutionPolicy(planModeState, config?)` -- Blocks `["Bash", "Write", "Edit"]` by default when plan mode is active
 - `createOutputPolicy(config?)` -- Defaults: `maxOutputLength: 30000`, `redirectionThreshold: 20000`, uses `middleTruncate`
 - `createRuntimeEventLayer(config)` -- Emits host-facing runtime tool lifecycle events through a `RuntimeEventSink`
+- `createFileChangeEventLayer(config)` -- Emits host-facing `file.changed` events for successful `Write`, `Edit`, and `Patch` calls by comparing before/after sandbox file snapshots
 - `createPrepareStep(config)` -- Returns a `PrepareStepFunction<ToolSet>`; **never touches `system`** (prompt cache)
 - `discoverInstructions`, `collectEnvironment`, `formatEnvironment`, `buildToolGuidance` -- individual section builders
 

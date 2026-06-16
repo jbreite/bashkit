@@ -1,6 +1,6 @@
 # Runtime Module
 
-Host-facing runtime primitives for building Codex-like agent experiences on top of BashKit without making BashKit an app server. This module owns normalized event contracts, event sinks, canonical plan state, approval lifecycle contracts, and snapshot reducers.
+Host-facing runtime primitives for building Codex-like agent experiences on top of BashKit without making BashKit an app server. This module owns normalized event contracts, event sinks, canonical plan state, approval lifecycle contracts, file-change event contracts, and snapshot reducers.
 
 ## Files
 
@@ -18,6 +18,8 @@ Host-facing runtime primitives for building Codex-like agent experiences on top 
 `RuntimeEventSink` is a small host-facing event stream. It records and publishes typed JSON-safe `RuntimeEvent` objects but does not decide where they go. Hosts can forward events to React state, WebSockets, databases, logs, or queues.
 
 `PlanState` is canonical for progress tracking. It follows Codex `update_plan` semantics: an optional explanation plus plan items with `step` and `status`. Runtime state should not depend on legacy todo-list fields such as `activeForm`.
+
+`file.changed` events are emitted by the context-layer integration in `../context/file-changes.ts`, not directly by runtime helpers. The runtime module only defines the event contract and snapshot projection so hosts can render Changes panels from any compatible event source.
 
 ## Design Rules
 

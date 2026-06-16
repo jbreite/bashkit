@@ -1,6 +1,6 @@
 import type { LanguageModel, Tool, ToolSet } from "ai";
 import type { CacheStore } from "./cache/types";
-import type { ContextLayer } from "./context/index";
+import type { ContextLayer, FileChangeEventLayerConfig } from "./context/index";
 import type { ExecutionPolicyConfig } from "./context/execution-policy";
 import type { OutputPolicyConfig } from "./context/output-policy";
 import type { PlanState, PlanUpdateContext, RuntimeEventSink } from "./runtime";
@@ -93,6 +93,16 @@ export interface RuntimeConfig {
   initialPlan?: Partial<PlanState>;
   /** Default event identity for main-agent plan updates. */
   planContext?: PlanUpdateContext;
+  /**
+   * Emit file.changed events after successful mutating tools.
+   * Defaults to true when eventSink is configured.
+   */
+  fileChanges?:
+    | boolean
+    | Omit<
+        FileChangeEventLayerConfig,
+        "sandbox" | "eventSink" | "agentId" | "threadId" | "turnId"
+      >;
 }
 
 /**

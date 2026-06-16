@@ -3,6 +3,7 @@ import type { CacheStore } from "../cache/types";
 import { cached, LRUCacheStore } from "../cache";
 import { applyContextLayers, type ContextLayer } from "../context/index";
 import { createExecutionPolicy } from "../context/execution-policy";
+import { createFileChangeEventLayer } from "../context/file-changes";
 import { createOutputPolicy } from "../context/output-policy";
 import { createRuntimeEventLayer } from "../context/runtime-events";
 import type { Sandbox } from "../sandbox/interface";
@@ -373,6 +374,23 @@ export async function createAgentTools(
         turnId: config.runtime.planContext?.turn_id,
       }),
     );
+
+    if (config.runtime.fileChanges !== false) {
+      const fileChangeConfig =
+        typeof config.runtime.fileChanges === "object"
+          ? config.runtime.fileChanges
+          : {};
+      contextLayers.push(
+        createFileChangeEventLayer({
+          ...fileChangeConfig,
+          sandbox,
+          eventSink: config.runtime.eventSink,
+          agentId: config.runtime.planContext?.agent_id,
+          threadId: config.runtime.planContext?.thread_id,
+          turnId: config.runtime.planContext?.turn_id,
+        }),
+      );
+    }
   }
 
   // Apply all layers to all tools

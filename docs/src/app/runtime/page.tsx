@@ -136,6 +136,40 @@ console.log(planState.stats());`}
         </section>
 
         <section>
+          <h2 id="file-changes">File Changes</h2>
+          <p>
+            When a runtime <code>eventSink</code> is configured, BashKit emits{" "}
+            <code>file.changed</code> events after successful calls to{" "}
+            <code>Write</code>, <code>Edit</code>, and <code>Patch</code>. Each
+            event includes the path, change type, originating tool, tool call
+            id, and a unified diff when BashKit can safely capture one.
+          </p>
+          <CodeBlock
+            language="typescript"
+            copyable
+            code={`const eventSink = createMemoryRuntimeEventSink();
+
+const { tools } = await createAgentTools(sandbox, {
+  patch: true,
+  runtime: {
+    eventSink,
+    fileChanges: {
+      maxDiffBytes: 80_000,
+    },
+  },
+});
+
+eventSink.subscribe((event) => {
+  if (event.type === 'file.changed') {
+    console.log(event.path, event.change, event.unified_diff);
+  }
+});
+
+// Set fileChanges: false to disable automatic change events.`}
+          />
+        </section>
+
+        <section>
           <h2 id="approvals">Approvals</h2>
           <p>
             BashKit exposes approval event helpers so hosts can render and audit

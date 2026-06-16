@@ -35,6 +35,8 @@ export type { PrepareStepConfig } from "./prepare-step";
 export { createPrepareStep } from "./prepare-step";
 export type { RuntimeEventLayerConfig } from "./runtime-events";
 export { createRuntimeEventLayer } from "./runtime-events";
+export type { FileChangeEventLayerConfig } from "./file-changes";
+export { createFileChangeEventLayer } from "./file-changes";
 
 /**
  * Context layer that intercepts tool execution.

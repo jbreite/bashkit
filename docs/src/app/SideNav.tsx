@@ -94,6 +94,7 @@ const links: {
       { id: "overview", text: "Overview" },
       { id: "event-sink", text: "Event Sink" },
       { id: "plan-state", text: "Plan State" },
+      { id: "file-changes", text: "File Changes" },
       { id: "approvals", text: "Approvals" },
       { id: "snapshots", text: "Snapshots" },
       { id: "host-responsibilities", text: "Host Responsibilities" },
